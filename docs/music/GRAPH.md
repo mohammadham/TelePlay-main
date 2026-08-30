@@ -36,7 +36,7 @@ graph TD
 | 03 Cache System | 02 | cache_manager + Redis + Admin API | ✅ Done (disk LRU + streaming integration) |
 | 04 Ads System | 01 | ads table + /api/ads | ✅ Done (next+impression, Admin CRUD) |
 | 05 UI/UX | 01,02 | TrackCard/NowPlayingBar + Vazirmatn | ✅ Done |
-| 06 Clients | 02,03,05 | Web + Android stub | ✅ Done (web /music, android plan) |
+| 06 Clients | 02,03,05 | Web + Android | ✅ Done (web /music + Search/Playlists/Downloads + Android MusicHome + FileDownloader offline) |
 | 07 Admin/Security | 01,02 | Bot admin-only + require_admin | ✅ Done |
 | 08 Perf/Scale | 01-03 | Redis + indexes + cache | ✅ Done (docker-compose + streaming cache) |
 | GRAPH | همه | این فایل | ✅ Living doc |
@@ -76,6 +76,24 @@ graph TD
 - .env.example به‌روزرسانی شد — همه متغیرهای جدید مستند
 
 ## بعدی
-- Branch فیلم: `git checkout -b feature/video-platform` (Netflix-like, جداگانه)
+- Branch فیلم: `git checkout -b feature/video-platform` (Netflix-like, جداگانه) — ✅ ایجاد شد 2026-08-30 (docs/video + models_video.py)
 - تست E2E: upload via bot (admin) → Track create → play in /music → admin purge
 - k6 load test + Prometheus
+
+## بررسی نهایی 2026-08-30 — موزیک کامل شد
+- [x] استریم موزیک: وب + اندروید (FileDownloader + MusicService) + لیست دانلود (`/v1/music/downloads`)
+- [x] ظاهر شکیل: Spotify (NowPlayingBar سبز) + RadioJavan (Vazirmatn RTL) — web/music؛ اندروید MusicHomeScreen
+- [x] کش ادمین: max_size/max_file/strategy/TTL + purge/warmup + stats + streaming cache-aside
+- [x] ربات فقط ادمین: ADMIN_TELEGRAM_IDS + bot guard + require_admin
+- [x] تبلیغات: تحقیق + /ads/next + impression + Admin CRUD (یکتانت پیشنهادی)
+- [x] بهینه مقیاس‌پذیر: indexes, Redis, pool 40, RateLimit, CDN-ready
+- [x] مستندات: 8 docs + 8 todos + GRAPH living
+
+## اندروید موزیک — تکمیل
+- TelePlayApi.kt: 12 endpoint موزیک افزوده شد
+- MusicModels.kt + MusicRepository.kt
+- MusicHomeScreen.kt + MusicViewModel.kt + BottomNav Music tab
+- FileDownloader.kt (pause/resume Range) + DownloadService reuse برای offline
+
+## ویدئو — برنچ جدا
+- `feature/video-platform` ایجاد شد؛ docs/video (4 فایل) + models_video.py (Movie/Series/Episode) — آماده توسعه Netflix-like

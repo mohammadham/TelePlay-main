@@ -312,6 +312,31 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 import MediaPlayer from './components/MediaPlayer';
+import MusicHome from './components/music/MusicHome';
+import NowPlayingBar from './components/music/NowPlayingBar';
+import CachePanel from './components/admin/CachePanel';
+import AdsPanel from './components/admin/AdsPanel';
+
+function MusicLayout() {
+    return (
+        <div className="min-h-screen bg-[#121212] text-white">
+            <MusicHome />
+            <NowPlayingBar />
+        </div>
+    );
+}
+
+function AdminLayout() {
+    return (
+        <div className="min-h-screen bg-dark-950 text-white p-4">
+            <h1 className="text-xl font-bold mb-4">Admin — Music Platform</h1>
+            <div className="grid md:grid-cols-2 gap-6">
+                <CachePanel />
+                <AdsPanel />
+            </div>
+        </div>
+    );
+}
 
 function App() {
     return (
@@ -321,6 +346,8 @@ function App() {
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/auth" element={<AuthCallback />} />
+                <Route path="/music" element={<ProtectedRoute><MusicLayout /></ProtectedRoute>} />
+                <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route
                     path="/*"
                     element={

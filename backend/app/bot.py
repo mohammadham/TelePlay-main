@@ -102,23 +102,30 @@ def get_web_app_button(telegram_id: int, text: str = "🌐 Open Web") -> InlineK
 
 @tg_client.on_message(filters.private, group=-2)
 async def check_auth(client, message: Message):
-    """Check if the user is authorized to use the bot."""
+    """Check if the user is authorized — ADMIN_TELEGRAM_IDS has priority."""
+    # Admin-only mode (new)
+    admin_ids = settings.admin_ids
+    if admin_ids:
+        if message.from_user.id not in admin_ids:
+            if message.text and message.text.startswith("/start"):
+                await message.reply(
+                    "🚫 **Access Restricted — Admin Only**\n\n"
+                    "This bot is now admin-only.\n"
+                    f"Your Telegram ID: `{message.from_user.id}`"
+                )
+            message.stop_propagation()
+        return
+    # Fallback to legacy AUTH_USERS
     auth_users = settings.auth_users
     if not auth_users:
-        # Open to everyone
         return
-    
     if message.from_user.id not in auth_users:
-        # Ignore if it's a command we don't want to reply to (to avoid spamming unauthorized users)
-        # But for /start, we should give a polite rejection
         if message.text and message.text.startswith("/start"):
             await message.reply(
                 "🚫 **Access Restricted**\n\n"
                 "Sorry, this bot is limited to authorized users only.\n"
                 f"Your Telegram ID: `{message.from_user.id}`"
             )
-        
-        # Stop further processing of this message
         message.stop_propagation()
 
 # ============== Command Handlers ==============

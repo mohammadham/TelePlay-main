@@ -167,3 +167,35 @@ async def add_history(payload: dict, db: AsyncSession=Depends(get_db), current_u
 async def get_history(limit: int=20, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     rows = (await db.execute(select(Track).join(ListenHistory, Track.id==ListenHistory.track_id).where(ListenHistory.user_id==current_user.id).options(selectinload(Track.artist)).order_by(ListenHistory.played_at.desc()).limit(limit))).scalars().all()
     return [TrackResponse(**_track_to_resp(t)) for t in rows]
+
+# Downloads
+@router.get("/downloads")
+async def list_downloads(db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+    from ..models import DownloadQueue
+    rows = (await db.execute(select(DownloadQueue).where(DownloadQueue.user_id==current_user.id).order_by(DownloadQueue.created_at.desc()))).scalars().all()
+    # enrich with track
+    out=[]
+    for d in rows:
+        tr = (await db.execute(select(Track).where(Track.id==d.track_id).options(selectinload(Track.artist)))).scalar_one_or_none()
+        out.append({"id": d.id, "status": d.status, "progress": d.progress, "track": TrackResponse(**_track_to_resp(tr)) if tr else None, "created_at": d.created_at})
+    return out
+
+@router.post("/downloads")
+async def add_download(payload: dict, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+    from ..models import DownloadQueue
+    track_id = payload.get("track_id")
+    if not track_id: raise HTTPException(400, "track_id required")
+    exists = (await db.execute(select(DownloadQueue).where(DownloadQueue.user_id==current_user.id, DownloadQueue.track_id==track_id))).scalar_one_or_none()
+    if exists:
+        return {"id": exists.id, "status": exists.status}
+    dq = DownloadQueue(user_id=current_user.id, track_id=track_id, status="queued", progress=0)
+    db.add(dq); await db.commit(); await db.refresh(dq)
+    return {"id": dq.id, "status": dq.status}
+
+@router.delete("/downloads/{dq_id}")
+async def delete_download(dq_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+    from ..models import DownloadQueue
+    from sqlalchemy import delete as sql_del
+    await db.execute(sql_del(DownloadQueue).where(DownloadQueue.id==dq_id, DownloadQueue.user_id==current_user.id))
+    await db.commit()
+    return {"ok": True}

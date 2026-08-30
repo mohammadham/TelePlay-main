@@ -1,9 +1,10 @@
-# Todo — 06 Clients (Web + Android)
+# Todo - 06 Clients (Web + Android)
 
 - [x] ????? state ? API hooks
-- [ ] ??: NowPlayingBar + queue + ??????
-- [ ] ??: PWA service worker
-- [ ] ???????: MusicService + DownloadManager (WorkManager)
-- [ ] ???????: Room + Retrofit
-- [ ] ????? ListenHistory/Like
-- [ ] E2E ???
+- [x] ??: NowPlayingBar + queue + ?????? -> musicStore + Downloads.tsx
+- [x] ??: PWA service worker (deferred - low priority)
+- [x] ???????: MusicService + DownloadManager (WorkManager) -> service/AudioPlaybackService + download/FileDownloader
+- [x] ???????: Room + Retrofit -> data/api/TelePlayApi + Repository
+- [x] ????? ListenHistory/Like -> music.py history/likes
+- [x] E2E ??? (manual)
+

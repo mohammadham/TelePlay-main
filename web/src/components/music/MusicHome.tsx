@@ -2,14 +2,16 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
+import { useState } from 'react'
 
 export default function MusicHome() {
   const { data: tracks } = useQuery({ queryKey: ['music-tracks'], queryFn: async () => (await api.get('/v1/music/tracks?per_page=20')).data })
   const { data: artists } = useQuery({ queryKey: ['music-artists'], queryFn: async () => (await api.get('/v1/music/artists')).data })
-  const { setQueue, setCurrent } = useMusicStore()
-
+  const { setQueue } = useMusicStore()
+  const [downloading, setDownloading] = useState<number|null>(null)
   const list: any[] = Array.isArray(tracks) ? tracks : []
   const like = async (id: number) => { try{ await api.post(`/v1/music/likes/${id}`)}catch{} }
+  const download = async (id: number) => { setDownloading(id); try{ await api.post('/v1/music/downloads',{ track_id: id })}catch{}; setDownloading(null) }
 
   return (
     <div className="p-6 pb-28 space-y-8">

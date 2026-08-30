@@ -1,8 +1,9 @@
-# Todo — 07 Admin & Security
+# Todo - 07 Admin & Security
 
 - [x] ????? guard
-- [ ] config ADMIN_TELEGRAM_IDS
-- [ ] bot.py admin_only_guard
-- [ ] auth.require_admin + ????? ??? /admin/*
-- [ ] ??? block non-admin
-- [ ] ????? .env
+- [x] config ADMIN_TELEGRAM_IDS -> config.py
+- [x] bot.py admin_only_guard -> group=-2 priority
+- [x] auth.require_admin + ????? ??? /admin/*
+- [x] ??? block non-admin (manual)
+- [x] ????? .env -> .env.example
+

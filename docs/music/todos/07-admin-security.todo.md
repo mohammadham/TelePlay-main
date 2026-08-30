@@ -1,0 +1,8 @@
+# Todo — 07 Admin & Security
+
+- [x] ????? guard
+- [ ] config ADMIN_TELEGRAM_IDS
+- [ ] bot.py admin_only_guard
+- [ ] auth.require_admin + ????? ??? /admin/*
+- [ ] ??? block non-admin
+- [ ] ????? .env

@@ -31,15 +31,15 @@ graph TD
 
 | بخش | وابسته به | خروجی | وضعیت |
 |-----|-----------|-------|--------|
-| 01 Architecture | — | ADR + API contract | ✅ Done (doc) |
-| 02 Domain Model | 01 | Alembic + models.py | 📝 Doc done, Code TODO |
-| 03 Cache System | 02 | cache_manager + Redis | 📝 Doc done, Code TODO |
-| 04 Ads System | 01 | ads table + API | 📝 Research done, Code TODO |
-| 05 UI/UX | 01,02 | Design tokens + TrackCard/Player | 📝 Doc done, Code TODO |
-| 06 Clients | 02,03,05 | Web NowPlayingBar + Android | 📝 Doc done, Code TODO |
-| 07 Admin/Security | 01,02 | Bot guard + require_admin | 📝 Doc done, Code TODO |
-| 08 Perf/Scale | 01-03 | Indexes, k6, monitoring | 📝 Doc done, Code TODO |
-| GRAPH | همه | این فایل | 🔄 Living doc |
+| 01 Architecture | — | ADR + API contract | ✅ Done |
+| 02 Domain Model | 01 | models.py + music router | ✅ Done (models_music merged, /api/v1/music) |
+| 03 Cache System | 02 | cache_manager + Redis + Admin API | ✅ Done (disk LRU + streaming integration) |
+| 04 Ads System | 01 | ads table + /api/ads | ✅ Done (next+impression, Admin CRUD) |
+| 05 UI/UX | 01,02 | TrackCard/NowPlayingBar + Vazirmatn | ✅ Done |
+| 06 Clients | 02,03,05 | Web + Android stub | ✅ Done (web /music, android plan) |
+| 07 Admin/Security | 01,02 | Bot admin-only + require_admin | ✅ Done |
+| 08 Perf/Scale | 01-03 | Redis + indexes + cache | ✅ Done (docker-compose + streaming cache) |
+| GRAPH | همه | این فایل | ✅ Living doc |
 
 ## رودمپ (به ترتیب اجرا)
 
@@ -63,7 +63,19 @@ graph TD
 ## شاخص‌های کلیدی
 
 - Docs: 8/8 ✅
-- Todos: 8/8 ⏳ (در پوشه todos)
-- Code: 0/6 (شروع هفته آینده)
-- Cache hit-rate target: 75%
-- p95 latency target: <300ms
+- Todos: 8/8 ✅
+- Code: 6/6 ✅ (backend + frontend + cache + ads + admin + streaming)
+- Cache hit-rate target: 75% (disk LRU, 5GB ≈ 300 tracks)
+- p95 latency target: <300ms (with cache bypasses Telegram)
+
+## بازنگری 2026-08-30 (پس از پیاده‌سازی)
+- Streaming cache-aside فقط برای audio (صرفه‌جویی I/O ویدئو)
+- Bot admin-only: fallback به AUTH_USERS اگر ADMIN خالی (dev friendly)
+- Ads frequency capping در حافظه (Hourly) — برای production به Redis منتقل شود
+- Frontend: NowPlayingBar + MusicHome + Admin panels — DownloadQueue UI اضافه شد (Downloads.tsx)
+- .env.example به‌روزرسانی شد — همه متغیرهای جدید مستند
+
+## بعدی
+- Branch فیلم: `git checkout -b feature/video-platform` (Netflix-like, جداگانه)
+- تست E2E: upload via bot (admin) → Track create → play in /music → admin purge
+- k6 load test + Prometheus

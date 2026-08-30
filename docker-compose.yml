@@ -90,9 +90,10 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - telegram_session:/app/session
-      - cache_data:/cache/audio
+      - cache_data:/cache
     networks:
       - telegram-tv-network
+    # video cache uses same volume with subdir /cache/video
 
   # -----------------------------------------
   # Web Interface (React + Nginx)

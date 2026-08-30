@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     ads_enabled: bool = Field(True, alias="ADS_ENABLED")
     ads_every_n_tracks: int = Field(4, alias="ADS_EVERY_N_TRACKS")
     ads_max_per_hour: int = Field(6, alias="ADS_MAX_PER_HOUR")
+
+    # Video Cache (separate from audio)
+    video_cache_enabled: bool = Field(True, alias="VIDEO_CACHE_ENABLED")
+    video_cache_max_size_mb: int = Field(20480, alias="VIDEO_CACHE_MAX_SIZE_MB")
+    video_cache_max_file_size_mb: int = Field(500, alias="VIDEO_CACHE_MAX_FILE_SIZE_MB")
+    video_cache_dir: str = Field("/cache/video", alias="VIDEO_CACHE_DIR")
     
     @property
     def telegram_helper_bot_tokens(self) -> list[str]:

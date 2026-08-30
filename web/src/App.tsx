@@ -319,6 +319,7 @@ import AdsPanel from './components/admin/AdsPanel';
 import PlaylistView from './components/music/PlaylistView';
 import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
+import VideoHome from './components/video/VideoHome';
 
 function MusicLayout() {
     return (
@@ -331,6 +332,7 @@ function MusicLayout() {
 function MusicSearchLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><SearchView /><NowPlayingBar/></div> }
 function MusicPlaylistsLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><PlaylistView /><NowPlayingBar/></div> }
 function MusicDownloadsLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><Downloads /><NowPlayingBar/></div> }
+function VideoLayout(){ return <VideoHome /> }
 
 function AdminLayout() {
     return (
@@ -356,6 +358,7 @@ function App() {
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists" element={<ProtectedRoute><MusicPlaylistsLayout /></ProtectedRoute>} />
                 <Route path="/music/downloads" element={<ProtectedRoute><MusicDownloadsLayout /></ProtectedRoute>} />
+                <Route path="/video" element={<ProtectedRoute><VideoLayout /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route
                     path="/*"

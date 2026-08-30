@@ -94,6 +94,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <a href="/music" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#1DB954]/15 text-[#1DB954] font-medium hover:bg-[#1DB954]/20 transition-colors">
                         <Music className="w-5 h-5" /> Music
                     </a>
+                    <a href="/video" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-red-600/15 text-red-400 font-medium hover:bg-red-600/20 transition-colors">
+                        <PlayCircle className="w-5 h-5" /> Video
+                    </a>
                     <NavItem section="files" icon={Files} label="My Files" />
                     <NavItem section="recent" icon={Clock} label="Recently Added" />
                     <NavItem section="continue_watching" icon={PlayCircle} label="Continue Watching" />

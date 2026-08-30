@@ -254,5 +254,45 @@ class NextAdResponse(BaseModel):
     audio_url: Optional[str] = None
     skip_after: int = 5
 
+# ============== Video Schemas ==============
+class MovieResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    genre: Optional[str] = None
+    year: Optional[int] = None
+    file_id: int
+    duration: Optional[int] = None
+    featured: bool = False
+    created_at: datetime
+    stream_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class SeriesResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    genre: Optional[str] = None
+    year: Optional[int] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class EpisodeResponse(BaseModel):
+    id: int
+    series_id: int
+    season: int
+    episode: int
+    title: str
+    file_id: int
+    duration: Optional[int] = None
+    stream_url: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class VideoBrowseResponse(BaseModel):
+    hero: Optional[MovieResponse] = None
+    continue_watching: List[MovieResponse] = []
+    by_genre: dict = {}
+
 # Resolve forward references
 FolderWithChildren.model_rebuild()

@@ -271,3 +271,50 @@ class AdConfig(Base):
     every_n_tracks: Mapped[int] = mapped_column(Integer, default=4)
     max_per_hour: Mapped[int] = mapped_column(Integer, default=6)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== VIDEO DOMAIN (Netflix-like) ====================
+
+class Movie(Base):
+    __tablename__ = "movies"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    genre: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    year: Mapped[Optional[int]] = mapped_column(Integer)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id", ondelete="CASCADE"), nullable=False, unique=True)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500))
+    duration: Mapped[Optional[int]] = mapped_column(Integer)
+    featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    __table_args__ = (Index("idx_movie_genre", genre), Index("idx_movie_featured", featured))
+
+class Series(Base):
+    __tablename__ = "series"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    genre: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    year: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class Episode(Base):
+    __tablename__ = "episodes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    series_id: Mapped[int] = mapped_column(ForeignKey("series.id", ondelete="CASCADE"), nullable=False, index=True)
+    season: Mapped[int] = mapped_column(Integer, default=1)
+    episode: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id", ondelete="CASCADE"), nullable=False, unique=True)
+    duration: Mapped[Optional[int]] = mapped_column(Integer)
+
+class VideoProgress(Base):
+    __tablename__ = "video_progress"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id", ondelete="CASCADE"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    duration: Mapped[Optional[int]] = mapped_column(Integer)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (Index("idx_video_progress_user_file", user_id, file_id, unique=True),)

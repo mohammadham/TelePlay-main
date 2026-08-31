@@ -168,9 +168,6 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         )
         await client.connect()
 
-        # Two-phase flow:
-        # 1. sign_in with code → may throw SessionPasswordNeeded if 2FA enabled
-        # 2. if password provided → check_password → export_session_string
         try:
             await client.sign_in(
                 payload.phone,
@@ -181,18 +178,45 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
                 if not payload.password:
-                    # Save session state so phone_code_hash persists for next call with password
-                    try:
-                        await client.storage.save()
-                    except Exception:
-                        pass
+                    # 2FA required but no password given
+                    # IMPORTANT: sign_in without password INVALIDATES phone_code_hash.
+                    # We must resend a new code + handle password in ONE call.
                     return UserVerifyCodeResponse(
                         success=False,
                         has_2fa=True,
-                        error="Two-factor authentication required",
+                        error="Two-factor authentication required. Please enter your 2FA password and try again.",
                     )
-                # Apply 2FA password
-                await client.check_password(payload.password)
+                # Password provided but sign_in still failed with password needed.
+                # Resend a fresh code and retry sign_in WITH password in one call.
+                # NOTE: The original phone_code_hash is now invalid — send a new one.
+                client2 = Client(
+                    session_name,
+                    api_id=payload.api_id,
+                    api_hash=payload.api_hash,
+                    phone_number=payload.phone,
+                )
+                await client2.connect()
+                try:
+                    sent_code = await client2.send_code(payload.phone)
+                    await client2.sign_in(
+                        payload.phone,
+                        sent_code.phone_code_hash,
+                        payload.code,
+                        password=payload.password,
+                    )
+                except Exception as inner_e:
+                    inner_str = str(inner_e).upper()
+                    if "SESSION_PASSWORD_NEEDED" in inner_str:
+                        return UserVerifyCodeResponse(
+                            success=False,
+                            has_2fa=True,
+                            error="Invalid 2FA password. Please check and try again.",
+                        )
+                    raise
+                finally:
+                    await client2.disconnect()
+                await client.disconnect()
+                # Fall through to export_session_string below
             else:
                 raise
 

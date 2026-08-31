@@ -127,3 +127,4 @@ Desktop.ini
 *.bak
 *.backup
 .cache/
+.mimosa/

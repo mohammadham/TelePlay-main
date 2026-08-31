@@ -332,6 +332,7 @@ function App() {
                 <Route path="/video" element={<ProtectedRoute><VideoLayout /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route
                     path="/*"
                     element={

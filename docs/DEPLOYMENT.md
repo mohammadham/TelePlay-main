@@ -75,45 +75,44 @@ _Best if you just want to see it working on your own computer._
 
 ---
 
-### B. Railway
+### B. Railway — One-Click
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/github/yourusername/teleplay)
 
 _Best for "one-click" cloud deployment. Very fast to set up._
 
+**Option 1 — One Click (recommended for testing):**
+1. Click the **Deploy on Railway** button above (or go to `https://railway.app/new/template?template=https://github.com/yourusername/teleplay`).
+2. Select branch: `master`, `feature/music-platform` (music) or `feature/video-platform` (music+video).
+3. Fill variables: `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_STORAGE_CHANNEL_ID`, `ADMIN_TELEGRAM_IDS`.
+4. Click Deploy — Railway provisions **Postgres + Redis** automatically (see `railway.json`).
+
+**Option 2 — Manual:**
 1. Create a [Railway.app](https://railway.app/) account.
 2. Click **"New Project"** -> **"Deploy from GitHub repo"**.
 3. Select your repository.
 4. **Settings Configuration**:
    - Go to **Settings** tab.
    - Under **Build**, set "Dockerfile Path" to `Dockerfile` (in the root).
-5. **Add Variables**:
-   - Go to the **Variables** tab.
-   - Click "New Variable" and add:
-     - `TELEGRAM_API_ID`
-     - `TELEGRAM_API_HASH`
-     - `TELEGRAM_BOT_TOKEN`
-     - `TELEGRAM_STORAGE_CHANNEL_ID`
-     - `JWT_SECRET` (A random long string of letters)
-6. **Done!** Academy will build and give you a URL.
+5. **Add Variables** (same as above).
+6. **Done!** You get a `*.up.railway.app` URL.
 
 ---
 
-### C. Render
+### C. Render — Blueprint One-Click
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yourusername/teleplay)
 
 _Another great cloud option with persistent storage._
 
+**One-Click (Blueprint):** Click **Deploy to Render** → select branch → Render reads `render.yaml` and creates **Web (Docker) + Web Static + Redis + Postgres** (all `free` plan).
+
+**Manual:**
 1. Create a [Render.com](https://render.com/) account.
-2. Click **"New"** -> **"Web Service"**.
-3. Connect your GitHub repository.
-4. **Runtime**: Select **Docker**.
-5. **Advanced Settings**:
-   - Dockerfile Path: `./Dockerfile`
-   - Build Context: `.`
-6. **Environment Variables**: Add all the variables mentioned in the Railway section above.
-7. **Disks (Crucial)**:
-   - Scroll to the bottom and click **"Add Disk"**.
-   - Name: `session-data`
-   - Mount Path: `/app/session`
-   - Size: `1GB` (This keeps you logged in even if the server restarts).
+2. Click **"New"** -> **"Blueprint"** and connect repo (or **"Web Service"** → **Docker**).
+3. Dockerfile Path: `./Dockerfile`, Context: `.`
+4. **Environment Variables**: same as Railway.
+5. **Disks (Crucial)**: Add Disk `session-data` → `/app/session` 1GB.
 
 ---
 

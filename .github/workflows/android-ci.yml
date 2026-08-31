@@ -1,0 +1,29 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "master", "feature/music-platform", "feature/video-platform" ]
+    paths: [ "android/**", ".github/workflows/android-ci.yml" ]
+  pull_request:
+    branches: [ "master", "feature/music-platform", "feature/video-platform" ]
+    paths: [ "android/**" ]
+  workflow_dispatch:
+
+jobs:
+  build-debug:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: ./android } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: "17", distribution: "temurin", cache: gradle }
+      - uses: gradle/actions/setup-gradle@v3
+      - run: chmod +x ./gradlew
+      - run: ./gradlew assembleDebug --stacktrace
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-${{ github.ref_name }}-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14

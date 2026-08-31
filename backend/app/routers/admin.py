@@ -97,3 +97,62 @@ async def ads_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(requir
     from ..models import AdImpression
     total = (await db.execute(select(func.count()).select_from(AdImpression))).scalar() or 0
     return {"total_impressions": total}
+
+# ---- Overview & System ----
+import time, platform, sys
+_start_time = time.time()
+
+@router.get("/stats")
+async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    from sqlalchemy import func
+    from ..models import User as U, File, Track, Movie, Ad, CacheConfig
+    # counts
+    users = (await db.execute(select(func.count()).select_from(U))).scalar() or 0
+    files = (await db.execute(select(func.count()).select_from(File))).scalar() or 0
+    files_audio = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))).scalar() or 0
+    files_video = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))).scalar() or 0
+    tracks = (await db.execute(select(func.count()).select_from(Track))).scalar() or 0
+    movies = (await db.execute(select(func.count()).select_from(Movie))).scalar() or 0
+    ads = (await db.execute(select(func.count()).select_from(Ad))).scalar() or 0
+    cache = await cache_manager.get_stats()
+    # storage sum
+    storage = (await db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))).scalar() or 0
+    uptime = int(time.time() - _start_time)
+    return {
+        "users": users, "files": files, "files_audio": files_audio, "files_video": files_video,
+        "tracks": tracks, "movies": movies, "ads": ads, "storage_bytes": storage,
+        "cache": cache, "uptime_seconds": uptime, "python": platform.python_version(), "platform": platform.platform()
+    }
+
+@router.get("/users")
+async def list_users(q: str = None, page: int = 1, per_page: int = 20, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    from sqlalchemy import or_
+    from ..models import User as U
+    query = select(U)
+    if q: query = query.where(or_(U.username.ilike(f"%{q}%"), U.first_name.ilike(f"%{q}%")))
+    query = query.order_by(U.created_at.desc()).offset((page-1)*per_page).limit(per_page)
+    rows = (await db.execute(query)).scalars().all()
+    total = (await db.execute(select(func.count()).select_from(U))).scalar() or 0
+    return {"users": [{"id": u.id, "telegram_id": u.telegram_id, "username": u.username, "first_name": u.first_name, "created_at": u.created_at} for u in rows], "total": total}
+
+@router.get("/files")
+async def list_files_admin(file_type: str = None, q: str = None, page: int = 1, per_page: int = 20, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    from sqlalchemy import or_
+    from ..models import File
+    query = select(File)
+    if file_type: query = query.where(File.file_type==file_type)
+    if q: query = query.where(File.file_name.ilike(f"%{q}%"))
+    query = query.order_by(File.created_at.desc()).offset((page-1)*per_page).limit(per_page)
+    rows = (await db.execute(query)).scalars().all()
+    total = (await db.execute(select(func.count()).select_from(File))).scalar() or 0
+    return {"files": [{"id": f.id, "file_name": f.file_name, "file_type": f.file_type, "file_size": f.file_size, "created_at": f.created_at} for f in rows], "total": total}
+
+@router.get("/system")
+async def system_info(admin: User=Depends(require_admin)):
+    import shutil
+    disk = shutil.disk_usage("/")
+    return {
+        "disk_total": disk.total, "disk_used": disk.used, "disk_free": disk.free,
+        "uptime_seconds": int(time.time() - _start_time),
+        "python": sys.version, "platform": platform.platform()
+    }

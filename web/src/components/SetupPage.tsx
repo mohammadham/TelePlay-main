@@ -296,6 +296,7 @@ export default function SetupPage() {
                                 <>
                                     <div className="p-3 bg-primary-500/10 border border-primary-500/30 rounded-lg text-primary-300 text-sm">
                                         Code sent to {userPhone}. Enter the code from Telegram.
+                                        <p className="text-xs text-primary-500/70 mt-1">Code expires in ~1-2 minutes. Use "Resend Code" if needed.</p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-dark-200 mb-1">Login Code <span className="text-red-400">*</span></label>
@@ -320,9 +321,14 @@ export default function SetupPage() {
                                             />
                                         </div>
                                     )}
-                                    <button onClick={verifyUserCode} disabled={loading || !userCode} className="btn-primary w-full py-3 disabled:opacity-50">
-                                        {loading ? 'Verifying...' : 'Verify & Login'}
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button onClick={verifyUserCode} disabled={loading || !userCode} className="btn-primary flex-1 py-3 disabled:opacity-50">
+                                            {loading ? 'Verifying...' : 'Verify & Login'}
+                                        </button>
+                                        <button onClick={sendUserCode} disabled={loading || !userPhone || !userId || !userHash} className="btn-secondary py-3 disabled:opacity-50" style={{whiteSpace: 'nowrap'}}>
+                                            Resend Code
+                                        </button>
+                                    </div>
                                 </>
                             ) : (
                                 <div className="text-center py-4">

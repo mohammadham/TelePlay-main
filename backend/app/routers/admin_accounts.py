@@ -4,6 +4,7 @@ Admin Accounts API — Manage MTProto user accounts with 2FA support
 from datetime import datetime
 from typing import List, Optional
 import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
@@ -22,6 +23,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/accounts", tags=["Admin Accounts"])
 
 USER_PURPOSES = ["STORAGE", "STREAMING", "DOWNLOAD"]
+
+
+def _get_account_session_name(name: str) -> str:
+    """Generate unique session name for account setup."""
+    return f"setup_account_{name}"
 
 class AccountCreateRequest(BaseModel):
     name: str
@@ -91,18 +97,18 @@ async def start_account_login(
     if not payload.phone.startswith("+"):
         payload.phone = "+" + payload.phone
     
+    session_name = _get_account_session_name(payload.name)
     try:
         client = Client(
-            f"setup_account_{payload.name}",
+            session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
-            in_memory=True,
+            # in_memory=False (default) - uses session file so phone_code_hash persists
         )
         await client.connect()
         sent_code = await client.send_code(payload.phone)
-        await client.disconnect()
-        
+        # DON'T disconnect - keep session alive for verify step
         return {
             "success": True,
             "phone_code_hash": sent_code.phone_code_hash,
@@ -122,13 +128,14 @@ async def verify_account_login(
     if not payload.phone.startswith("+"):
         payload.phone = "+" + payload.phone
     
+    session_name = _get_account_session_name(payload.name)
     try:
         client = Client(
-            f"setup_account_{payload.name}",
+            session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
-            in_memory=True,
+            # in_memory=False (default) - uses session file
         )
         await client.connect()
         
@@ -150,6 +157,14 @@ async def verify_account_login(
         session_string = await client.export_session_string()
         me = await client.get_me()
         await client.disconnect()
+        
+        # Clean up session file after successful verification
+        try:
+            session_file = f"{session_name}.session"
+            if os.path.exists(session_file):
+                os.remove(session_file)
+        except Exception:
+            pass
         
         return {
             "success": True,

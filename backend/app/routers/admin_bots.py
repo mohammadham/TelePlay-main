@@ -1,15 +1,18 @@
 """
 Admin Bots API — Manage multiple bot tokens
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from datetime import datetime
 from typing import List, Optional
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+
 from ..database import get_db
 from ..models import BotConfig, AdminUser
-from ..auth import require_admin, get_current_user
+from ..auth import require_admin
 from ..encryption import encrypt, decrypt
 from ..pool_manager import pool_manager
 from ..patch import Client
@@ -298,7 +301,3 @@ async def test_bot(
     except Exception as e:
         logger.error(f"Bot test failed: {e}")
         raise HTTPException(500, f"Test failed: {e}")
-
-# Need to import BaseModel, ConfigDict, datetime
-from pydantic import BaseModel, ConfigDict
-from datetime import datetime

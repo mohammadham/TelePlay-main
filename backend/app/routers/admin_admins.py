@@ -1,15 +1,18 @@
 """
 Admin Admins API — Manage admin users (SUPER_ADMIN only)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from datetime import datetime
 from typing import List, Optional
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+
 from ..database import get_db
 from ..models import AdminUser
-from ..auth import require_admin, get_current_user
+from ..auth import require_admin
 from ..config import get_settings
 from ..patch import Client
 from ..telegram import tg_client
@@ -233,6 +236,3 @@ async def verify_telegram_id(
             "error": str(e),
         }
 
-# Imports
-from pydantic import BaseModel, ConfigDict
-from datetime import datetime

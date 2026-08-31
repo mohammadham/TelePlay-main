@@ -1,15 +1,18 @@
 """
 Admin Accounts API — Manage MTProto user accounts with 2FA support
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from datetime import datetime
 from typing import List, Optional
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+
 from ..database import get_db
 from ..models import UserAccount, AdminUser
-from ..auth import require_admin, get_current_user
+from ..auth import require_admin
 from ..encryption import encrypt, decrypt
 from ..pool_manager import pool_manager
 from ..patch import Client
@@ -404,7 +407,3 @@ async def check_account_health(
             "last_used": account.last_used,
         }
 
-# Imports
-from pydantic import BaseModel, ConfigDict
-from datetime import datetime
-from typing import Optional

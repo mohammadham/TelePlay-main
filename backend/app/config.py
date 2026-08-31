@@ -47,6 +47,22 @@ class Settings(BaseSettings):
 
     # Cache
     redis_url: str = Field("redis://redis:6379/0", alias="REDIS_URL")
+
+    @field_validator("redis_url", mode="before")
+    @classmethod
+    def _build_redis_url(cls, v):
+        # If explicit REDIS_URL is set and not default, use it
+        if v and v != "redis://redis:6379/0":
+            return v
+        # Try to build from Railway Redis component vars
+        import os
+        if os.getenv("REDIS_URL"):
+            return os.getenv("REDIS_URL")
+        if os.getenv("REDIS_HOST") and os.getenv("REDIS_PORT"):
+            host = os.getenv("REDIS_HOST")
+            port = os.getenv("REDIS_PORT")
+            return f"redis://{host}:{port}/0"
+        return "redis://redis:6379/0"
     cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
     cache_max_size_mb: int = Field(5120, alias="CACHE_MAX_SIZE_MB")
     cache_max_file_size_mb: int = Field(30, alias="CACHE_MAX_FILE_SIZE_MB")
@@ -83,12 +99,41 @@ class Settings(BaseSettings):
         except (ValueError, TypeError):
             return 0
     
-    # Database — defaults to sqlite template so build never crashes; panel/ENV can override
+    # Database — defaults to sqlite template; auto-detects Railway Postgres from component vars
     database_url: str = Field("sqlite:///./data/teleplay.db", alias="DATABASE_URL")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _build_database_url(cls, v):
+        # If explicit DATABASE_URL is set (non-sqlite), use it
+        if v and not v.startswith("sqlite"):
+            return v
+        # Try to build from Railway Postgres component vars
+        import os
+        if all(os.getenv(k) for k in ("POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB")):
+            host = os.getenv("POSTGRES_HOST", "postgres")
+            port = os.getenv("POSTGRES_PORT", "5432")
+            user = os.getenv("POSTGRES_USER")
+            pwd = os.getenv("POSTGRES_PASSWORD")
+            db = os.getenv("POSTGRES_DB")
+            return f"postgresql+asyncpg://{user}:{pwd}@{host}:{port}/{db}"
+        # Fallback: check if DATABASE_URL was provided but is sqlite/template
+        if v and v != "sqlite:///./data/teleplay.db":
+            return v
+        return "sqlite:///./data/teleplay.db"
     
     
-    # JWT — template default, must be changed in panel/ENV for production
+    # JWT — auto-generate if not set; panel/ENV can override
     jwt_secret: str = Field("change-me-in-production-please-set-via-panel", alias="JWT_SECRET")
+
+    @field_validator("jwt_secret", mode="before")
+    @classmethod
+    def _ensure_jwt_secret(cls, v):
+        if v and v != "change-me-in-production-please-set-via-panel":
+            return v
+        # Auto-generate a secure secret at startup
+        import secrets
+        return secrets.token_urlsafe(32)
     jwt_expiry_minutes: int = 10080  # 7 days for persistent sessions
     
     # Server

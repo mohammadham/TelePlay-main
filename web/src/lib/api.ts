@@ -510,3 +510,43 @@ export const getFileIcon = (fileType: string): string => {
         default: return '📎';
     }
 };
+
+export interface SetupStatus {
+    configured: boolean;
+    telegram_bot_token_set: boolean;
+    telegram_api_id_set: boolean;
+    telegram_storage_channel_id_set: boolean;
+    database_url: string;
+}
+
+export const useSetupStatus = () => {
+    return useQuery<SetupStatus>({
+        queryKey: ['setupStatus'],
+        queryFn: async () => {
+            const { data } = await api.get<SetupStatus>('/setup/status');
+            return data;
+        },
+        staleTime: 60_000,
+        retry: 1,
+    });
+};
+
+export interface SetupStatus {
+    configured: boolean;
+    telegram_bot_token_set: boolean;
+    telegram_api_id_set: boolean;
+    telegram_storage_channel_id_set: boolean;
+    database_url: string;
+}
+
+export const useSetupStatus = () => {
+    return useQuery<SetupStatus>({
+        queryKey: ['setupStatus'],
+        queryFn: async () => {
+            const { data } = await api.get<SetupStatus>('/setup/status');
+            return data;
+        },
+        staleTime: 60_000,
+        retry: 1,
+    });
+};

@@ -1,8 +1,9 @@
 import { Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode } from './lib/api';
+import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode, useSetupStatus } from './lib/api';
 import FileBrowser from './components/FileBrowser';
 import GlobalContextMenu from './components/GlobalContextMenu';
+import SetupPage from './components/SetupPage';
 import logo from './assets/logo.png';
 
 function AuthCallback() {
@@ -338,12 +339,16 @@ function AdminLayout() {
 }
 
 function App() {
+    const { data: setupData, isLoading: setupLoading } = useSetupStatus();
+    const needsSetup = !setupLoading && setupData && !setupData.configured;
+
     return (
         <>
             <GlobalContextMenu />
             <MediaPlayer />
             <Routes>
-                <Route path="/login" element={<LoginPage />} />
+                <Route path="/setup" element={needsSetup ? <SetupPage /> : <Navigate to="/login" replace />} />
+                <Route path="/login" element={!needsSetup ? <LoginPage /> : <Navigate to="/setup" replace />} />
                 <Route path="/auth" element={<AuthCallback />} />
                 <Route path="/music" element={<ProtectedRoute><MusicLayout /></ProtectedRoute>} />
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />

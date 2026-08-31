@@ -139,6 +139,36 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/api/setup/status")
+async def setup_status():
+    """Public endpoint — returns whether the app has been configured."""
+    from .config import get_settings, is_configured
+    s = get_settings()
+    configured = is_configured(s)
+    return {
+        "configured": configured,
+        "telegram_bot_token_set": bool(s.telegram_bot_token),
+        "telegram_api_id_set": bool(s.telegram_api_id),
+        "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
+        "database_url": s.database_url,
+    }
+
+
+@app.get("/api/setup/status")
+async def setup_status():
+    """Public endpoint — returns whether the app has been configured."""
+    from .config import get_settings, is_configured
+    s = get_settings()
+    configured = is_configured(s)
+    return {
+        "configured": configured,
+        "telegram_bot_token_set": bool(s.telegram_bot_token),
+        "telegram_api_id_set": bool(s.telegram_api_id),
+        "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
+        "database_url": s.database_url,
+    }
+
+
 # ... imports ...
 
 # Mount static files (assets) - checking if directory exists first to avoid dev errors

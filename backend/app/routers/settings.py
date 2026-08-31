@@ -85,9 +85,3 @@ async def reload_settings(admin: User=Depends(require_admin)):
     """Reload settings from DB without redeploy."""
     mark_db_ready(get_settings())
     return {"ok": True, "message": "Settings reloaded from database"}
-
-@router.post("/reload")
-async def reload_settings(admin: User=Depends(require_admin)):
-    """Reload settings from DB without redeploy."""
-    mark_db_ready(get_settings())
-    return {"ok": True, "message": "Settings reloaded from database"}

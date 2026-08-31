@@ -21,11 +21,19 @@ jobs:
       - name: Build web
         run: npm run build
         working-directory: ./web
+      - name: List dist
+        if: always()
+        run: |
+          echo "Listing web/dist:"
+          ls -lh dist 2>&1 | head -30 || echo "no dist"
+          ls -lh ../web/dist 2>&1 | head -30 || true
+          find dist -type f 2>&1 | head -20 || true
+        working-directory: ./web
       - name: Upload dist
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: web-dist-${{ github.ref_name }}
+          name: web-dist-${{ github.run_number }}
           path: web/dist
           if-no-files-found: warn
           retention-days: 7

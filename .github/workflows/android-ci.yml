@@ -24,11 +24,19 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
         working-directory: ./android
+      - name: List APK outputs
+        if: always()
+        run: |
+          echo "Listing android outputs:"
+          ls -lh app/build/outputs/apk/debug/ 2>&1 || echo "debug dir missing"
+          find app/build/outputs -type f -name "*.apk" 2>&1 | head -20
+          ls -lh ../app/build/outputs/apk/debug/ 2>&1 | head -20 || true
+        working-directory: ./android
       - name: Upload Debug APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-${{ github.ref_name }}-${{ github.sha }}
+          name: app-debug-${{ github.run_number }}
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
           retention-days: 14

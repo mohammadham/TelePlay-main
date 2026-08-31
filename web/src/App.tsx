@@ -349,7 +349,9 @@ function App() {
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists" element={<ProtectedRoute><MusicPlaylistsLayout /></ProtectedRoute>} />
                 <Route path="/music/downloads" element={<ProtectedRoute><MusicDownloadsLayout /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route
                     path="/*"
                     element={

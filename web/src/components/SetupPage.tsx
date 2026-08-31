@@ -108,7 +108,13 @@ export default function SetupPage() {
                 password: needs2fa ? userPassword : undefined,
             });
             if (res.data.has_2fa) {
-                setNeeds2fa(true);
+                // If we already tried 2FA and still got has_2fa=true, the password was wrong
+                if (needs2fa) {
+                    setError('Invalid 2FA password. Please try again.');
+                } else {
+                    // First time seeing 2FA required - show password field
+                    setNeeds2fa(true);
+                }
                 return;
             }
             if (res.data.success && res.data.session_string) {
@@ -320,6 +326,11 @@ export default function SetupPage() {
                                                 className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                             />
                                         </div>
+                                    )}
+                                    {needs2fa && (
+                                        <p className="text-xs text-primary-500/70 mt-1">
+                                            Enter the 2FA password for your Telegram account
+                                        </p>
                                     )}
                                     <div className="flex gap-2">
                                         <button onClick={verifyUserCode} disabled={loading || !userCode} className="btn-primary flex-1 py-3 disabled:opacity-50">

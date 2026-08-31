@@ -168,6 +168,9 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         )
         await client.connect()
 
+        # Two-phase flow:
+        # 1. sign_in with code → may throw SessionPasswordNeeded if 2FA enabled
+        # 2. if password provided → check_password → export_session_string
         try:
             await client.sign_in(
                 payload.phone,
@@ -178,11 +181,13 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
                 if not payload.password:
+                    # Keep the client connected so the next call can continue
                     return UserVerifyCodeResponse(
                         success=False,
                         has_2fa=True,
                         error="Two-factor authentication required",
                     )
+                # Apply 2FA password
                 await client.check_password(payload.password)
             else:
                 raise

@@ -13,17 +13,22 @@ jobs:
   build-debug:
     name: Build Debug APK
     runs-on: ubuntu-latest
-    defaults: { run: { working-directory: ./android } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { java-version: "17", distribution: "temurin", cache: gradle }
       - uses: gradle/actions/setup-gradle@v3
-      - run: chmod +x ./gradlew
-      - run: ./gradlew assembleDebug --stacktrace
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+        working-directory: ./android
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+        working-directory: ./android
       - name: Upload Debug APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-${{ github.ref_name }}-${{ github.sha }}
           path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
           retention-days: 14

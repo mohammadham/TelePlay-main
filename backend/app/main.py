@@ -22,7 +22,15 @@ from .telegram import start_telegram_client, stop_telegram_client
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, admin_router, ads_router, video_router
 from .routers.settings import router as settings_router
 
-settings = get_settings()
+try:
+    settings = get_settings()
+except Exception as _e:
+    # Don't crash at import — let /health show error, lifespan will log details
+    import logging as _logging
+    _logging.getLogger(__name__).error(f"Settings not loaded at import (will retry at startup): {_e}")
+    class _DummySettings:
+        web_base_url = "http://localhost:3000"
+    settings = _DummySettings()  # type: ignore
 
 # Rate limiter - uses IP address by default
 limiter = Limiter(key_func=get_remote_address)
@@ -35,6 +43,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan - start/stop Telegram client and init DB."""
     logger.info("Starting TelePlay Backend...")
+    # Validate config early with friendly message
+    try:
+        from .config import get_settings as _get_settings
+        _get_settings()
+    except Exception as e:
+        logger.error(f"CONFIG ERROR — missing ENV vars (see above). Set in Railway Variables: {e}")
+        raise
     await init_db()
     logger.info("Database initialized")
     await start_telegram_client()

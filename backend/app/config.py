@@ -181,5 +181,5 @@ def is_configured(settings: Settings) -> bool:
         and settings.telegram_bot_token
         and settings.telegram_storage_channel_id
         and settings.database_url != "sqlite:///./data/teleplay.db"
-        or settings.jwt_secret != "change-me-in-production-please-set-via-panel"
+        and settings.jwt_secret != "change-me-in-production-please-set-via-panel"
     )

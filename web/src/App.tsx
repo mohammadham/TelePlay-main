@@ -320,6 +320,7 @@ import PlaylistView from './components/music/PlaylistView';
 import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
 import VideoHome from './components/video/VideoHome';
+import AdminDashboard from './components/admin/AdminDashboard';
 
 function MusicLayout() {
     return (
@@ -335,15 +336,7 @@ function MusicDownloadsLayout(){ return <div className="min-h-screen bg-[#121212
 function VideoLayout(){ return <VideoHome /> }
 
 function AdminLayout() {
-    return (
-        <div className="min-h-screen bg-dark-950 text-white p-4">
-            <h1 className="text-xl font-bold mb-4">Admin — Music Platform</h1>
-            <div className="grid md:grid-cols-2 gap-6">
-                <CachePanel />
-                <AdsPanel />
-            </div>
-        </div>
-    );
+    return <AdminDashboard />;
 }
 
 function App() {

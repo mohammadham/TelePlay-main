@@ -2,11 +2,18 @@ name: Android Release
 
 on:
   push:
-    tags:
-      - "v*"
-    branches:
-      - "dev"
+    tags: [ "v*" ]
+    branches: [ "master", "feature/music-platform", "feature/video-platform" ]
+    paths: [ "android/**", ".github/workflows/android-release.yml" ]
+  pull_request:
+    branches: [ "master", "feature/music-platform", "feature/video-platform" ]
+    paths: [ "android/**" ]
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build"
+        required: false
+        default: "feature/music-platform"
 
 jobs:
   build:
@@ -58,13 +65,15 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-${{ github.ref_name }}-${{ github.sha }}
           path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           files: android/app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

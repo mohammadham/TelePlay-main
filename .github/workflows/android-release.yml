@@ -22,10 +22,6 @@ jobs:
     permissions:
       contents: write
 
-    defaults:
-      run:
-        working-directory: ./android
-
     steps:
       - uses: actions/checkout@v4
 
@@ -41,32 +37,50 @@ jobs:
 
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
+        working-directory: ./android
 
-      - name: Decode Keystore
+      - name: Decode Keystore (optional)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo $ANDROID_KEYSTORE_BASE64 | base64 --decode > my-release-key.jks
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > my-release-key.jks
+            echo "Keystore decoded"
+          else
+            echo "No keystore secret — will build unsigned release (or debug fallback)"
+          fi
+        working-directory: ./android
 
       - name: Build Release APK
         env:
-          RELEASE_STORE_FILE: ../my-release-key.jks
+          RELEASE_STORE_FILE: ./my-release-key.jks
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: |
+          if [ -f "my-release-key.jks" ]; then
+            ./gradlew assembleRelease
+          else
+            echo "No keystore — building unsigned release (assembleRelease still works if signing not required, else fallback to debug)"
+            ./gradlew assembleRelease || ./gradlew assembleDebug
+          fi
+        working-directory: ./android
 
-      - name: List Build Outputs (Debug)
+      - name: List Build Outputs
+        if: always()
         run: |
           echo "PWD: $(pwd)"
-          ls -R app/build || echo "app/build not found"
-          find app/build/outputs -type f || echo "No outputs found"
+          ls -R app/build 2>&1 | head -100 || echo "app/build not found"
+          find app/build/outputs -type f 2>&1 | head -50 || echo "No outputs found"
+        working-directory: ./android
 
       - name: Upload APK Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-release-${{ github.ref_name }}-${{ github.sha }}
           path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Create Release

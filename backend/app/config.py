@@ -93,4 +93,17 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except Exception as e:
+        # Friendly error for Railway/Render missing ENV
+        import logging
+        msg = (
+            "\n[CONFIG ERROR] Missing required ENV vars. "
+            "Set these in Railway → Variables (or .env): "
+            "TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_BOT_TOKEN, "
+            "TELEGRAM_STORAGE_CHANNEL_ID, DATABASE_URL, JWT_SECRET. "
+            f"Details: {e}"
+        )
+        logging.getLogger(__name__).error(msg)
+        raise

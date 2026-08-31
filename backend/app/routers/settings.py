@@ -7,7 +7,7 @@ from sqlalchemy import select
 from ..database import get_db
 from ..models import AppSetting, User
 from ..auth import require_admin
-from ..config import get_settings
+from ..config import get_settings, mark_db_ready
 
 router = APIRouter(prefix="/admin/settings", tags=["Admin Settings"])
 
@@ -54,7 +54,9 @@ async def update_settings(payload: dict, db: AsyncSession=Depends(get_db), admin
             row = AppSetting(key=k, value=v, description=TEMPLATE.get(k, ("",""))[1])
             db.add(row)
     await db.commit()
-    return {"ok": True}
+    # Reload settings in memory
+    mark_db_ready(get_settings())
+    return {"ok": True, "message": "Settings saved and applied"}
 
 @router.get("/export")
 async def export_env(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
@@ -77,3 +79,15 @@ async def seed_template(db: AsyncSession=Depends(get_db), admin: User=Depends(re
             db.add(AppSetting(key=k, value=default, description=desc))
     await db.commit()
     return {"ok": True}
+
+@router.post("/reload")
+async def reload_settings(admin: User=Depends(require_admin)):
+    """Reload settings from DB without redeploy."""
+    mark_db_ready(get_settings())
+    return {"ok": True, "message": "Settings reloaded from database"}
+
+@router.post("/reload")
+async def reload_settings(admin: User=Depends(require_admin)):
+    """Reload settings from DB without redeploy."""
+    mark_db_ready(get_settings())
+    return {"ok": True, "message": "Settings reloaded from database"}

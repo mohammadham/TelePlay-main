@@ -105,18 +105,18 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     # Never crash on missing ENV — use template defaults; panel is source of truth
-    s = Settings()
-    _apply_db_overrides(s)
-    return s
+    return Settings()
 
 
 # Global flag: set True after first DB sync in lifespan
 _db_overrides_applied = False
+_db_settings_store: Optional[Settings] = None  # populated by apply_db_overrides() after init_db()
 
 
-def _apply_db_overrides(s: Settings):
-    """Apply DB-stored settings to a Settings instance. Called once after DB is ready."""
-    global _db_overrides_applied
+def mark_db_ready(s: Settings):
+    """Call this once from main.py lifespan AFTER init_db() completes.
+    Loads DB-stored settings and patches s in-place."""
+    global _db_overrides_applied, _db_settings_store
     if _db_overrides_applied:
         return
     try:
@@ -124,6 +124,7 @@ def _apply_db_overrides(s: Settings):
         from .database import get_engine
         eng = get_engine()
         if eng is None:
+            _db_overrides_applied = True
             return
         import asyncio
         async def _load():
@@ -164,10 +165,12 @@ def _apply_db_overrides(s: Settings):
                         if hasattr(s, k):
                             setattr(s, k, v)
         asyncio.get_event_loop().run_until_complete(_load())
+    except ImportError:
+        _db_overrides_applied = True
     except Exception as _e:
         import logging
-        logging.getLogger(__name__).warning(f"DB overrides could not be applied (will retry): {_e}")
-    finally:
+        logging.getLogger(__name__).warning(f"DB overrides could not be applied: {_e}")
+    else:
         _db_overrides_applied = True
 
 def is_configured(settings: Settings) -> bool:

@@ -16,7 +16,7 @@ import os
 import logging
 logging.getLogger("pyrogram").setLevel(logging.INFO)
 
-from .config import get_settings
+from .config import get_settings, mark_db_ready
 from .database import init_db
 from .telegram import start_telegram_client, stop_telegram_client
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router
@@ -52,6 +52,8 @@ async def lifespan(app: FastAPI):
         raise
     await init_db()
     logger.info("Database initialized")
+    mark_db_ready(settings)
+    logger.info("DB settings applied")
     await start_telegram_client()
     logger.info("Telegram client started")
     

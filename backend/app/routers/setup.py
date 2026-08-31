@@ -24,6 +24,8 @@ router = APIRouter(prefix="/setup", tags=["Setup Wizard"])
 
 class BotValidateRequest(BaseModel):
     token: str = Field(..., min_length=10, max_length=100)
+    api_id: int = Field(..., gt=0)
+    api_hash: str = Field(..., min_length=10)
 
 
 class BotValidateResponse(BaseModel):
@@ -89,14 +91,13 @@ class SetupCompleteResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
-async def _validate_bot_token(token: str) -> BotValidateResponse:
+async def _validate_bot_token(token: str, api_id: int, api_hash: str) -> BotValidateResponse:
     """Validate bot token via Pyrogram (no updates, in-memory)."""
     try:
-        settings = get_settings()
         async with Client(
             "validate_bot",
-            api_id=settings.telegram_api_id,
-            api_hash=settings.telegram_api_hash,
+            api_id=api_id,
+            api_hash=api_hash,
             bot_token=token,
             in_memory=True,
             no_updates=True,
@@ -119,7 +120,7 @@ async def _validate_bot_token(token: str) -> BotValidateResponse:
 @router.post("/bot/validate", response_model=BotValidateResponse)
 async def validate_bot_token(payload: BotValidateRequest):
     """Validate a bot token by calling getMe."""
-    return await _validate_bot_token(payload.token)
+    return await _validate_bot_token(payload.token, payload.api_id, payload.api_hash)
 
 
 @router.post("/user/send-code", response_model=UserSendCodeResponse)
@@ -197,7 +198,7 @@ async def complete_setup(
 ):
     """Save all config, create initial records, initialize pools."""
     # 1. Validate main bot token
-    bot_validation = await _validate_bot_token(payload.bot_token)
+    bot_validation = await _validate_bot_token(payload.bot_token, payload.user_api_id, payload.user_api_hash)
     if not bot_validation.valid:
         raise HTTPException(status_code=400, detail=f"Invalid bot token: {bot_validation.error}")
 

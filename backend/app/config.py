@@ -7,10 +7,10 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    # Telegram
-    telegram_api_id: int
-    telegram_api_hash: str
-    telegram_bot_token: str
+    # Telegram — optional at build/startup, required only at runtime (panel can set template)
+    telegram_api_id: int = Field(0, alias="TELEGRAM_API_ID")
+    telegram_api_hash: str = Field("", alias="TELEGRAM_API_HASH")
+    telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     
     # Use string field to avoid JSON parsing issues with comma-separated env var
     telegram_helper_bot_tokens_str: str = Field("", alias="TELEGRAM_HELPER_BOT_TOKENS")
@@ -66,14 +66,14 @@ class Settings(BaseSettings):
     def all_bot_tokens(self) -> list[str]:
         return [self.telegram_bot_token] + self.telegram_helper_bot_tokens
     
-    telegram_storage_channel_id: int
+    telegram_storage_channel_id: int = Field(0, alias="TELEGRAM_STORAGE_CHANNEL_ID")
     
-    # Database
-    database_url: str
+    # Database — defaults to sqlite template so build never crashes; panel/ENV can override
+    database_url: str = Field("sqlite:///./data/teleplay.db", alias="DATABASE_URL")
     
     
-    # JWT
-    jwt_secret: str
+    # JWT — template default, must be changed in panel/ENV for production
+    jwt_secret: str = Field("change-me-in-production-please-set-via-panel", alias="JWT_SECRET")
     jwt_expiry_minutes: int = 10080  # 7 days for persistent sessions
     
     # Server
@@ -93,17 +93,16 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    try:
-        return Settings()
-    except Exception as e:
-        # Friendly error for Railway/Render missing ENV
-        import logging
-        msg = (
-            "\n[CONFIG ERROR] Missing required ENV vars. "
-            "Set these in Railway → Variables (or .env): "
-            "TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_BOT_TOKEN, "
-            "TELEGRAM_STORAGE_CHANNEL_ID, DATABASE_URL, JWT_SECRET. "
-            f"Details: {e}"
-        )
-        logging.getLogger(__name__).error(msg)
-        raise
+    # Never crash on missing ENV — use template defaults; panel is source of truth
+    return Settings()
+
+def is_configured(settings: Settings) -> bool:
+    """True if real credentials are set (not template defaults)."""
+    return bool(
+        settings.telegram_api_id
+        and settings.telegram_api_hash
+        and settings.telegram_bot_token
+        and settings.telegram_storage_channel_id
+        and settings.database_url != "sqlite:///./data/teleplay.db"
+        or settings.jwt_secret != "change-me-in-production-please-set-via-panel"
+    )

@@ -12,12 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-# Note: We copy the 'app' directory into /app/app
+# Copy application code and create template .env so build never crashes (panel is source of truth)
 COPY app/ ./app/
-
-# Create directory for Telegram sessions
-RUN mkdir -p /app/session
+RUN printf "DATABASE_URL=sqlite:///./data/teleplay.db\nJWT_SECRET=change-me-via-panel\nTELEGRAM_API_ID=0\nTELEGRAM_API_HASH=\nTELEGRAM_BOT_TOKEN=\nTELEGRAM_STORAGE_CHANNEL_ID=0\n" > .env
+RUN mkdir -p /app/session /app/data && chmod 777 /app/session /app/data
 
 # Expose port
 EXPOSE 8000

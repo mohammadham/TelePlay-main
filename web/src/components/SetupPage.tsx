@@ -26,6 +26,7 @@ export default function SetupPage() {
     const [needs2fa, setNeeds2fa] = useState(false);
     const [sessionString, setSessionString] = useState('');
     const [userVerified, setUserVerified] = useState(false);
+    const [phoneCodeHash, setPhoneCodeHash] = useState('');
 
     // Admin form
     const [superAdminId, setSuperAdminId] = useState('');
@@ -78,6 +79,7 @@ export default function SetupPage() {
             });
             if (res.data.success) {
                 setCodeSent(true);
+                setPhoneCodeHash(res.data.phone_code_hash || '');
             } else {
                 setError(res.data.error || 'Failed to send code');
             }
@@ -90,6 +92,10 @@ export default function SetupPage() {
 
     const verifyUserCode = async () => {
         if (!userCode.trim()) return;
+        if (!phoneCodeHash) {
+            setError('Phone code hash missing. Please request a new code.');
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -97,7 +103,7 @@ export default function SetupPage() {
                 phone: userPhone.startsWith('+') ? userPhone : `+${userPhone}`,
                 api_id: parseInt(userId),
                 api_hash: userHash,
-                phone_code_hash: '', // Would need to store from send-code response
+                phone_code_hash: phoneCodeHash,
                 code: userCode,
                 password: needs2fa ? userPassword : undefined,
             });

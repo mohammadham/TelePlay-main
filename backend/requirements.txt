@@ -25,6 +25,7 @@ passlib[bcrypt]>=1.7.4
 # Utilities
 python-multipart>=0.0.6
 aiofiles>=23.2.0
+httpx>=0.26.0
 
 # Rate Limiting
 slowapi>=0.1.9

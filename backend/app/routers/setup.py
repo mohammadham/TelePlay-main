@@ -24,8 +24,6 @@ router = APIRouter(prefix="/setup", tags=["Setup Wizard"])
 
 class BotValidateRequest(BaseModel):
     token: str = Field(..., min_length=10, max_length=100)
-    api_id: int = Field(..., gt=0)
-    api_hash: str = Field(..., min_length=10)
 
 
 class BotValidateResponse(BaseModel):
@@ -91,25 +89,27 @@ class SetupCompleteResponse(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
-async def _validate_bot_token(token: str, api_id: int, api_hash: str) -> BotValidateResponse:
-    """Validate bot token via Pyrogram (no updates, in-memory)."""
+async def _validate_bot_token(token: str) -> BotValidateResponse:
+    """Validate bot token via Bot API (HTTP) - no api_id/api_hash needed."""
     try:
-        async with Client(
-            "validate_bot",
-            api_id=api_id,
-            api_hash=api_hash,
-            bot_token=token,
-            in_memory=True,
-            no_updates=True,
-        ) as client:
-            await client.start()
-            me = await client.get_me()
-            return BotValidateResponse(
-                valid=True,
-                bot_user_id=me.id,
-                username=me.username,
-                first_name=me.first_name,
-            )
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("ok"):
+                bot = data["result"]
+                return BotValidateResponse(
+                    valid=True,
+                    bot_user_id=bot["id"],
+                    username=bot.get("username"),
+                    first_name=bot.get("first_name"),
+                )
+            else:
+                return BotValidateResponse(valid=False, error=data.get("description", "Invalid bot token"))
+    except httpx.HTTPStatusError as e:
+        logger.warning(f"Bot token validation failed: {e.response.text}")
+        return BotValidateResponse(valid=False, error=f"HTTP {e.response.status_code}: {e.response.text}")
     except Exception as e:
         logger.warning(f"Bot token validation failed: {e}")
         return BotValidateResponse(valid=False, error=str(e))
@@ -120,7 +120,7 @@ async def _validate_bot_token(token: str, api_id: int, api_hash: str) -> BotVali
 @router.post("/bot/validate", response_model=BotValidateResponse)
 async def validate_bot_token(payload: BotValidateRequest):
     """Validate a bot token by calling getMe."""
-    return await _validate_bot_token(payload.token, payload.api_id, payload.api_hash)
+    return await _validate_bot_token(payload.token)
 
 
 @router.post("/user/send-code", response_model=UserSendCodeResponse)
@@ -198,7 +198,7 @@ async def complete_setup(
 ):
     """Save all config, create initial records, initialize pools."""
     # 1. Validate main bot token
-    bot_validation = await _validate_bot_token(payload.bot_token, payload.user_api_id, payload.user_api_hash)
+    bot_validation = await _validate_bot_token(payload.bot_token)
     if not bot_validation.valid:
         raise HTTPException(status_code=400, detail=f"Invalid bot token: {bot_validation.error}")
 

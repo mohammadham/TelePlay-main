@@ -1,4 +1,7 @@
-# 📺 TelePlay
+# 📺 TelePlay — Music & Video Platform
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/github/mohammadham/TelePlay-main)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/mohammadham/TelePlay-main)
 
 **Your personal, self-hosted media server — powered by Telegram.**
 

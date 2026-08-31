@@ -28,6 +28,33 @@ class Settings(BaseSettings):
         except ValueError:
             return []
     
+    # Admin only (bot access)
+    admin_ids_str: str = Field("", alias="ADMIN_TELEGRAM_IDS")
+    
+    @property
+    def admin_ids(self) -> list[int]:
+        v = self.admin_ids_str
+        if not v:
+            return []
+        try:
+            return [int(u.strip()) for u in v.split(",") if u.strip()]
+        except ValueError:
+            return []
+
+    # Cache
+    redis_url: str = Field("redis://redis:6379/0", alias="REDIS_URL")
+    cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
+    cache_max_size_mb: int = Field(5120, alias="CACHE_MAX_SIZE_MB")
+    cache_max_file_size_mb: int = Field(30, alias="CACHE_MAX_FILE_SIZE_MB")
+    cache_strategy: str = Field("lru", alias="CACHE_STRATEGY")
+    cache_ttl_seconds: int = Field(3600, alias="CACHE_TTL_SECONDS")
+    cache_dir: str = Field("/tmp/teleplay_cache", alias="CACHE_DIR")
+
+    # Ads
+    ads_enabled: bool = Field(True, alias="ADS_ENABLED")
+    ads_every_n_tracks: int = Field(4, alias="ADS_EVERY_N_TRACKS")
+    ads_max_per_hour: int = Field(6, alias="ADS_MAX_PER_HOUR")
+    
     @property
     def telegram_helper_bot_tokens(self) -> list[str]:
         v = self.telegram_helper_bot_tokens_str

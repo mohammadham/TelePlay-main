@@ -1,4 +1,4 @@
-import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users } from 'lucide-react';
+import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Music, Settings2 } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
 import { useStorageStats, formatFileSize, useLogoutAll } from '../lib/api';
@@ -91,9 +91,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                 {/* Navigation */}
                 <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+                    <a href="/music" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#1DB954]/15 text-[#1DB954] font-medium hover:bg-[#1DB954]/20 transition-colors">
+                        <Music className="w-5 h-5" /> Music
+                    </a>
                     <NavItem section="files" icon={Files} label="My Files" />
                     <NavItem section="recent" icon={Clock} label="Recently Added" />
                     <NavItem section="continue_watching" icon={PlayCircle} label="Continue Watching" />
+                    <a href="/admin/cache" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.05] transition-colors">
+                        <Settings2 className="w-5 h-5" /> Admin
+                    </a>
                 </nav>
 
                 {/* Storage Info */}

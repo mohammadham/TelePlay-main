@@ -49,45 +49,43 @@ async def stream_file(
     current_user: User = Depends(get_current_user),
     download: int = Query(0, description="Set to 1 to force download"),
 ):
-    """Stream file from Telegram with range request support for seeking."""
-    # Get file from database
+    """Stream file from Telegram with range request support + disk cache (audio)."""
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
     file = result.scalar_one_or_none()
-    
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-    
     file_size = file.file_size
-    
-    # Parse range header
     range_header = request.headers.get("range")
     from_bytes, until_bytes = parse_range_header(range_header, file_size)
-    
-    # Validate range
     if (until_bytes > file_size) or (from_bytes < 0) or (until_bytes < from_bytes):
-        return Response(
-            status_code=416,
-            content="416: Range not satisfiable",
-            headers={"Content-Range": f"bytes */{file_size}"},
-        )
-    
+        return Response(status_code=416, content="416: Range not satisfiable", headers={"Content-Range": f"bytes */{file_size}"})
     req_length = until_bytes - from_bytes + 1
-    
-    # Get message from channel
     message = await get_message_from_channel(file.channel_message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found in channel")
     
     async def file_streamer():
-        """Generator that streams file chunks from Telegram MTProto."""
-        async for chunk in stream_file_generator(
-            telegram.tg_client,
-            message,
-            from_bytes,
-            until_bytes
-        ):
+        # cache-aside for audio
+        try:
+            from ..cache_manager import get_cached_chunk, put_cached_chunk
+            from ..config import get_settings
+            settings = get_settings()
+            if settings.cache_enabled and "audio" in (file.mime_type or ""):
+                cached = await get_cached_chunk(file.id, from_bytes, until_bytes - from_bytes + 1)
+                if cached:
+                    yield cached
+                    return
+                buf = b""
+                async for chunk in stream_file_generator(telegram.tg_client, message, from_bytes, until_bytes):
+                    buf += chunk
+                    yield chunk
+                await put_cached_chunk(file.id, from_bytes, until_bytes - from_bytes + 1, buf, file.file_size)
+                return
+        except Exception:
+            pass
+        async for chunk in stream_file_generator(telegram.tg_client, message, from_bytes, until_bytes):
             yield chunk
     
     # Determine content disposition

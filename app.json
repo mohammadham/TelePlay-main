@@ -1,0 +1,17 @@
+{
+  "name": "TelePlay Music & Video",
+  "description": "Telegram-powered music (Spotify-like) + video (Netflix-like) streaming — deploy with one click",
+  "repository": "https://github.com/yourusername/teleplay",
+  "keywords": ["telegram", "streaming", "music", "video", "fastapi", "react"],
+  "stack": "container",
+  "env": {
+    "TELEGRAM_API_ID": { "description": "From my.telegram.org", "required": true },
+    "TELEGRAM_API_HASH": { "description": "From my.telegram.org", "required": true },
+    "TELEGRAM_BOT_TOKEN": { "description": "From @BotFather", "required": true },
+    "TELEGRAM_STORAGE_CHANNEL_ID": { "description": "Private channel ID (-100...)", "required": true },
+    "JWT_SECRET": { "description": "Random 32+ chars", "generator": "secret" },
+    "ADMIN_TELEGRAM_IDS": { "description": "Comma-separated admin IDs (bot admin-only)", "required": false },
+    "WEB_BASE_URL": { "description": "Public URL (auto on PaaS)", "required": false }
+  },
+  "addons": ["heroku-postgresql:mini", "heroku-redis:mini"]
+}

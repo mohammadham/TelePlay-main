@@ -1,0 +1,56 @@
+# Render Blueprint — one-click deploy
+# Docs: https://render.com/docs/blueprint-spec
+# Supports both branches: master / feature/music-platform / feature/video-platform
+services:
+  - type: web
+    name: teleplay-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: teleplay-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { name: teleplay-redis, type: redis, property: connectionString }
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_STORAGE_CHANNEL_ID
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEB_BASE_URL
+        sync: false
+      - key: ADMIN_TELEGRAM_IDS
+        sync: false
+      - key: CACHE_ENABLED
+        value: "true"
+      - key: VIDEO_CACHE_ENABLED
+        value: "true"
+
+  - type: web
+    name: teleplay-web
+    env: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./web/dist
+    plan: free
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: redis
+    name: teleplay-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: teleplay-db
+    plan: free
+    databaseName: teleplay
+    user: teleplay

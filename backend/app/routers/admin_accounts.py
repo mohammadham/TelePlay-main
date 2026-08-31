@@ -149,6 +149,11 @@ async def verify_account_login(
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
                 if not payload.password:
+                    # Save session state so phone_code_hash persists for next call with password
+                    try:
+                        await client.storage.save()
+                    except Exception:
+                        pass
                     raise HTTPException(400, "Two-factor authentication required. Provide password.")
                 await client.check_password(payload.password)
             else:

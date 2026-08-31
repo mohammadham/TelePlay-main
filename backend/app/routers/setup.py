@@ -181,7 +181,11 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
                 if not payload.password:
-                    # Keep the client connected so the next call can continue
+                    # Save session state so phone_code_hash persists for next call with password
+                    try:
+                        await client.storage.save()
+                    except Exception:
+                        pass
                     return UserVerifyCodeResponse(
                         success=False,
                         has_2fa=True,

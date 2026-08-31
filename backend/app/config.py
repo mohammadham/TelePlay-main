@@ -2,11 +2,13 @@
 Configuration settings loaded from environment variables.
 """
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict, field_validator
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
+
     # Telegram — optional at build/startup, required only at runtime (panel can set template)
     telegram_api_id: int = Field(0, alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field("", alias="TELEGRAM_API_HASH")
@@ -67,6 +69,17 @@ class Settings(BaseSettings):
         return [self.telegram_bot_token] + self.telegram_helper_bot_tokens
     
     telegram_storage_channel_id: int = Field(0, alias="TELEGRAM_STORAGE_CHANNEL_ID")
+
+    @field_validator("telegram_api_id", "telegram_storage_channel_id", mode="before")
+    @classmethod
+    def _parse_int_placeholder(cls, v):
+        # Railway may have placeholder "your_api_id" or "-100xxxxxxxxxx" — treat as 0 (template)
+        if v is None or v == "":
+            return 0
+        try:
+            return int(str(v).strip())
+        except (ValueError, TypeError):
+            return 0
     
     # Database — defaults to sqlite template so build never crashes; panel/ENV can override
     database_url: str = Field("sqlite:///./data/teleplay.db", alias="DATABASE_URL")
@@ -85,10 +98,6 @@ class Settings(BaseSettings):
     
     # Web
     web_base_url: str = "http://localhost:3000"
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 @lru_cache()

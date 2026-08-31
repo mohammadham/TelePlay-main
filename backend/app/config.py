@@ -1,9 +1,11 @@
 """
-Configuration settings loaded from environment variables.
+Configuration settings loaded from environment variables,
+with database-backed overrides applied after first DB sync.
 """
 from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict, field_validator
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -103,7 +105,70 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     # Never crash on missing ENV — use template defaults; panel is source of truth
-    return Settings()
+    s = Settings()
+    _apply_db_overrides(s)
+    return s
+
+
+# Global flag: set True after first DB sync in lifespan
+_db_overrides_applied = False
+
+
+def _apply_db_overrides(s: Settings):
+    """Apply DB-stored settings to a Settings instance. Called once after DB is ready."""
+    global _db_overrides_applied
+    if _db_overrides_applied:
+        return
+    try:
+        from .models import AppSetting
+        from .database import get_engine
+        eng = get_engine()
+        if eng is None:
+            return
+        import asyncio
+        async def _load():
+            from sqlalchemy import select as _sel
+            async with eng.begin() as conn:
+                result = await conn.execute(_sel(AppSetting))
+                rows = result.scalars().all()
+                db_map = {r.key: r.value for r in rows if r.value}
+                if not db_map:
+                    return
+                overrides = {}
+                for key, val in db_map.items():
+                    alias_key = key.upper()
+                    if alias_key == "TELEGRAM_API_ID":
+                        overrides["telegram_api_id"] = int(val) if val else 0
+                    elif alias_key == "TELEGRAM_API_HASH":
+                        overrides["telegram_api_hash"] = val
+                    elif alias_key == "TELEGRAM_BOT_TOKEN":
+                        overrides["telegram_bot_token"] = val
+                    elif alias_key == "TELEGRAM_STORAGE_CHANNEL_ID":
+                        overrides["telegram_storage_channel_id"] = int(val) if val else 0
+                    elif alias_key == "DATABASE_URL":
+                        overrides["database_url"] = val
+                    elif alias_key == "JWT_SECRET":
+                        overrides["jwt_secret"] = val
+                    elif alias_key == "WEB_BASE_URL":
+                        overrides["web_base_url"] = val
+                    elif alias_key == "ADMIN_TELEGRAM_IDS":
+                        overrides["admin_ids_str"] = val
+                    elif alias_key == "CACHE_ENABLED":
+                        overrides["cache_enabled"] = val.lower() in ("true", "1", "yes")
+                    elif alias_key == "ADS_ENABLED":
+                        overrides["ads_enabled"] = val.lower() in ("true", "1", "yes")
+                    elif alias_key == "VIDEO_CACHE_ENABLED":
+                        overrides["_video_cache_enabled"] = val.lower() in ("true", "1", "yes")
+                if overrides:
+                    for k, v in overrides.items():
+                        if hasattr(s, k):
+                            setattr(s, k, v)
+        asyncio.get_event_loop().run_until_complete(_load())
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning(f"DB overrides could not be applied (will retry): {_e}")
+    finally:
+        _db_overrides_applied = True
 
 def is_configured(settings: Settings) -> bool:
     """True if real credentials are set (not template defaults)."""

@@ -171,54 +171,6 @@ class BotInfoResponse(BaseModel):
     server_version: str = "1.0.0"
 
 
-# ============== Music Schemas ==============
-
-class ArtistResponse(BaseModel):
-    id: int
-    name: str
-    bio: Optional[str] = None
-    verified: bool = False
-    created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-class AlbumResponse(BaseModel):
-    id: int
-    title: str
-    artist_id: int
-    artist: Optional[ArtistResponse] = None
-    genre: Optional[str] = None
-    total_tracks: int = 0
-    created_at: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-class TrackResponse(BaseModel):
-    id: int
-    title: str
-    artist_id: int
-    artist: Optional[ArtistResponse] = None
-    album_id: Optional[int] = None
-    album: Optional[AlbumResponse] = None
-    file_id: int
-    duration: Optional[int] = None
-    genre: Optional[str] = None
-    track_number: Optional[int] = None
-    play_count: int = 0
-    like_count: int = 0
-    created_at: datetime
-    stream_url: Optional[str] = None
-    cover_url: Optional[str] = None
-    is_liked: bool = False
-    model_config = ConfigDict(from_attributes=True)
-
-class PlaylistResponse(BaseModel):
-    id: int
-    user_id: int
-    title: str
-    is_public: bool = False
-    created_at: datetime
-    tracks: List[TrackResponse] = []
-    model_config = ConfigDict(from_attributes=True)
-
 class CacheConfigResponse(BaseModel):
     max_size_mb: int
     max_file_size_mb: int
@@ -254,7 +206,7 @@ class NextAdResponse(BaseModel):
     audio_url: Optional[str] = None
     skip_after: int = 5
 
-# ============== Video Schemas ==============
+# ============== Video Schemas (pure video branch) ==============
 class MovieResponse(BaseModel):
     id: int
     title: str

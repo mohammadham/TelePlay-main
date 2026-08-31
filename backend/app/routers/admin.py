@@ -105,22 +105,20 @@ _start_time = time.time()
 @router.get("/stats")
 async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
     from sqlalchemy import func
-    from ..models import User as U, File, Track, Movie, Ad, CacheConfig
-    # counts
+    from ..models import User as U, File, Movie, Series, Episode, Ad
     users = (await db.execute(select(func.count()).select_from(U))).scalar() or 0
     files = (await db.execute(select(func.count()).select_from(File))).scalar() or 0
-    files_audio = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))).scalar() or 0
     files_video = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))).scalar() or 0
-    tracks = (await db.execute(select(func.count()).select_from(Track))).scalar() or 0
     movies = (await db.execute(select(func.count()).select_from(Movie))).scalar() or 0
+    series = (await db.execute(select(func.count()).select_from(Series))).scalar() or 0
+    episodes = (await db.execute(select(func.count()).select_from(Episode))).scalar() or 0
     ads = (await db.execute(select(func.count()).select_from(Ad))).scalar() or 0
     cache = await cache_manager.get_stats()
-    # storage sum
     storage = (await db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))).scalar() or 0
     uptime = int(time.time() - _start_time)
     return {
-        "users": users, "files": files, "files_audio": files_audio, "files_video": files_video,
-        "tracks": tracks, "movies": movies, "ads": ads, "storage_bytes": storage,
+        "users": users, "files": files, "files_video": files_video,
+        "movies": movies, "series": series, "episodes": episodes, "ads": ads, "storage_bytes": storage,
         "cache": cache, "uptime_seconds": uptime, "python": platform.python_version(), "platform": platform.platform()
     }
 

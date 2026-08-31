@@ -203,51 +203,7 @@ interface TelePlayApi {
         @Query("limit") limit: Int = 30
     ): Response<SearchResponse>
 
-    // ============ Music ============
-    @GET("v1/music/tracks")
-    suspend fun getTracks(
-        @Query("q") q: String? = null,
-        @Query("artist_id") artistId: Int? = null,
-        @Query("page") page: Int = 1
-    ): Response<List<com.telegramtv.data.model.Track>>
-
-    @GET("v1/music/tracks/{id}")
-    suspend fun getTrack(@Path("id") trackId: Int): Response<com.telegramtv.data.model.Track>
-
-    @GET("v1/music/artists")
-    suspend fun getArtists(@Query("q") q: String? = null): Response<List<com.telegramtv.data.model.Artist>>
-
-    @GET("v1/music/albums")
-    suspend fun getAlbums(@Query("artist_id") artistId: Int? = null): Response<List<com.telegramtv.data.model.Album>>
-
-    @GET("v1/music/search")
-    suspend fun searchMusic(@Query("q") query: String): Response<Map<String, Any>>
-
-    @GET("v1/music/playlists")
-    suspend fun getPlaylists(): Response<List<com.telegramtv.data.model.Playlist>>
-
-    @POST("v1/music/playlists")
-    suspend fun createPlaylist(@Body body: Map<String, Any>): Response<com.telegramtv.data.model.Playlist>
-
-    @POST("v1/music/likes/{id}")
-    suspend fun likeTrack(@Path("id") trackId: Int): Response<Unit>
-
-    @DELETE("v1/music/likes/{id}")
-    suspend fun unlikeTrack(@Path("id") trackId: Int): Response<Unit>
-
-    @POST("v1/music/history")
-    suspend fun addHistory(@Body body: Map<String, Any>): Response<Unit>
-
-    @GET("v1/music/downloads")
-    suspend fun getDownloads(): Response<List<com.telegramtv.data.model.DownloadItem>>
-
-    @POST("v1/music/downloads")
-    suspend fun addDownload(@Body body: Map<String, Any>): Response<Map<String, Any>>
-
-    @GET("ads/next")
-    suspend fun getNextAd(@Query("play_count") playCount: Int): Response<Map<String, Any>>
-
-    // ============ Video ============
+    // ============ Video (pure video branch — no music) ============
     @GET("v1/video/browse")
     suspend fun getVideoBrowse(): Response<com.telegramtv.data.model.VideoBrowse>
 

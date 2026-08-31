@@ -123,20 +123,30 @@ async def validate_bot_token(payload: BotValidateRequest):
     return await _validate_bot_token(payload.token)
 
 
+def _get_setup_session_name(phone: str) -> str:
+    """Generate unique session name for setup based on phone."""
+    # Sanitize phone for filename
+    safe_phone = phone.replace("+", "").replace("-", "").replace(" ", "")
+    return f"setup_{safe_phone}"
+
+
 @router.post("/user/send-code", response_model=UserSendCodeResponse)
 async def send_user_code(payload: UserSendCodeRequest):
     """Send login code to phone for MTProto user account."""
+    # Use session file (not in_memory) so phone_code_hash persists between requests
+    session_name = _get_setup_session_name(payload.phone)
     try:
         client = Client(
-            "setup_user",
+            session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
-            in_memory=True,
+            # in_memory=False (default) - uses session file
         )
         await client.connect()
         sent_code = await client.send_code(payload.phone)
-        await client.disconnect()
+        # DON'T disconnect - keep session alive for verify step
+        # The session file now contains phone_code_hash
         return UserSendCodeResponse(success=True, phone_code_hash=sent_code.phone_code_hash)
     except Exception as e:
         logger.warning(f"User code send failed: {e}")
@@ -146,13 +156,15 @@ async def send_user_code(payload: UserSendCodeRequest):
 @router.post("/user/verify-code", response_model=UserVerifyCodeResponse)
 async def verify_user_code(payload: UserVerifyCodeRequest):
     """Verify code and optional 2FA, return session string."""
+    # Use same session name as send-code so phone_code_hash is available
+    session_name = _get_setup_session_name(payload.phone)
     try:
         client = Client(
-            "setup_user",
+            session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
-            in_memory=True,
+            # in_memory=False (default) - uses session file
         )
         await client.connect()
 
@@ -178,6 +190,15 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         session_string = await client.export_session_string()
         me = await client.get_me()
         await client.disconnect()
+
+        # Clean up session file after successful verification
+        try:
+            import os
+            session_file = f"{session_name}.session"
+            if os.path.exists(session_file):
+                os.remove(session_file)
+        except Exception:
+            pass
 
         return UserVerifyCodeResponse(
             success=True,

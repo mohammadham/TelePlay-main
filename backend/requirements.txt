@@ -33,4 +33,10 @@ slowapi>=0.1.9
 redis>=5.0.0
 hiredis>=2.0.0
 
+# Encryption
+cryptography>=42.0.0
+
+# Encryption
+cryptography>=42.0.0
+
 

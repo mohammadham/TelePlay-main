@@ -21,6 +21,7 @@ from .database import init_db
 from .telegram import start_telegram_client, stop_telegram_client
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router
 from .routers.settings import router as settings_router
+from .routers.setup import router as setup_router
 
 try:
     settings = get_settings()
@@ -75,12 +76,11 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS middleware - Properly configured for production
-# List allowed origins explicitly instead of using "*"
+# CORS middleware
 allowed_origins = [
-    settings.web_base_url,  # Your web app domain
-    "http://localhost:3000",  # Dev frontend
-    "http://localhost:5173",  # Vite dev server
+    settings.web_base_url,
+    "http://localhost:3000",
+    "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
 ]
@@ -99,22 +99,10 @@ app.add_middleware(
 async def add_security_headers(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)
-    
-    # Prevent MIME type sniffing
     response.headers["X-Content-Type-Options"] = "nosniff"
-    
-    # Prevent clickjacking (allow framing only for same origin)
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    
-    # XSS protection (legacy but still useful)
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    
-    # Referrer policy - don't leak URLs
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    
-    # Content Security Policy (adjust as needed for your frontend)
-    # response.headers["Content-Security-Policy"] = "default-src 'self'"
-    
     return response
 
 
@@ -128,9 +116,7 @@ app.include_router(music_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(ads_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
-
-
-
+app.include_router(setup_router, prefix="/api")
 
 
 @app.get("/health")
@@ -139,62 +125,27 @@ async def health():
     return {"status": "healthy"}
 
 
-@app.get("/api/setup/status")
-async def setup_status():
-    """Public endpoint — returns whether the app has been configured."""
-    from .config import get_settings, is_configured
-    s = get_settings()
-    configured = is_configured(s)
-    return {
-        "configured": configured,
-        "telegram_bot_token_set": bool(s.telegram_bot_token),
-        "telegram_api_id_set": bool(s.telegram_api_id),
-        "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
-        "database_url": s.database_url,
-    }
-
-
-@app.get("/api/setup/status")
-async def setup_status():
-    """Public endpoint — returns whether the app has been configured."""
-    from .config import get_settings, is_configured
-    s = get_settings()
-    configured = is_configured(s)
-    return {
-        "configured": configured,
-        "telegram_bot_token_set": bool(s.telegram_bot_token),
-        "telegram_api_id_set": bool(s.telegram_api_id),
-        "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
-        "database_url": s.database_url,
-    }
-
-
-# ... imports ...
-
-# Mount static files (assets) - checking if directory exists first to avoid dev errors
+# Mount static files (assets)
 if os.path.exists("app/static/assets"):
     app.mount("/assets", StaticFiles(directory="app/static/assets"), name="assets")
 
-# ... (API routers are included above) ...
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     """Serve the React SPA for any non-API routes."""
-    # API routes are already handled by routers above
     if full_path == "api" or full_path.startswith("api/"):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="API Endpoint not found")
 
-    # Check if the file exists in static directory (e.g. logo.png, favicon.ico)
     static_file_path = f"app/static/{full_path}"
     if os.path.exists(static_file_path) and os.path.isfile(static_file_path):
         return FileResponse(static_file_path)
-        
-    # Serve index.html for generic SPA routes
+
     if os.path.exists("app/static/index.html"):
         return FileResponse("app/static/index.html")
-        
+
     return {"message": "Backend running. Frontend not built/mounted (dev mode)."}
+
 
 if __name__ == "__main__":
     import uvicorn

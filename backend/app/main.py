@@ -22,6 +22,9 @@ from .telegram import start_telegram_client, stop_telegram_client
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router
 from .routers.settings import router as settings_router
 from .routers.setup import router as setup_router
+from .routers.admin_bots import router as admin_bots_router
+from .routers.admin_accounts import router as admin_accounts_router
+from .routers.admin_admins import router as admin_admins_router
 
 try:
     settings = get_settings()
@@ -53,10 +56,23 @@ async def lifespan(app: FastAPI):
         raise
     await init_db()
     logger.info("Database initialized")
+    
+    # Run migration from legacy settings
+    from .migration import migrate_existing_settings, ensure_default_bot_config
+    from .database import get_sessionmaker
+    session_maker = get_sessionmaker()
+    async with session_maker() as db:
+        await migrate_existing_settings(db)
+        await ensure_default_bot_config(db)
+    
     mark_db_ready(settings)
     logger.info("DB settings applied")
     await start_telegram_client()
     logger.info("Telegram client started")
+    
+    # Load user accounts into pool
+    from .pool_manager import load_user_accounts
+    await load_user_accounts()
     
     yield
     
@@ -117,6 +133,9 @@ app.include_router(admin_router, prefix="/api")
 app.include_router(ads_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
+app.include_router(admin_bots_router, prefix="/api")
+app.include_router(admin_accounts_router, prefix="/api")
+app.include_router(admin_admins_router, prefix="/api")
 
 
 @app.get("/health")

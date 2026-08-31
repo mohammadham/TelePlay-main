@@ -32,15 +32,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# Copy backend code and env template (so build never needs real .env)
 COPY backend/app/ ./app/
+COPY .env.example ./.env.example
+# Create template .env at build time if none exists — panel is source of truth, no crash
+RUN if [ ! -f .env ]; then cp .env.example .env 2>/dev/null || printf "DATABASE_URL=sqlite:///./data/teleplay.db\nJWT_SECRET=change-me-in-production-please-set-via-panel\nTELEGRAM_API_ID=0\nTELEGRAM_API_HASH=\nTELEGRAM_BOT_TOKEN=\nTELEGRAM_STORAGE_CHANNEL_ID=0\n" > .env; echo "Template .env created at build"; fi
 
 # Copy built frontend assets from Stage 1 to Backend's static folder
 # FastAPI is configured to look in 'app/static' to serve the SPA
 COPY --from=frontend-builder /web-build/dist ./app/static
 
-# Create session directory
-RUN mkdir -p /app/session && chmod 777 /app/session
+# Create session & data directories
+RUN mkdir -p /app/session /app/data && chmod 777 /app/session /app/data
 
 # Set environment variable to tell FastAPI we are in production/monolith mode if needed
 ENV MULTI_CONTAINER_SETUP=false

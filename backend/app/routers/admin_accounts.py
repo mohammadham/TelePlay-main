@@ -135,55 +135,35 @@ async def verify_account_login(
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
-            # in_memory=False (default) - uses session file
         )
         await client.connect()
         
+        # Strategy: Always pass password if available to avoid PHONE_CODE_EXPIRED bug.
         try:
-            await client.sign_in(
-                payload.phone,
-                payload.phone_code_hash,
-                payload.code,
-            )
+            if payload.password:
+                await client.sign_in(
+                    payload.phone,
+                    payload.phone_code_hash,
+                    payload.code,
+                    password=payload.password,
+                )
+            else:
+                await client.sign_in(
+                    payload.phone,
+                    payload.phone_code_hash,
+                    payload.code,
+                )
         except Exception as e:
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
                 if not payload.password:
-                    # 2FA required but no password given
-                    # IMPORTANT: sign_in without password INVALIDATES phone_code_hash.
-                    # We must resend a new code + handle password in ONE call.
                     return {
                         "success": False,
                         "has_2fa": True,
-                        "error": "Two-factor authentication required. Please enter your 2FA password and try again.",
+                        "error": "Two-factor authentication required. Please enter your 2FA password and click Verify again.",
                     }
-                # Password provided but sign_in still failed with password needed.
-                # Resend a fresh code and retry sign_in WITH password in one call.
-                # NOTE: The original phone_code_hash is now invalid — send a new one.
-                client2 = Client(
-                    session_name,
-                    api_id=payload.api_id,
-                    api_hash=payload.api_hash,
-                    phone_number=payload.phone,
-                )
-                await client2.connect()
-                try:
-                    sent_code = await client2.send_code(payload.phone)
-                    await client2.sign_in(
-                        payload.phone,
-                        sent_code.phone_code_hash,
-                        payload.code,
-                        password=payload.password,
-                    )
-                except Exception as inner_e:
-                    inner_str = str(inner_e).upper()
-                    if "SESSION_PASSWORD_NEEDED" in inner_str:
-                        raise HTTPException(400, "Invalid 2FA password. Please check and try again.")
-                    raise
-                finally:
-                    await client2.disconnect()
-                await client.disconnect()
-                # Fall through to export_session_string below
+                else:
+                    raise HTTPException(400, "Invalid 2FA password. Please check and try again.")
             else:
                 raise
         

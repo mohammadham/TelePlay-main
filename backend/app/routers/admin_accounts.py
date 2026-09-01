@@ -129,8 +129,12 @@ async def start_account_login(
             ipv6=False,
         )
         # Add timeout to prevent hanging on connect/send_code
+        logger.info(f"Attempting to send code to {payload.phone} with api_id {payload.api_id}")
+        logger.info("Connecting to Telegram MTProto...")
         await asyncio.wait_for(client.connect(), timeout=30.0)
-        sent_code = await asyncio.wait_for(client.send_code(payload.phone), timeout=30.0)
+        logger.info("Connected, sending code...")
+        sent_code = await asyncio.wait_for(client.send_code(payload.phone), timeout=60.0)
+        logger.info(f"Code sent successfully, hash: {sent_code.phone_code_hash[:20]}...")
         # DON'T disconnect - keep session alive for verify step
         return {
             "success": True,
@@ -138,14 +142,14 @@ async def start_account_login(
             "message": "Code sent to phone"
         }
     except asyncio.TimeoutError:
-        logger.error("Timeout during send_code operation")
-        raise HTTPException(400, "Timeout: Telegram connection took too long")
+        logger.error("Timeout during send_code operation - connection or send taking too long")
+        raise HTTPException(400, "Timeout: Telegram connection took too long. Check your network connection and proxy settings.")
     except PhoneCodeExpired:
         logger.warning("Phone code expired during send_code")
         raise HTTPException(400, "Phone code expired. Please try again.")
     except Exception as e:
-        logger.warning(f"Account code send failed: {e}")
-        raise HTTPException(400, f"Failed to send code: {e}")
+        logger.error(f"Account code send failed: {type(e).__name__}: {e}")
+        raise HTTPException(400, f"Failed to send code: {type(e).__name__}")
 
 @router.post("/login/verify", response_model=dict)
 async def verify_account_login(

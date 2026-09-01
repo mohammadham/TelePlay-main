@@ -198,6 +198,7 @@ async def verify_account_login(
         # 2. If 2FA enabled, sign_in raises SessionPasswordNeeded
         # 3. Then call check_password(password) to complete auth
         try:
+            logger.info(f"Attempting sign_in with phone={payload.phone}, hash={payload.phone_code_hash[:20]}...")
             await asyncio.wait_for(
                 client.sign_in(
                     payload.phone,
@@ -206,20 +207,24 @@ async def verify_account_login(
                 ),
                 timeout=30.0,
             )
+            logger.info("sign_in successful!")
+        except PhoneCodeExpired:
+            logger.warning(f"Phone code expired for {payload.phone}")
+            return {
+                "success": False,
+                "error": "Phone code expired. Please request a new code.",
+            }
         except SessionPasswordNeeded:
             if not payload.password:
+                logger.info("2FA required, no password provided")
                 return {
                     "success": False,
                     "has_2fa": True,
                     "error": "Two-factor authentication required. Please enter your 2FA password and click Verify again.",
                 }
             # Password provided - complete 2FA
+            logger.info("2FA password provided, calling check_password")
             await client.check_password(payload.password)
-        except PhoneCodeExpired:
-            return {
-                "success": False,
-                "error": "Phone code expired. Please request a new code.",
-            }
         
         session_string = await client.export_session_string()
         me = await client.get_me()

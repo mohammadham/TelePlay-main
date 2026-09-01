@@ -108,12 +108,15 @@ export default function SetupPage() {
                 password: needs2fa ? userPassword : undefined,
             });
             if (res.data.has_2fa) {
-                // If we already tried 2FA and still got has_2fa=true, the password was wrong
-                if (needs2fa) {
-                    setError('Invalid 2FA password. Please try again.');
-                } else {
-                    // First time seeing 2FA required - show password field
+                // First time 2FA detected - need to resend code with password
+                // The old phone_code_hash is now INVALID (consumed by first attempt)
+                if (!needs2fa) {
+                    // First 2FA detection - show password field and explain
                     setNeeds2fa(true);
+                    setError('2FA enabled! Please enter your 2FA password and click "Resend Code" to get a fresh code, then enter the new code + password together.');
+                } else {
+                    // Already had 2FA field shown - password was wrong or code expired
+                    setError('Invalid 2FA password or code expired. Please click "Resend Code" and try again with new code + password.');
                 }
                 return;
             }

@@ -18,6 +18,7 @@ from ..encryption import encrypt, decrypt
 from ..pool_manager import pool_manager
 from ..patch import Client
 from ..config import get_settings
+from pyrogram.errors import SessionPasswordNeeded, PhoneCodeExpired
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/accounts", tags=["Admin Accounts"])
@@ -122,8 +123,8 @@ async def start_account_login(
             session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
-            phone_number=payload.phone,
             # in_memory=False (default) - uses session file so phone_code_hash persists
+            # Do NOT pass phone_number here - it causes auto-login and invalidates phone_code_hash
             proxy=proxy,
             ipv6=False,
         )
@@ -139,6 +140,9 @@ async def start_account_login(
     except asyncio.TimeoutError:
         logger.error("Timeout during send_code operation")
         raise HTTPException(400, "Timeout: Telegram connection took too long")
+    except PhoneCodeExpired:
+        logger.warning("Phone code expired during send_code")
+        raise HTTPException(400, "Phone code expired. Please try again.")
     except Exception as e:
         logger.warning(f"Account code send failed: {e}")
         raise HTTPException(400, f"Failed to send code: {e}")
@@ -174,17 +178,17 @@ async def verify_account_login(
                     "scheme": "http",
                 }
 
+        # Don't pass phone_number to constructor - it causes auto-login and invalidates phone_code_hash
         client = Client(
             session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
-            phone_number=payload.phone,
             proxy=proxy,
             ipv6=False,
         )
         # Add timeout to prevent hanging on connect/sign_in
         await asyncio.wait_for(client.connect(), timeout=30.0)
-        
+
         # Pyrogram 2FA flow:
         # 1. Try sign_in with code (no password parameter!)
         # 2. If 2FA enabled, sign_in raises SessionPasswordNeeded
@@ -198,19 +202,20 @@ async def verify_account_login(
                 ),
                 timeout=30.0,
             )
-        except Exception as e:
-            exc_str = str(e).upper()
-            if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
-                if not payload.password:
-                    return {
-                        "success": False,
-                        "has_2fa": True,
-                        "error": "Two-factor authentication required. Please enter your 2FA password and click Verify again.",
-                    }
-                # Password provided - complete 2FA
-                await client.check_password(payload.password)
-            else:
-                raise
+        except SessionPasswordNeeded:
+            if not payload.password:
+                return {
+                    "success": False,
+                    "has_2fa": True,
+                    "error": "Two-factor authentication required. Please enter your 2FA password and click Verify again.",
+                }
+            # Password provided - complete 2FA
+            await client.check_password(payload.password)
+        except PhoneCodeExpired:
+            return {
+                "success": False,
+                "error": "Phone code expired. Please request a new code.",
+            }
         
         session_string = await client.export_session_string()
         me = await client.get_me()

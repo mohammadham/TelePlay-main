@@ -15,6 +15,7 @@ from ..config import get_settings, mark_db_ready
 from ..auth import create_access_token, create_refresh_token
 from ..encryption import encrypt, decrypt
 from ..patch import Client
+from pyrogram.errors import SessionPasswordNeeded, PhoneCodeExpired
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/setup", tags=["Setup Wizard"])
@@ -140,7 +141,6 @@ async def send_user_code(payload: UserSendCodeRequest):
         settings = get_settings()
         proxy = None
         if settings.telegram_proxy:
-            from pyrogram import Session
             import urllib.parse
             parsed = urllib.parse.urlparse(settings.telegram_proxy)
             if parsed.scheme == "socks5":
@@ -155,12 +155,12 @@ async def send_user_code(payload: UserSendCodeRequest):
                     "port": parsed.port or 8080,
                     "scheme": "http",
                 }
-        
+
+        # Don't pass phone_number to constructor - it causes auto-login and invalidates phone_code_hash
         client = Client(
             session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
-            phone_number=payload.phone,
             proxy=proxy,
             ipv6=False,
         )
@@ -173,6 +173,9 @@ async def send_user_code(payload: UserSendCodeRequest):
     except asyncio.TimeoutError:
         logger.error("Timeout during send_code operation")
         return UserSendCodeResponse(success=False, error="Timeout: Telegram connection took too long")
+    except PhoneCodeExpired:
+        logger.warning("Phone code expired during send_code")
+        return UserSendCodeResponse(success=False, error="Phone code expired. Please try again.")
     except Exception as e:
         logger.warning(f"User code send failed: {e}")
         return UserSendCodeResponse(success=False, error=str(e))
@@ -187,7 +190,6 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         settings = get_settings()
         proxy = None
         if settings.telegram_proxy:
-            from pyrogram import Session
             import urllib.parse
             parsed = urllib.parse.urlparse(settings.telegram_proxy)
             if parsed.scheme == "socks5":
@@ -202,12 +204,12 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
                     "port": parsed.port or 8080,
                     "scheme": "http",
                 }
-        
+
+        # Don't pass phone_number to constructor - it causes auto-login and invalidates phone_code_hash
         client = Client(
             session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
-            phone_number=payload.phone,
             proxy=proxy,
             ipv6=False,
         )
@@ -227,20 +229,21 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
                 ),
                 timeout=30.0,
             )
-        except Exception as e:
-            exc_str = str(e).upper()
-            if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
-                if not payload.password:
-                    # 2FA required - return has_2fa so frontend shows password field
-                    return UserVerifyCodeResponse(
-                        success=False,
-                        has_2fa=True,
-                        error="Two-factor authentication required. Please enter your 2FA password and click Verify again.",
-                    )
-                # Password provided - complete 2FA
-                await client.check_password(payload.password)
-            else:
-                raise
+        except SessionPasswordNeeded:
+            if not payload.password:
+                # 2FA required - return has_2fa so frontend shows password field
+                return UserVerifyCodeResponse(
+                    success=False,
+                    has_2fa=True,
+                    error="Two-factor authentication required. Please enter your 2FA password and click Verify again.",
+                )
+            # Password provided - complete 2FA
+            await client.check_password(payload.password)
+        except PhoneCodeExpired:
+            return UserVerifyCodeResponse(
+                success=False,
+                error="Phone code expired. Please request a new code.",
+            )
 
         session_string = await client.export_session_string()
         me = await client.get_me()
@@ -248,7 +251,6 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
 
         # Clean up session file after successful verification
         try:
-            import os
             session_file = f"{session_name}.session"
             if os.path.exists(session_file):
                 os.remove(session_file)

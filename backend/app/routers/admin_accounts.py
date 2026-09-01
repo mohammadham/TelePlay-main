@@ -138,21 +138,18 @@ async def verify_account_login(
         )
         await client.connect()
         
-        # Strategy: Always pass password if available to avoid PHONE_CODE_EXPIRED bug.
+        # CRITICAL FIX: Always pass password to sign_in (even empty string).
+        # When password is None, Pyrogram omits it from the request.
+        # Telegram then treats it as a non-2FA attempt and INVALIDATES the code
+        # if the account actually has 2FA enabled.
+        pwd = payload.password if payload.password else ""
         try:
-            if payload.password:
-                await client.sign_in(
-                    payload.phone,
-                    payload.phone_code_hash,
-                    payload.code,
-                    password=payload.password,
-                )
-            else:
-                await client.sign_in(
-                    payload.phone,
-                    payload.phone_code_hash,
-                    payload.code,
-                )
+            await client.sign_in(
+                payload.phone,
+                payload.phone_code_hash,
+                payload.code,
+                password=pwd,
+            )
         except Exception as e:
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:

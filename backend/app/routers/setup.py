@@ -166,30 +166,24 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         )
         await client.connect()
 
-        # Strategy: Always pass password if available.
-        # This avoids the "PHONE_CODE_EXPIRED" bug where calling sign_in
-        # WITHOUT password on a 2FA account INVALIDATES the code.
+        # CRITICAL FIX: Always pass password to sign_in (even empty string).
+        # When password is None, Pyrogram omits it from the request.
+        # Telegram then treats it as a non-2FA attempt and INVALIDATES the code
+        # if the account actually has 2FA enabled.
+        # By passing "" (empty string), we signal to Telegram "I know about 2FA".
+        pwd = payload.password if payload.password else ""
         try:
-            if payload.password:
-                # Try sign_in with password immediately
-                await client.sign_in(
-                    payload.phone,
-                    payload.phone_code_hash,
-                    payload.code,
-                    password=payload.password,
-                )
-            else:
-                # No password given - try without it.
-                # If 2FA is enabled, this will consume the code and we must notify user.
-                await client.sign_in(
-                    payload.phone,
-                    payload.phone_code_hash,
-                    payload.code,
-                )
+            await client.sign_in(
+                payload.phone,
+                payload.phone_code_hash,
+                payload.code,
+                password=pwd,
+            )
         except Exception as e:
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
-                # 2FA is enabled but no password was provided in this request
+                # Password field was sent but Telegram still needs password.
+                # This means user didn't provide password in request.
                 return UserVerifyCodeResponse(
                     success=False,
                     has_2fa=True,

@@ -166,36 +166,28 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         )
         await client.connect()
 
-        # CRITICAL FIX: Always pass password to sign_in (even empty string).
-        # When password is None, Pyrogram omits it from the request.
-        # Telegram then treats it as a non-2FA attempt and INVALIDATES the code
-        # if the account actually has 2FA enabled.
-        # By passing "" (empty string), we signal to Telegram "I know about 2FA".
-        pwd = payload.password if payload.password else ""
+        # Pyrogram 2FA flow:
+        # 1. Try sign_in with code (no password parameter!)
+        # 2. If 2FA enabled, sign_in raises SessionPasswordNeeded
+        # 3. Then call check_password(password) to complete auth
         try:
             await client.sign_in(
                 payload.phone,
                 payload.phone_code_hash,
                 payload.code,
-                password=pwd,
             )
         except Exception as e:
             exc_str = str(e).upper()
             if "SESSION_PASSWORD_NEEDED" in exc_str or "TWO-FACTOR" in exc_str or "PASSWORD_NEEDED" in exc_str:
-                # Password field was sent but Telegram still needs password.
-                # This means user didn't provide password in request.
-                return UserVerifyCodeResponse(
-                    success=False,
-                    has_2fa=True,
-                    error="Two-factor authentication required. Please enter your 2FA password and click Verify again.",
-                )
-            elif payload.password:
-                # Password was provided but failed - likely wrong password
-                return UserVerifyCodeResponse(
-                    success=False,
-                    has_2fa=True,
-                    error="Invalid 2FA password. Please check and try again.",
-                )
+                if not payload.password:
+                    # 2FA required - return has_2fa so frontend shows password field
+                    return UserVerifyCodeResponse(
+                        success=False,
+                        has_2fa=True,
+                        error="Two-factor authentication required. Please enter your 2FA password and click Verify again.",
+                    )
+                # Password provided - complete 2FA
+                await client.check_password(payload.password)
             else:
                 raise
 

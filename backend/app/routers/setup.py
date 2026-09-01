@@ -136,12 +136,33 @@ async def send_user_code(payload: UserSendCodeRequest):
     # Use session file (not in_memory) so phone_code_hash persists between requests
     session_name = _get_setup_session_name(payload.phone)
     try:
+        # Check for proxy configuration
+        settings = get_settings()
+        proxy = None
+        if settings.telegram_proxy:
+            from pyrogram import Session
+            import urllib.parse
+            parsed = urllib.parse.urlparse(settings.telegram_proxy)
+            if parsed.scheme == "socks5":
+                proxy = {
+                    "ip": parsed.hostname or "",
+                    "port": parsed.port or 1080,
+                    "scheme": "socks5",
+                }
+            elif parsed.scheme == "http":
+                proxy = {
+                    "ip": parsed.hostname or "",
+                    "port": parsed.port or 8080,
+                    "scheme": "http",
+                }
+        
         client = Client(
             session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
-            # in_memory=False (default) - uses session file
+            proxy=proxy,
+            ipv6=False,
         )
         # Add timeout to prevent hanging on connect/send_code
         await asyncio.wait_for(client.connect(), timeout=30.0)
@@ -162,11 +183,33 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
     """Verify code and optional 2FA, return session string."""
     session_name = _get_setup_session_name(payload.phone)
     try:
+        # Check for proxy configuration
+        settings = get_settings()
+        proxy = None
+        if settings.telegram_proxy:
+            from pyrogram import Session
+            import urllib.parse
+            parsed = urllib.parse.urlparse(settings.telegram_proxy)
+            if parsed.scheme == "socks5":
+                proxy = {
+                    "ip": parsed.hostname or "",
+                    "port": parsed.port or 1080,
+                    "scheme": "socks5",
+                }
+            elif parsed.scheme == "http":
+                proxy = {
+                    "ip": parsed.hostname or "",
+                    "port": parsed.port or 8080,
+                    "scheme": "http",
+                }
+        
         client = Client(
             session_name,
             api_id=payload.api_id,
             api_hash=payload.api_hash,
             phone_number=payload.phone,
+            proxy=proxy,
+            ipv6=False,
         )
         # Add timeout to prevent hanging on connect/sign_in
         await asyncio.wait_for(client.connect(), timeout=30.0)

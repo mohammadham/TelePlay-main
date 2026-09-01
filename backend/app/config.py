@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     telegram_api_hash: str = Field("", alias="TELEGRAM_API_HASH")
     telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     
+    # MTProto proxy (optional) - format: "socks5://user:pass@host:port" or "http://host:port"
+    telegram_proxy: str = Field("", alias="TELEGRAM_PROXY")
+    
     # Use string field to avoid JSON parsing issues with comma-separated env var
     telegram_helper_bot_tokens_str: str = Field("", alias="TELEGRAM_HELPER_BOT_TOKENS")
     

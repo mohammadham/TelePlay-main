@@ -143,11 +143,15 @@ async def send_user_code(payload: UserSendCodeRequest):
             phone_number=payload.phone,
             # in_memory=False (default) - uses session file
         )
-        await client.connect()
-        sent_code = await client.send_code(payload.phone)
-        # DON'T disconnect - keep session alive for verify step
+        # Add timeout to prevent hanging on connect/send_code
+        await asyncio.wait_for(client.connect(), timeout=30.0)
+        sent_code = await asyncio.wait_for(client.send_code(payload.phone), timeout=30.0)
+        # Don't disconnect - keep session alive for verify step
         # The session file now contains phone_code_hash
         return UserSendCodeResponse(success=True, phone_code_hash=sent_code.phone_code_hash)
+    except asyncio.TimeoutError:
+        logger.error("Timeout during send_code operation")
+        return UserSendCodeResponse(success=False, error="Timeout: Telegram connection took too long")
     except Exception as e:
         logger.warning(f"User code send failed: {e}")
         return UserSendCodeResponse(success=False, error=str(e))
@@ -164,17 +168,21 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
             api_hash=payload.api_hash,
             phone_number=payload.phone,
         )
-        await client.connect()
+        # Add timeout to prevent hanging on connect/sign_in
+        await asyncio.wait_for(client.connect(), timeout=30.0)
 
         # Pyrogram 2FA flow:
         # 1. Try sign_in with code (no password parameter!)
         # 2. If 2FA enabled, sign_in raises SessionPasswordNeeded
         # 3. Then call check_password(password) to complete auth
         try:
-            await client.sign_in(
-                payload.phone,
-                payload.phone_code_hash,
-                payload.code,
+            await asyncio.wait_for(
+                client.sign_in(
+                    payload.phone,
+                    payload.phone_code_hash,
+                    payload.code,
+                ),
+                timeout=30.0,
             )
         except Exception as e:
             exc_str = str(e).upper()

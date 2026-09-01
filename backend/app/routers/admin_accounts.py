@@ -106,14 +106,18 @@ async def start_account_login(
             phone_number=payload.phone,
             # in_memory=False (default) - uses session file so phone_code_hash persists
         )
-        await client.connect()
-        sent_code = await client.send_code(payload.phone)
+        # Add timeout to prevent hanging on connect/send_code
+        await asyncio.wait_for(client.connect(), timeout=30.0)
+        sent_code = await asyncio.wait_for(client.send_code(payload.phone), timeout=30.0)
         # DON'T disconnect - keep session alive for verify step
         return {
             "success": True,
             "phone_code_hash": sent_code.phone_code_hash,
             "message": "Code sent to phone"
         }
+    except asyncio.TimeoutError:
+        logger.error("Timeout during send_code operation")
+        raise HTTPException(400, "Timeout: Telegram connection took too long")
     except Exception as e:
         logger.warning(f"Account code send failed: {e}")
         raise HTTPException(400, f"Failed to send code: {e}")
@@ -136,17 +140,21 @@ async def verify_account_login(
             api_hash=payload.api_hash,
             phone_number=payload.phone,
         )
-        await client.connect()
+        # Add timeout to prevent hanging on connect/sign_in
+        await asyncio.wait_for(client.connect(), timeout=30.0)
         
         # Pyrogram 2FA flow:
         # 1. Try sign_in with code (no password parameter!)
         # 2. If 2FA enabled, sign_in raises SessionPasswordNeeded
         # 3. Then call check_password(password) to complete auth
         try:
-            await client.sign_in(
-                payload.phone,
-                payload.phone_code_hash,
-                payload.code,
+            await asyncio.wait_for(
+                client.sign_in(
+                    payload.phone,
+                    payload.phone_code_hash,
+                    payload.code,
+                ),
+                timeout=30.0,
             )
         except Exception as e:
             exc_str = str(e).upper()

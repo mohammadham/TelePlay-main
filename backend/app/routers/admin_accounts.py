@@ -16,9 +16,9 @@ from ..models import UserAccount, AdminUser
 from ..auth import require_admin
 from ..encryption import encrypt, decrypt
 from ..pool_manager import pool_manager
-from ..patch import Client
+from ..services import telegram_auth_service, session_manager
+from ..services.telegram_auth import AuthError
 from ..config import get_settings
-from pyrogram.errors import SessionPasswordNeeded, PhoneCodeExpired
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/accounts", tags=["Admin Accounts"])
@@ -30,6 +30,9 @@ def _get_account_session_name(name: str) -> str:
     """Generate unique session name for account setup."""
     return f"setup_account_{name}"
 
+
+# ── Schemas ──────────────────────────────────────────────────────────────
+
 class AccountCreateRequest(BaseModel):
     name: str
     phone: str
@@ -37,6 +40,7 @@ class AccountCreateRequest(BaseModel):
     api_hash: str
     purpose: str = "STORAGE"
     is_active: bool = True
+
 
 class AccountUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -46,11 +50,13 @@ class AccountUpdateRequest(BaseModel):
     purpose: Optional[str] = None
     is_active: Optional[bool] = None
 
+
 class AccountLoginStartRequest(BaseModel):
     name: str
     phone: str
     api_id: int
     api_hash: str
+
 
 class AccountLoginVerifyRequest(BaseModel):
     name: str
@@ -60,6 +66,7 @@ class AccountLoginVerifyRequest(BaseModel):
     phone_code_hash: str
     code: str
     password: Optional[str] = None
+
 
 class AccountResponse(BaseModel):
     id: int
@@ -77,6 +84,27 @@ class AccountResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class AccountLoginStartResponse(BaseModel):
+    success: bool
+    phone_code_hash: Optional[str] = None
+    error: Optional[str] = None
+    message: Optional[str] = None
+    expires_in_seconds: int = 120
+
+
+class AccountLoginVerifyResponse(BaseModel):
+    success: bool
+    session_string: Optional[str] = None
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    has_2fa: bool = False
+    error: Optional[str] = None
+    message: Optional[str] = None
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────
+
 @router.get("", response_model=List[AccountResponse])
 async def list_accounts(
     db: AsyncSession = Depends(get_db),
@@ -87,169 +115,61 @@ async def list_accounts(
     accounts = result.scalars().all()
     return accounts
 
-@router.post("/login/start", response_model=dict)
+
+@router.post("/login/start", response_model=AccountLoginStartResponse)
 async def start_account_login(
     payload: AccountLoginStartRequest,
     db: AsyncSession = Depends(get_db),
     current_user: AdminUser = Depends(require_admin),
 ):
-    """Start login flow for a new MTProto account (send code)."""
-    # Validate phone format
+    """Send login code to phone for MTProto account (admin flow)."""
     if not payload.phone.startswith("+"):
         payload.phone = "+" + payload.phone
-    
-    session_name = _get_account_session_name(payload.name)
-    try:
-        # Check for proxy configuration
-        settings = get_settings()
-        proxy = None
-        if settings.telegram_proxy:
-            import urllib.parse
-            parsed = urllib.parse.urlparse(settings.telegram_proxy)
-            if parsed.scheme == "socks5":
-                proxy = {
-                    "ip": parsed.hostname or "",
-                    "port": parsed.port or 1080,
-                    "scheme": "socks5",
-                }
-            elif parsed.scheme == "http":
-                proxy = {
-                    "ip": parsed.hostname or "",
-                    "port": parsed.port or 8080,
-                    "scheme": "http",
-                }
 
-        client = Client(
-            session_name,
-            api_id=payload.api_id,
-            api_hash=payload.api_hash,
-            # in_memory=False (default) - uses session file so phone_code_hash persists
-            # Do NOT pass phone_number here - it causes auto-login and invalidates phone_code_hash
-            proxy=proxy,
-            ipv6=False,
-        )
-        # Add timeout to prevent hanging on connect/send_code
-        logger.info(f"Attempting to send code to {payload.phone} with api_id {payload.api_id}")
-        logger.info("Connecting to Telegram MTProto...")
-        await asyncio.wait_for(client.connect(), timeout=30.0)
-        logger.info("Connected, sending code...")
-        sent_code = await asyncio.wait_for(client.send_code(payload.phone), timeout=60.0)
-        logger.info(f"Code sent successfully, hash: {sent_code.phone_code_hash[:20]}...")
-        # DON'T disconnect - keep session alive for verify step
-        return {
-            "success": True,
-            "phone_code_hash": sent_code.phone_code_hash,
-            "message": "Code sent to phone"
-        }
-    except asyncio.TimeoutError:
-        logger.error("Timeout during send_code operation - connection or send taking too long")
-        raise HTTPException(400, "Timeout: Telegram connection took too long. Check your network connection and proxy settings.")
-    except PhoneCodeExpired:
-        logger.warning("Phone code expired during send_code")
-        raise HTTPException(400, "Phone code expired. Please try again.")
-    except Exception as e:
-        logger.error(f"Account code send failed: {type(e).__name__}: {e}")
-        raise HTTPException(400, f"Failed to send code: {type(e).__name__}")
+    result = await telegram_auth_service.send_code(
+        phone=payload.phone,
+        api_id=payload.api_id,
+        api_hash=payload.api_hash,
+    )
 
-@router.post("/login/verify", response_model=dict)
+    return AccountLoginStartResponse(
+        success=result.success,
+        phone_code_hash=result.phone_code_hash,
+        error=result.error,
+        message=result.message,
+        expires_in_seconds=result.expires_in_seconds,
+    )
+
+
+@router.post("/login/verify", response_model=AccountLoginVerifyResponse)
 async def verify_account_login(
     payload: AccountLoginVerifyRequest,
     db: AsyncSession = Depends(get_db),
     current_user: AdminUser = Depends(require_admin),
 ):
-    """Verify code and optional 2FA, return session string."""
+    """Verify code and optional 2FA, return session string (admin flow)."""
     if not payload.phone.startswith("+"):
         payload.phone = "+" + payload.phone
-    
-    session_name = _get_account_session_name(payload.name)
-    try:
-        # Check for proxy configuration
-        settings = get_settings()
-        proxy = None
-        if settings.telegram_proxy:
-            import urllib.parse
-            parsed = urllib.parse.urlparse(settings.telegram_proxy)
-            if parsed.scheme == "socks5":
-                proxy = {
-                    "ip": parsed.hostname or "",
-                    "port": parsed.port or 1080,
-                    "scheme": "socks5",
-                }
-            elif parsed.scheme == "http":
-                proxy = {
-                    "ip": parsed.hostname or "",
-                    "port": parsed.port or 8080,
-                    "scheme": "http",
-                }
 
-        # Don't pass phone_number to constructor - it causes auto-login and invalidates phone_code_hash
-        client = Client(
-            session_name,
-            api_id=payload.api_id,
-            api_hash=payload.api_hash,
-            proxy=proxy,
-            ipv6=False,
-        )
-        # Add timeout to prevent hanging on connect/sign_in
-        await asyncio.wait_for(client.connect(), timeout=30.0)
+    result = await telegram_auth_service.verify_code(
+        phone=payload.phone,
+        api_id=payload.api_id,
+        api_hash=payload.api_hash,
+        phone_code_hash=payload.phone_code_hash,
+        code=payload.code,
+        password=payload.password,
+    )
 
-        # Pyrogram 2FA flow:
-        # 1. Try sign_in with code (no password parameter!)
-        # 2. If 2FA enabled, sign_in raises SessionPasswordNeeded
-        # 3. Then call check_password(password) to complete auth
-        try:
-            logger.info(f"Attempting sign_in with phone={payload.phone}, hash={payload.phone_code_hash[:20]}...")
-            await asyncio.wait_for(
-                client.sign_in(
-                    payload.phone,
-                    payload.phone_code_hash,
-                    payload.code,
-                ),
-                timeout=30.0,
-            )
-            logger.info("sign_in successful!")
-        except PhoneCodeExpired:
-            logger.warning(f"Phone code expired for {payload.phone}")
-            return {
-                "success": False,
-                "error": "Phone code expired. Please request a new code.",
-            }
-        except SessionPasswordNeeded:
-            if not payload.password:
-                logger.info("2FA required, no password provided")
-                return {
-                    "success": False,
-                    "has_2fa": True,
-                    "error": "Two-factor authentication required. Please enter your 2FA password and click Verify again.",
-                }
-            # Password provided - complete 2FA
-            logger.info("2FA password provided, calling check_password")
-            await client.check_password(payload.password)
-        
-        session_string = await client.export_session_string()
-        me = await client.get_me()
-        await client.disconnect()
-        
-        # Clean up session file after successful verification
-        try:
-            session_file = f"{session_name}.session"
-            if os.path.exists(session_file):
-                os.remove(session_file)
-        except Exception:
-            pass
-        
-        return {
-            "success": True,
-            "session_string": session_string,
-            "user_id": me.id,
-            "username": me.username,
-            "has_2fa": bool(payload.password),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.warning(f"Account code verify failed: {e}")
-        raise HTTPException(400, f"Verification failed: {e}")
+    return AccountLoginVerifyResponse(
+        success=result.success,
+        session_string=result.session_string,
+        user_id=result.user_id,
+        username=result.username,
+        has_2fa=result.has_2fa,
+        error=result.error,
+        message=result.message,
+    )
+
 
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account(
@@ -260,17 +180,16 @@ async def create_account(
     """Create a new user account with pre-obtained session string."""
     if payload.purpose not in USER_PURPOSES:
         raise HTTPException(400, f"Invalid purpose. Must be one of: {USER_PURPOSES}")
-    
-    # Check name uniqueness
+
     existing = await db.execute(select(UserAccount).where(UserAccount.name == payload.name))
     if existing.scalar_one_or_none():
         raise HTTPException(400, f"Account with name '{payload.name}' already exists")
-    
-    # For now, require session_string to be provided via a separate field
-    # In practice, the UI would do login/verify first, then call this with session
-    # This endpoint expects the session_string to be passed in a special way
-    # Let's make it require session_string via a separate endpoint or field
-    raise HTTPException(400, "Use /login/verify to get session_string, then provide it")
+
+    raise HTTPException(
+        400,
+        "Use /login/verify to get session_string, then provide it"
+    )
+
 
 class AccountCreateWithSessionRequest(BaseModel):
     name: str
@@ -282,6 +201,7 @@ class AccountCreateWithSessionRequest(BaseModel):
     purpose: str = "STORAGE"
     is_active: bool = True
 
+
 @router.post("/with-session", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account_with_session(
     payload: AccountCreateWithSessionRequest,
@@ -291,13 +211,14 @@ async def create_account_with_session(
     """Create account with already-obtained session string."""
     if payload.purpose not in USER_PURPOSES:
         raise HTTPException(400, f"Invalid purpose. Must be one of: {USER_PURPOSES}")
-    
+
     existing = await db.execute(select(UserAccount).where(UserAccount.name == payload.name))
     if existing.scalar_one_or_none():
         raise HTTPException(400, f"Account with name '{payload.name}' already exists")
-    
+
     # Validate session by connecting
     try:
+        from ..patch import Client
         client = Client(
             f"validate_account_{payload.name}",
             api_id=payload.api_id,
@@ -312,7 +233,7 @@ async def create_account_with_session(
         username = me.username
     except Exception as e:
         raise HTTPException(400, f"Invalid session string: {e}")
-    
+
     account = UserAccount(
         name=payload.name,
         phone=payload.phone,
@@ -329,32 +250,13 @@ async def create_account_with_session(
     db.add(account)
     await db.commit()
     await db.refresh(account)
-    
+
     # Add to pool if active
     if payload.is_active:
-        await add_account_to_pool(account)
-    
+        await session_manager.load_account_to_pool(account)
+
     return account
 
-async def add_account_to_pool(account: UserAccount):
-    """Add a user account to the MTProto client pool."""
-    try:
-        settings = get_settings()
-        session_str = decrypt(account.session_string_encrypted)
-        api_hash = decrypt(account.api_hash_encrypted)
-        
-        client = Client(
-            name=f"user_{account.id}",
-            api_id=account.api_id,
-            api_hash=api_hash,
-            session_string=session_str,
-            ipv6=False,
-        )
-        await client.start()
-        pool_manager.add_user(client, len(pool_manager.user_pool))
-        logger.info(f"User account {account.name} added to pool")
-    except Exception as e:
-        logger.error(f"Failed to add user account to pool: {e}")
 
 @router.put("/{account_id}", response_model=AccountResponse)
 async def update_account(
@@ -368,48 +270,38 @@ async def update_account(
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(404, "Account not found")
-    
+
     if payload.purpose and payload.purpose not in USER_PURPOSES:
         raise HTTPException(400, f"Invalid purpose. Must be one of: {USER_PURPOSES}")
-    
+
     if payload.name and payload.name != account.name:
         existing = await db.execute(select(UserAccount).where(UserAccount.name == payload.name))
         if existing.scalar_one_or_none():
             raise HTTPException(400, f"Account with name '{payload.name}' already exists")
-    
+
     update_data = payload.model_dump(exclude_unset=True)
     sensitive_changed = any(k in update_data for k in ["api_hash", "phone", "api_id"])
-    
+
     if "api_hash" in update_data:
         account.api_hash_encrypted = encrypt(update_data.pop("api_hash"))
     if "two_fa_password" in update_data:
         pwd = update_data.pop("two_fa_password")
         account.two_fa_password_encrypted = encrypt(pwd) if pwd else None
-    
+
     for field, value in update_data.items():
         setattr(account, field, value)
-    
+
     await db.commit()
     await db.refresh(account)
-    
+
     # Re-add to pool if sensitive data changed or active status changed
     if sensitive_changed or "is_active" in update_data:
-        # Remove old client
-        for idx, client in list(pool_manager.user_pool.items()):
-            try:
-                me = await client.get_me()
-                if me.id == account.user_id:
-                    await client.stop()
-                    pool_manager.remove_user(idx)
-                    break
-            except:
-                pool_manager.remove_user(idx)
-        
-        # Add new if active
+        await session_manager.remove_account_from_pool(account_id)
         if account.is_active:
-            await add_account_to_pool(account)
-    
+            await session_manager.load_account_to_pool(account)
+
     return account
+
 
 @router.delete("/{account_id}")
 async def delete_account(
@@ -423,24 +315,35 @@ async def delete_account(
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(404, "Account not found")
-    
+
     # Stop and remove from pool
-    for idx, client in list(pool_manager.user_pool.items()):
+    await session_manager.remove_account_from_pool(account_id)
+
+    # Optionally revoke session on Telegram servers
+    if revoke_session:
         try:
-            me = await client.get_me()
-            if me.id == account.user_id:
-                if revoke_session:
-                    await client.revoke_sessions()
-                await client.stop()
-                pool_manager.remove_user(idx)
-                break
-        except:
-            pool_manager.remove_user(idx)
-    
+            from ..patch import Client
+            session_str = decrypt(account.session_string_encrypted)
+            api_hash = decrypt(account.api_hash_encrypted)
+            client = Client(
+                f"revoke_{account.name}",
+                api_id=account.api_id,
+                api_hash=api_hash,
+                session_string=session_str,
+                in_memory=True,
+            )
+            await client.start()
+            await client.revoke_sessions()
+            await client.stop()
+            logger.info(f"Revoked sessions for account {account.name}")
+        except Exception as e:
+            logger.warning(f"Failed to revoke sessions for {account.name}: {e}")
+
     await db.delete(account)
     await db.commit()
-    
+
     return {"ok": True, "message": f"Account '{account.name}' deleted"}
+
 
 @router.post("/{account_id}/health")
 async def check_account_health(
@@ -453,11 +356,12 @@ async def check_account_health(
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(404, "Account not found")
-    
+
     try:
+        from ..patch import Client
         session_str = decrypt(account.session_string_encrypted)
         api_hash = decrypt(account.api_hash_encrypted)
-        
+
         client = Client(
             f"health_{account.name}",
             api_id=account.api_id,
@@ -467,16 +371,16 @@ async def check_account_health(
         )
         await client.start()
         me = await client.get_me()
-        
+
         # Check flood wait
         flood_wait = None
         if account.flood_wait_until:
-            from datetime import datetime
-            if account.flood_wait_until > datetime.utcnow():
-                flood_wait = int((account.flood_wait_until - datetime.utcnow()).total_seconds())
-        
+            from datetime import datetime as dt
+            if account.flood_wait_until > dt.utcnow():
+                flood_wait = int((account.flood_wait_until - dt.utcnow()).total_seconds())
+
         await client.stop()
-        
+
         return {
             "ok": True,
             "user_id": me.id,
@@ -493,4 +397,3 @@ async def check_account_health(
             "flood_wait_seconds": None,
             "last_used": account.last_used,
         }
-

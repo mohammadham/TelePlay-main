@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
     
-    mark_db_ready(settings)
+    await mark_db_ready(settings)
     logger.info("DB settings applied")
     await start_telegram_client()
     logger.info("Telegram client started")

@@ -211,7 +211,7 @@ async def _load_db_overrides():
                 if hasattr(settings, "_video_cache_enabled"):
                     setattr(settings, "_video_cache_enabled", val.lower() in ("true", "1", "yes"))
 
-def mark_db_ready(s: Settings):
+async def mark_db_ready(s: Settings):
     """Call this once from main.py lifespan AFTER init_db() completes.
     Loads DB-stored settings and patches s in-place."""
     global _db_overrides_applied, _db_settings_store

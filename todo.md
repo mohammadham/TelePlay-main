@@ -103,7 +103,7 @@ In `telegram_auth.py`:
 - phone_code_hash remains valid for full 2-minute window
 - User has full time to enter code without premature expiration
 
-## 🔒 Fix: Type Conversion for api_id/api_hash (3179df4)
+## 🔒 Fix: Type Conversion for api_id/api_hash (3179df4 + 13b1684)
 
 ### Problem Identified from Logs:
 ```
@@ -114,7 +114,7 @@ This occurred when frontend sent api_id as string instead of int, causing Pyrogr
 ### Root Cause:
 FastAPI automatic type conversion wasn't working reliably in all deployment scenarios (possibly due to middleware or proxy).
 
-### Fix Applied (Committed: 3179df4)
+### Fix Applied (Committed: 3179df4 + 13b1684)
 
 **Modified `backend/app/services/telegram_auth.py`:**
 Added explicit type conversion at start of `send_code` and `verify_code`:
@@ -188,6 +188,7 @@ Full list — 138+ agents covering all major languages and frameworks.
 - `3f1c046` — Fix SyntaxError: make mark_db_ready async to fix await outside async function
 - `8341e35` — Fix Telegram code persistence: save/load session file between send/verify
 - `3179df4` — Fix Telegram send_code type conversion: ensure api_id is int and api_hash is str
+- `13b1684` — Fix Telegram verify_code type conversion: ensure api_id is int and api_hash is str
 
 ## 🎯 Next Immediate Actions
 

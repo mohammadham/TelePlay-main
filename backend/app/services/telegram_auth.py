@@ -205,6 +205,9 @@ class TelegramAuthService:
         code: str,
         password: Optional[str] = None,
     ) -> VerifyCodeResult:
+        # Ensure correct types (FastAPI should validate, but be safe)
+        api_id = int(api_id)
+        api_hash = str(api_hash)
         """
         Verify login code and optionally handle 2FA.
 

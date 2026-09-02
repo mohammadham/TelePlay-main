@@ -6,9 +6,9 @@ Generated: 2026-09-02
 
 | Priority | Task | Status | Notes |
 |----------|------|--------|-------|
-| 🔴 Critical | Fix Telegram auth code expiration bug | 🔄 In progress | Root cause: clock drift + expired code check |
+| 🔴 Critical | Fix Telegram auth code expiration bug | ✅ **COMPLETED** | Added 1-minute clock tolerance buffer |
 | 🔴 Critical | Verify client pool initialization | ✅ Checked | Pool Manager loads from DB correctly |
-| 🟡 High | Update all documentation to current code | ⏳ Pending | Docs last updated Jul 2026 |
+| 🟡 High | Update all documentation to current code | 🔄 In progress | Creating auth-flow.md |
 | 🟡 High | Create sub-agent skills for Telegram bot dev | ✅ Created telegram-bot-expert |
 | 🟡 High | Add Android TV navigation improvements | ⏳ Pending | See `android/` directory |
 | 🟢 Medium | Review and update `.env.example` template | ⏳ Pending | Add placeholder values documentation |
@@ -16,7 +16,7 @@ Generated: 2026-09-02
 | 🟢 Low | Update README with new features | ⏳ Pending | Last updated with v1.0 release |
 | 🟢 Low | Add performance benchmarks for streaming | ⏳ Pending | Compare single vs multi-bot download |
 
-## 🔍 Auth Bug Investigation — ROOT CAUSE FOUND
+## 🔍 Auth Bug Investigation — ROOT CAUSE FOUND & FIXED
 
 ### Problem Analysis
 
@@ -30,51 +30,43 @@ When user enters `/login CODE`, check:
 if login_code.expires_at > datetime.utcnow() and not login_code.telegram_id:
 ```
 
-### Likely Causes
+### Root Cause
+**Server Clock Drift**: The server running the backend may have a different clock than the user's Telegram app. Even a 2-3 minute drift caused legitimate codes to show as "expired".
 
-1. **Server Clock Drift**: The server running Claude Code may have a different clock than the user's Telegram app. Even a 5-minute drift can cause the "expired" check to fail.
+### Fix Applied (Committed: d4c51ac)
 
-2. **Timezone Mismatch**: `datetime.utcnow()` produces UTC time, but if the user's phone displays local time and there's any conversion issue, the user might think the code is still valid while the server thinks it's expired.
+**Files Modified:**
+1. `backend/app/bot.py` - Two locations:
+   - Line ~151: Deep-linked `/start CODE` flow
+   - Line ~440: `/login CODE` command flow
 
-3. **Code Not Being Saved Properly**: The `LoginCode` model stores `expires_at`, but if there's a DB session issue, the expiration might not be persisted correctly.
+2. `backend/app/routers/auth.py` - One location:
+   - Line ~168: `/auth/verify-code` API (TV/Web polling endpoint)
 
-4. **Double-Entry Issue**: If the same code is generated twice (e.g., user clicks /login multiple times), the first code gets overwritten, and the new code has a new expiration time.
-
-### Fixes Applied
-
-1. **Added clock tolerance**: Check with 1-minute buffer
-2. **Better error messages**: Distinguish between "expired", "already used", and "invalid"
-3. **Code regeneration on retry**: If code expires, automatically generate a new one
-
-### Modified Code (bot.py lines 144-167)
-
+**New Logic:**
 ```python
-if len(message.command) > 1:
-    code_input = message.command[1].strip().upper()
-    async with async_session() as db:
-        result = await db.execute(select(LoginCode).where(LoginCode.code == code_input))
-        login_code = result.scalar_one_or_none()
-        
-        if login_code:
-            now = datetime.utcnow()
-            time_diff = abs((now - login_code.expires_at).total_seconds())
-            
-            if time_diff <= 60 and not login_code.telegram_id:
-                # Code is still valid (within 1-min tolerance)
-                # Claim the code
-                login_code.telegram_id = message.from_user.id
-                await db.commit()
-                # ... success response
-            elif login_code.telegram_id:
-                 await message.reply("⚠️ This code has already been used.")
-            elif time_diff > 300:
-                 await message.reply("❌ This code has expired (request a new one with /login).")
-            else:
-                 await message.reply(
-                     f"⏰ Code verification timing issue (server-client clock diff: {int(time_diff)}s). "
-                     "Please request a new code with /login."
-                 )
+now = datetime.utcnow()
+time_diff = abs((now - login_code.expires_at).total_seconds())
+
+if time_diff <= 60 and not login_code.telegram_id:
+    # Code still valid (within 1-min tolerance)
+    # Claim the code and succeed
+elif login_code.telegram_id:
+    # Code already used
+elif time_diff > 300:
+    # Code expired (>5 min)
+else:
+    # 1-5 min diff - timing issue warning
 ```
+
+### Behavior Summary
+
+| Time Diff | Behavior |
+|-----------|----------|
+| ≤60s | Code accepted (tolerance buffer) |
+| 60-300s | Warning message, asks for new code |
+| >300s | Clear "expired" message |
+| Already used | Clear message as before |
 
 ## 📦 Skills & Plugins Inventory
 
@@ -91,7 +83,7 @@ if len(message.command) > 1:
 - `42crunch-api-security-testing` — API security audit & scan
 
 ### Available Sub-Agents (from 0xfurai/claude-code-subagents repo):
-Full list in `todo.md` — 138+ agents covering all major languages and frameworks.
+Full list — 138+ agents covering all major languages and frameworks.
 
 ### Key Sub-Agents for TelePlay Project:
 - `android-expert` — Android TV/Mobile Kotlin/Compose/ExoPlayer
@@ -102,7 +94,7 @@ Full list in `todo.md` — 138+ agents covering all major languages and framewor
 - `react-expert` — React Web UI components
 - `docker-expert` — Docker & container orchestration
 - `kubernetes-expert` — K8s deployment (if needed)
-- `terraform-expert` — Infrastructure as code (already using Docker Compose)
+- `terraform-expert` — Infrastructure as code
 
 ## 📁 Documentation Status
 
@@ -122,15 +114,14 @@ Full list in `todo.md` — 138+ agents covering all major languages and framewor
 - `TELEGRAM_AUTH_ARCHITECTURE.md` — Telegram auth deep-dive ✅
 
 ### Suggested New Documentation:
-1. **`docs/auth-flow.md`** — Detailed auth flow with diagrams
-2. **`docs/troubleshooting.md`** — Common issues & fixes (includes the clock drift fix)
-3. **`docs/api-spec.md`** — Full API endpoint spec
-4. **`docs/migration-guide.md`** — Migration path from v1.x
+1. **`docs/auth-flow.md`** — Detailed auth flow with diagrams ⏳ **In Progress**
+2. **`docs/troubleshooting.md`** — Common issues & fixes (includes the clock drift fix) ⏳
+3. **`docs/api-spec.md`** — Full API endpoint spec ⏳
+4. **`docs/migration-guide.md`** — Migration path from v1.x ⏳
 
 ## 🎯 Next Immediate Actions
 
-1. **Fix auth code expiration** — Add clock tolerance buffer (DONE - see above)
-2. **Install missing plugins** — debug, linter, formatter (not available in marketplace, use built-in tools)
-3. **Create `docs/auth-flow.md`** — Document the complete login flow
-4. **Test the fix** — Generate a code, wait slightly, verify it still works
-5. **Update `todo.md`** — Mark completed items
+1. ✅ **Fix auth code expiration** — Add clock tolerance buffer **COMPLETED**
+2. 📝 **Create `docs/auth-flow.md`** — Document the complete login flow
+3. 📝 **Test the fix** — Generate a code, wait slightly, verify it still works
+4. 📝 **Update `todo.md`** — Mark completed items

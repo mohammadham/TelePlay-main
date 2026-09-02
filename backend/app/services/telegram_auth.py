@@ -132,6 +132,9 @@ class TelegramAuthService:
         api_id: int,
         api_hash: str,
     ) -> SendCodeResult:
+        # Ensure correct types (FastAPI should validate, but be safe)
+        api_id = int(api_id)
+        api_hash = str(api_hash)
         """
         Send login code to phone number.
 

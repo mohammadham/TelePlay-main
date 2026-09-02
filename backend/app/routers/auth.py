@@ -165,19 +165,24 @@ async def verify_login_code(
         select(LoginCode).where(LoginCode.code == code_request.code.upper())
     )
     login_code = result.scalar_one_or_none()
-    
     if not login_code:
         raise HTTPException(status_code=400, detail="Invalid login code")
-        
-    if login_code.expires_at < datetime.utcnow():
+
+    now = datetime.utcnow()
+    time_diff = abs((now - login_code.expires_at).total_seconds())
+
+    if time_diff <= 60 and login_code.telegram_id is None:
+        # Code still valid (within 1-min tolerance) but not yet claimed
+        raise HTTPException(status_code=400, detail="Code not yet verified - please wait for bot confirmation or try again in a few seconds")
+
+    elif time_diff > 300:
         await db.delete(login_code)
         await db.commit()
         raise HTTPException(status_code=400, detail="Login code expired")
-    
+
     # Check if user has claimed it (telegram_id is set)
     if not login_code.telegram_id:
         raise HTTPException(status_code=400, detail="Code not yet verified")
-        
     # Get user
     result = await db.execute(
         select(User).where(User.telegram_id == login_code.telegram_id)

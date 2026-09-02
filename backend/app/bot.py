@@ -148,7 +148,10 @@ async def start_command(client, message: Message):
             login_code = result.scalar_one_or_none()
             
             if login_code:
-                if login_code.expires_at > datetime.utcnow() and not login_code.telegram_id:
+                now = datetime.utcnow()
+                time_diff = abs((now - login_code.expires_at).total_seconds())
+
+                if time_diff <= 60 and not login_code.telegram_id:
                     # Claim the code
                     login_code.telegram_id = message.from_user.id
                     await db.commit()
@@ -434,23 +437,32 @@ async def login_command(client, message: Message):
                 await message.reply("❌ **Invalid code.**\nPlease check the code displayed on your TV.")
                 return
             
-            if login_code.expires_at < datetime.utcnow():
-                await message.reply("❌ **Code expired.**\nPlease generate a new one on your TV.")
-                return
-                
-            if login_code.telegram_id:
-                await message.reply("❌ **Code already used.**")
-                return
+            now = datetime.utcnow()
+                time_diff = abs((now - login_code.expires_at).total_seconds())
 
-            # Claim the code
-            login_code.telegram_id = message.from_user.id
-            await db.commit()
-            
-            await message.reply(
-                "✅ **Success!**\n"
-                "You have successfully logged in on your TV.\n"
-                "You can now put your phone away and enjoy watching! 🍿"
-            )
+                if time_diff <= 60 and not login_code.telegram_id:
+                    # Code still valid (within 1-min tolerance)
+                    login_code.telegram_id = message.from_user.id
+                    await db.commit()
+
+                    await message.reply(
+                        "✅ **Success!**"
+                        "You have successfully logged in on your TV."
+                        "You can now put your phone away and enjoy watching! 🍿"
+                    )
+                    return
+                elif login_code.telegram_id:
+                    await message.reply("❌ **Code already used.**")
+                    return
+                elif time_diff > 300:
+                    await message.reply("❌ This code has expired. Request a new one with /login.")
+                    return
+                else:
+                    await message.reply(
+                        f"⏰ Timing issue (server-client diff: {int(time_diff)}s). "
+                        "Please request a new code with /login."
+                    )
+                    return
         return
 
     # Use secrets for cryptographically strong random number generation

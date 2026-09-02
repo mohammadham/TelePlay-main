@@ -161,6 +161,56 @@ _db_overrides_applied = False
 _db_settings_store: Optional[Settings] = None  # populated by apply_db_overrides() after init_db()
 
 
+async def _load_db_overrides():
+    """Load and apply DB-stored settings overrides."""
+    from .models import AppSetting
+    from .database import get_engine
+    eng = get_engine()
+    if eng is None:
+        return
+    from sqlalchemy import select as _sel
+    async with eng.begin() as conn:
+        result = await conn.execute(_sel(AppSetting))
+        rows = result.scalars().all()
+        db_map = {r.key: r.value for r in rows if r.value}
+        if not db_map:
+            return
+        for key, val in db_map.items():
+            alias_key = key.upper()
+            if alias_key == "TELEGRAM_API_ID":
+                if hasattr(settings, "telegram_api_id"):
+                    setattr(settings, "telegram_api_id", int(val) if val else 0)
+            elif alias_key == "TELEGRAM_API_HASH":
+                if hasattr(settings, "telegram_api_hash"):
+                    setattr(settings, "telegram_api_hash", val)
+            elif alias_key == "TELEGRAM_BOT_TOKEN":
+                if hasattr(settings, "telegram_bot_token"):
+                    setattr(settings, "telegram_bot_token", val)
+            elif alias_key == "TELEGRAM_STORAGE_CHANNEL_ID":
+                if hasattr(settings, "telegram_storage_channel_id"):
+                    setattr(settings, "telegram_storage_channel_id", int(val) if val else 0)
+            elif alias_key == "DATABASE_URL":
+                if hasattr(settings, "database_url"):
+                    setattr(settings, "database_url", val)
+            elif alias_key == "JWT_SECRET":
+                if hasattr(settings, "jwt_secret"):
+                    setattr(settings, "jwt_secret", val)
+            elif alias_key == "WEB_BASE_URL":
+                if hasattr(settings, "web_base_url"):
+                    setattr(settings, "web_base_url", val)
+            elif alias_key == "ADMIN_TELEGRAM_IDS":
+                if hasattr(settings, "admin_ids_str"):
+                    setattr(settings, "admin_ids_str", val)
+            elif alias_key == "CACHE_ENABLED":
+                if hasattr(settings, "cache_enabled"):
+                    setattr(settings, "cache_enabled", val.lower() in ("true", "1", "yes"))
+            elif alias_key == "ADS_ENABLED":
+                if hasattr(settings, "ads_enabled"):
+                    setattr(settings, "ads_enabled", val.lower() in ("true", "1", "yes"))
+            elif alias_key == "VIDEO_CACHE_ENABLED":
+                if hasattr(settings, "_video_cache_enabled"):
+                    setattr(settings, "_video_cache_enabled", val.lower() in ("true", "1", "yes"))
+
 def mark_db_ready(s: Settings):
     """Call this once from main.py lifespan AFTER init_db() completes.
     Loads DB-stored settings and patches s in-place."""
@@ -175,44 +225,7 @@ def mark_db_ready(s: Settings):
             _db_overrides_applied = True
             return
         import asyncio
-        async def _load():
-            from sqlalchemy import select as _sel
-            async with eng.begin() as conn:
-                result = await conn.execute(_sel(AppSetting))
-                rows = result.scalars().all()
-                db_map = {r.key: r.value for r in rows if r.value}
-                if not db_map:
-                    return
-                overrides = {}
-                for key, val in db_map.items():
-                    alias_key = key.upper()
-                    if alias_key == "TELEGRAM_API_ID":
-                        overrides["telegram_api_id"] = int(val) if val else 0
-                    elif alias_key == "TELEGRAM_API_HASH":
-                        overrides["telegram_api_hash"] = val
-                    elif alias_key == "TELEGRAM_BOT_TOKEN":
-                        overrides["telegram_bot_token"] = val
-                    elif alias_key == "TELEGRAM_STORAGE_CHANNEL_ID":
-                        overrides["telegram_storage_channel_id"] = int(val) if val else 0
-                    elif alias_key == "DATABASE_URL":
-                        overrides["database_url"] = val
-                    elif alias_key == "JWT_SECRET":
-                        overrides["jwt_secret"] = val
-                    elif alias_key == "WEB_BASE_URL":
-                        overrides["web_base_url"] = val
-                    elif alias_key == "ADMIN_TELEGRAM_IDS":
-                        overrides["admin_ids_str"] = val
-                    elif alias_key == "CACHE_ENABLED":
-                        overrides["cache_enabled"] = val.lower() in ("true", "1", "yes")
-                    elif alias_key == "ADS_ENABLED":
-                        overrides["ads_enabled"] = val.lower() in ("true", "1", "yes")
-                    elif alias_key == "VIDEO_CACHE_ENABLED":
-                        overrides["_video_cache_enabled"] = val.lower() in ("true", "1", "yes")
-                if overrides:
-                    for k, v in overrides.items():
-                        if hasattr(s, k):
-                            setattr(s, k, v)
-        asyncio.get_event_loop().run_until_complete(_load())
+        await _load_db_overrides()
     except ImportError:
         _db_overrides_applied = True
     except Exception as _e:

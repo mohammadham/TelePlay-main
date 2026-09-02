@@ -135,34 +135,35 @@ class TelegramAuthService:
         """
         Send login code to phone number.
 
-        Creates a session file that persists the phone_code_hash
-        for subsequent verification.
+        CRITICAL: Save session file immediately after sending code so
+        verify_code can load the same session and use the persisted phone_code_hash.
         """
-        # Ensure phone format
         if not phone.startswith("+"):
             phone = "+" + phone
 
         session_name = self._get_session_name(phone)
+        session_file = f"{session_name}.session"
         logger.info(f"Sending code to {phone} with api_id {api_id}")
 
         try:
             client = self._create_client(session_name, api_id, api_hash)
 
-            # Connect with timeout
             logger.info("Connecting to Telegram MTProto...")
             await asyncio.wait_for(client.connect(), timeout=self.CONNECT_TIMEOUT)
 
-            # Send code with timeout
             logger.info("Sending authentication code...")
             sent_code = await asyncio.wait_for(
                 client.send_code(phone),
                 timeout=self.SEND_CODE_TIMEOUT
             )
 
-            logger.info(f"Code sent successfully, hash: {sent_code.phone_code_hash[:20]}...")
+            # CRITICAL: Persist session immediately so verify can load it
+            session_string = await client.export_session_string()
+            with open(session_file, "w") as f:
+                f.write(session_string)
+            logger.info(f"Session saved to {session_file}, hash: {sent_code.phone_code_hash[:20]}...")
 
-            # Don't disconnect - keep session alive for verify step
-            # The session file now contains phone_code_hash
+            await client.disconnect()
 
             return SendCodeResult(
                 success=True,
@@ -204,19 +205,33 @@ class TelegramAuthService:
         """
         Verify login code and optionally handle 2FA.
 
-        Returns session string on success, or indicates if 2FA is required.
+        CRITICAL: Load the session file created by send_code so the
+        phone_code_hash remains valid (Pyrogram stores it in the session).
         """
-        # Ensure phone format
         if not phone.startswith("+"):
             phone = "+" + phone
 
         session_name = self._get_session_name(phone)
+        session_file = f"{session_name}.session"
         logger.info(f"Verifying code for {phone}, hash: {phone_code_hash[:20]}...")
 
         try:
-            client = self._create_client(session_name, api_id, api_hash)
+            # CRITICAL: Load session from file so phone_code_hash is preserved
+            client_kwargs = dict(
+                api_id=api_id,
+                api_hash=api_hash,
+                proxy=self._build_proxy(),
+                ipv6=False,
+            )
+            if os.path.exists(session_file):
+                client_kwargs["session_string"] = open(session_file).read().strip()
+                logger.info(f"Loaded session from {session_file}")
+            else:
+                client_kwargs["name"] = session_name
+                logger.warning(f"Session file not found at {session_file}, creating new")
 
-            # Connect with timeout
+            client = Client(**client_kwargs)
+
             logger.info("Connecting to Telegram MTProto...")
             await asyncio.wait_for(client.connect(), timeout=self.CONNECT_TIMEOUT)
 
@@ -237,7 +252,6 @@ class TelegramAuthService:
                     message="Phone code expired. Please request a new code."
                 )
             except SessionPasswordNeeded:
-                # 2FA is enabled on the account
                 if not password:
                     logger.info("2FA required, no password provided")
                     return VerifyCodeResult(
@@ -246,7 +260,6 @@ class TelegramAuthService:
                         error=AuthError.SESSION_PASSWORD_NEEDED,
                         message="Two-factor authentication required. Please enter your 2FA password and click Verify again."
                     )
-                # Password provided - complete 2FA
                 logger.info("2FA password provided, calling check_password")
                 await client.check_password(password)
 
@@ -254,9 +267,8 @@ class TelegramAuthService:
             session_string = await client.export_session_string()
             me = await client.get_me()
 
-            # Clean up session file after successful verification
+            # Clean up temp session file
             try:
-                session_file = f"{session_name}.session"
                 if os.path.exists(session_file):
                     os.remove(session_file)
                     logger.debug(f"Cleaned up session file: {session_file}")
@@ -275,9 +287,7 @@ class TelegramAuthService:
 
         except Exception as e:
             logger.error(f"User code verify failed: {type(e).__name__}: {e}")
-            # Clean up session file on error too
             try:
-                session_file = f"{session_name}.session"
                 if os.path.exists(session_file):
                     os.remove(session_file)
             except Exception:

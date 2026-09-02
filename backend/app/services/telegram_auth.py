@@ -87,22 +87,29 @@ class TelegramAuthService:
     def _build_proxy(self) -> Optional[dict]:
         """Build proxy configuration from settings."""
         if not self.settings.telegram_proxy:
+            logger.debug("No Telegram proxy configured")
             return None
 
         parsed = urlparse(self.settings.telegram_proxy)
         if parsed.scheme == "socks5":
-            return {
+            proxy_config = {
                 "ip": parsed.hostname or "",
                 "port": parsed.port or 1080,
                 "scheme": "socks5",
             }
+            logger.info(f"Using SOCKS5 proxy: {parsed.hostname}:{parsed.port}")
+            return proxy_config
         elif parsed.scheme == "http":
-            return {
+            proxy_config = {
                 "ip": parsed.hostname or "",
                 "port": parsed.port or 8080,
                 "scheme": "http",
             }
-        return None
+            logger.info(f"Using HTTP proxy: {parsed.hostname}:{parsed.port}")
+            return proxy_config
+        else:
+            logger.warning(f"Unknown proxy scheme: {parsed.scheme}")
+            return None
 
     def _get_session_name(self, phone: str) -> str:
         """Generate unique session name for setup based on phone."""
@@ -132,15 +139,15 @@ class TelegramAuthService:
         api_id: int,
         api_hash: str,
     ) -> SendCodeResult:
-        # Ensure correct types (FastAPI should validate, but be safe)
-        api_id = int(api_id)
-        api_hash = str(api_hash)
         """
         Send login code to phone number.
 
         CRITICAL: Save session file immediately after sending code so
         verify_code can load the same session and use the persisted phone_code_hash.
         """
+        # Ensure correct types (FastAPI should validate, but be safe)
+        api_id = int(api_id)
+        api_hash = str(api_hash)
         if not phone.startswith("+"):
             phone = "+" + phone
 

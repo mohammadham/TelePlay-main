@@ -11,6 +11,13 @@ from .telegram_auth import (
     AuthError,
 )
 from .session_manager import SessionManager, session_manager
+from .utils import (
+    escape_like,
+    sanitize_filename,
+    add_urls_to_file,
+    fetch_recent_files,
+    fetch_continue_watching_files,
+)
 
 __all__ = [
     "TelegramAuthService",
@@ -20,4 +27,9 @@ __all__ = [
     "AuthError",
     "SessionManager",
     "session_manager",
+    "escape_like",
+    "sanitize_filename",
+    "add_urls_to_file",
+    "fetch_recent_files",
+    "fetch_continue_watching_files",
 ]

@@ -8,7 +8,7 @@ Generated: 2026-09-02
 |----------|------|--------|-------|
 | 🔴 Critical | Fix Telegram auth code expiration bug | ✅ **COMPLETED** | Added 1-minute clock tolerance buffer |
 | 🔴 Critical | Verify client pool initialization | ✅ Checked | Pool Manager loads from DB correctly |
-| 🟡 High | Update all documentation to current code | 🔄 In progress | Creating auth-flow.md |
+| 🟡 High | Update all documentation to current code | ✅ **COMPLETED** | Created auth-flow.md |
 | 🟡 High | Create sub-agent skills for Telegram bot dev | ✅ Created telegram-bot-expert |
 | 🟡 High | Add Android TV navigation improvements | ⏳ Pending | See `android/` directory |
 | 🟢 Medium | Review and update `.env.example` template | ⏳ Pending | Add placeholder values documentation |
@@ -59,7 +59,7 @@ else:
     # 1-5 min diff - timing issue warning
 ```
 
-### Behavior Summary
+### Behavior Table
 
 | Time Diff | Behavior |
 |-----------|----------|
@@ -112,16 +112,16 @@ Full list — 138+ agents covering all major languages and frameworks.
 - `SETUP.md` — Setup & usage guide ✅
 - `SETUP_FLOW_DIAGRAM.md` — Setup flow diagram ✅
 - `TELEGRAM_AUTH_ARCHITECTURE.md` — Telegram auth deep-dive ✅
+- **`auth-flow.md`** — **NEW: Comprehensive auth flow with clock drift fix** ✅
 
 ### Suggested New Documentation:
-1. **`docs/auth-flow.md`** — Detailed auth flow with diagrams ⏳ **In Progress**
-2. **`docs/troubleshooting.md`** — Common issues & fixes (includes the clock drift fix) ⏳
-3. **`docs/api-spec.md`** — Full API endpoint spec ⏳
-4. **`docs/migration-guide.md`** — Migration path from v1.x ⏳
+1. **`docs/troubleshooting.md`** — Common issues & fixes (includes the clock drift fix) ⏳
+2. **`docs/api-spec.md`** — Full API endpoint spec ⏳
+3. **`docs/migration-guide.md`** — Migration path from v1.x ⏳
 
 ## 🎯 Next Immediate Actions
 
 1. ✅ **Fix auth code expiration** — Add clock tolerance buffer **COMPLETED**
-2. 📝 **Create `docs/auth-flow.md`** — Document the complete login flow
+2. ✅ **Create `docs/auth-flow.md`** — Document the complete login flow **COMPLETED**
 3. 📝 **Test the fix** — Generate a code, wait slightly, verify it still works
 4. 📝 **Update `todo.md`** — Mark completed items

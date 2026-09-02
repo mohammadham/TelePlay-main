@@ -16,57 +16,67 @@ Generated: 2026-09-02
 | 🟢 Low | Update README with new features | ⏳ Pending | Last updated with v1.0 release |
 | 🟢 Low | Add performance benchmarks for streaming | ⏳ Pending | Compare single vs multi-bot download |
 
-## 🔍 Auth Bug Investigation — ROOT CAUSE FOUND & FIXED
+## 🔧 Backend Fixes Applied
 
-### Problem Analysis
+### 1. Telegram Auth Code Clock Drift (d4c51ac)
+**Problem:** Server clock drift from user's Telegram app caused legitimate login codes to show as "expired"
+**Fix:** Added 1-minute tolerance buffer to all 3 code validation points in:
+- `backend/app/bot.py` (deep-linked `/start CODE` and `/login CODE`)
+- `backend/app/routers/auth.py` (`/auth/verify-code` API)
 
-The `/login` command generates codes with:
-```python
-code expires_at = datetime.utcnow() + timedelta(minutes=5)
-```
+**Behavior:** Codes ≤60s diff accepted, >300s marked expired, 1-5min shows warning
 
-When user enters `/login CODE`, check:
-```python
-if login_code.expires_at > datetime.utcnow() and not login_code.telegram_id:
-```
+### 2. Railway Startup Fix (47a9c85)
+**Problem:** `ImportError: cannot import name 'escape_like' from 'app.services'` caused container startup failure
+**Fix:** Define `escape_like` function directly in `backend/app/services/__init__.py` to avoid circular import issues during container startup
 
-### Root Cause
-**Server Clock Drift**: The server running the backend may have a different clock than the user's Telegram app. Even a 2-3 minute drift caused legitimate codes to show as "expired".
+### 3. Utils Import Fix (475480d)
+**Problem:** `ModuleNotFoundError: No module named 'app.services.models'` in `services/utils.py`
+**Fix:** Changed relative import from `.models` to `..models` in `backend/app/services/utils.py`
 
-### Fix Applied (Committed: d4c51ac)
+---
 
-**Files Modified:**
-1. `backend/app/bot.py` - Two locations:
-   - Line ~151: Deep-linked `/start CODE` flow
-   - Line ~440: `/login CODE` command flow
+## 📁 Documentation Status
 
-2. `backend/app/routers/auth.py` - One location:
-   - Line ~168: `/auth/verify-code` API (TV/Web polling endpoint)
+### Existing Markdown Files (in project root):
+- `README.md` — Project overview & quick start ✅
+- `SPEC.md` — Multi-auth system specification ✅
+- `KNOWLEDGE.md` — Telegram knowledge base ✅
+- `CONTRIBUTING.md` — Contributing guidelines ✅
+- `LICENSE` — MIT license ✅
 
-**New Logic:**
-```python
-now = datetime.utcnow()
-time_diff = abs((now - login_code.expires_at).total_seconds())
+### Docs Directory (`docs/`):
+- `ARCHITECTURE.md` — Technical architecture ✅
+- `DEPLOYMENT.md` — Deployment guide ✅
+- `RELEASING.md` — APK release process ✅
+- `SETUP.md` — Setup & usage guide ✅
+- `SETUP_FLOW_DIAGRAM.md` — Setup flow diagram ✅
+- `TELEGRAM_AUTH_ARCHITECTURE.md` — Telegram auth deep-dive ✅
+- **`auth-flow.md`** — **NEW: Comprehensive auth flow with clock drift fix** ✅
 
-if time_diff <= 60 and not login_code.telegram_id:
-    # Code still valid (within 1-min tolerance)
-    # Claim the code and succeed
-elif login_code.telegram_id:
-    # Code already used
-elif time_diff > 300:
-    # Code expired (>5 min)
-else:
-    # 1-5 min diff - timing issue warning
-```
+### Suggested New Documentation:
+1. **`docs/troubleshooting.md`** — Common issues & fixes ⏳
+2. **`docs/api-spec.md`** — Full API endpoint spec ⏳
+3. **`docs/migration-guide.md`** — Migration path from v1.x ⏳
 
-### Behavior Table
+### Pushed Commits:
+- `d4c51ac` — Fix Telegram login code clock drift
+- `0968194` — Add comprehensive auth-flow.md documentation with clock drift fix details
+- `9dd8fef` — Update todo.md to mark auth bug fix and documentation as completed
+- `47a9c85` — Fix Railway startup escape_like import issue
+- `475480d` — Fix import in services/utils.py for models
 
-| Time Diff | Behavior |
-|-----------|----------|
-| ≤60s | Code accepted (tolerance buffer) |
-| 60-300s | Warning message, asks for new code |
-| >300s | Clear "expired" message |
-| Already used | Clear message as before |
+---
+
+## 🎯 Next Immediate Actions
+
+1. ✅ **Fix auth code expiration** — Add clock tolerance buffer **COMPLETED**
+2. ✅ **Create auth-flow.md** — Document the complete login flow **COMPLETED**
+3. ✅ **Fix Railway startup** — Define escape_like in services/__init__.py **COMPLETED**
+4. ✅ **Fix utils.py import** — Correct relative import for models **COMPLETED**
+5. 📝 **Test the fixes** — Deploy to Railway and verify
+6. 📝 **Android TV improvements** — See `android/` directory
+7. 📝 **`.env.example`** — Add placeholder values documentation
 
 ## 📦 Skills & Plugins Inventory
 
@@ -88,40 +98,45 @@ Full list — 138+ agents covering all major languages and frameworks.
 ### Key Sub-Agents for TelePlay Project:
 - `android-expert` — Android TV/Mobile Kotlin/Compose/ExoPlayer
 - `nestjs-expert` — NestJS backend (if needed)
-- `express-expert` — Express.js (if needed)
-- `fastapi-expert` — FastAPI (already the main stack)
 - `typescript-expert` — TypeScript code quality
 - `react-expert` — React Web UI components
 - `docker-expert` — Docker & container orchestration
 - `kubernetes-expert` — K8s deployment (if needed)
 - `terraform-expert` — Infrastructure as code
 
-## 📁 Documentation Status
+---
 
-### Existing Markdown Files (in project root):
-- `README.md` — Project overview & quick start ✅
-- `SPEC.md` — Multi-auth system specification ✅
-- `KNOWLEDGE.md` — Telegram knowledge base ✅
-- `CONTRIBUTING.md` — Contributing guidelines ✅
-- `LICENSE` — MIT license ✅
+## 📦 Skills & Plugins Inventory
 
-### Docs Directory (`docs/`):
-- `ARCHITECTURE.md` — Technical architecture ✅
-- `DEPLOYMENT.md` — Deployment guide ✅
-- `RELEASING.md` — APK release process ✅
-- `SETUP.md` — Setup & usage guide ✅
-- `SETUP_FLOW_DIAGRAM.md` — Setup flow diagram ✅
-- `TELEGRAM_AUTH_ARCHITECTURE.md` — Telegram auth deep-dive ✅
-- **`auth-flow.md`** — **NEW: Comprehensive auth flow with clock drift fix** ✅
+### Installed Plugins (user scope):
+- `frontend-design` — UI/UX design guidance
+- `playwright` — Browser automation & E2E testing
+- `code-review` — Automated code review
+- `auth0` — Auth0 integration
+- `azure` — Azure cloud services
+- `terraform` — Infrastructure as code
+- `supabase` — Supabase database
+- `mongodb` — MongoDB integration
+- `security-guidance` — Code security scanning
+- `42crunch-api-security-testing` — API security audit & scan
 
-### Suggested New Documentation:
-1. **`docs/troubleshooting.md`** — Common issues & fixes (includes the clock drift fix) ⏳
-2. **`docs/api-spec.md`** — Full API endpoint spec ⏳
-3. **`docs/migration-guide.md`** — Migration path from v1.x ⏳
+### Available Sub-Agents (from 0xfurai/claude-code-subagents repo):
+Full list — 138+ agents covering all major languages and frameworks.
 
-## 🎯 Next Immediate Actions
+### Key Sub-Agents for TelePlay Project:
+- `android-expert` — Android TV/Mobile Kotlin/Compose/ExoPlayer
+- `nestjs-expert` — NestJS backend (if needed)
+- `typescript-expert` — TypeScript code quality
+- `react-expert` — React Web UI components
+- `docker-expert` — Docker & container orchestration
+- `kubernetes-expert` — K8s deployment (if needed)
+- `terraform-expert` — Infrastructure as code
 
-1. ✅ **Fix auth code expiration** — Add clock tolerance buffer **COMPLETED**
-2. ✅ **Create `docs/auth-flow.md`** — Document the complete login flow **COMPLETED**
-3. 📝 **Test the fix** — Generate a code, wait slightly, verify it still works
-4. 📝 **Update `todo.md`** — Mark completed items
+### 🚀 Railway Deployment Ready
+All critical fixes applied. Ready for Railway redeploy. Container should now start successfully with:
+1. ✅ Auth code tolerance (1-min buffer)
+2. ✅ `escape_like` import issue resolved
+3. ✅ Utils models import fixed
+4. ✅ Comprehensive auth-flow documentation
+
+**Deploy and verify:** Railway auto-detects git pushes → rebuild container → should show startup.success

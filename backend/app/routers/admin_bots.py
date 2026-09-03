@@ -192,7 +192,7 @@ async def update_bot(
                     await client.stop()
                     pool_manager.remove_bot(idx)
                     break
-            except:
+            except Exception:
                 pool_manager.remove_bot(idx)
         
         # Add new client if active
@@ -244,7 +244,7 @@ async def delete_bot(
                 await client.stop()
                 pool_manager.remove_bot(idx)
                 break
-        except:
+        except Exception:
             pool_manager.remove_bot(idx)
     
     await db.delete(bot)

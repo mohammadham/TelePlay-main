@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
-import logging
 logging.getLogger("pyrogram").setLevel(logging.INFO)
 
 from .config import get_settings, mark_db_ready

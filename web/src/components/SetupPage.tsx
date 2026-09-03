@@ -418,7 +418,7 @@ export default function SetupPage() {
                     {step === 'user' && (
                         <>
                             {/* Phase 1: Enter credentials */}
-                            {authState === 'idle' || authState === 'error' || authState === '2fa_required' || authState === '2fa_verifying' ? (
+                            {authState === 'idle' || (authState === 'error' && !phoneCodeHash) ? (
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-dark-200 mb-1">
@@ -511,13 +511,20 @@ export default function SetupPage() {
                             ) : null}
 
                             {/* Phase 2: Enter verification code */}
-                            {authState === 'code_sent' || authState === '2fa_required' || authState === 'verifying' || authState === '2fa_verifying' ? (
+                            {authState === 'sending' || authState === 'code_sent' || authState === '2fa_required' || authState === 'verifying' || authState === '2fa_verifying' || (authState === 'error' && !!phoneCodeHash) ? (
                                 <>
                                     <div className="p-3 bg-primary-500/10 border border-primary-500/30 rounded-lg text-primary-300 text-sm">
-                                        Code sent to {userPhone}.
-                                        <p className="text-xs text-primary-500/70 mt-1">
-                                            Enter the code from Telegram. Expires in ~2 minutes.
-                                        </p>
+                                        {authState === 'sending' ? (
+                                            `Sending code to ${userPhone}...`
+                                        ) : (
+                                            <>
+                                                Code sent to {userPhone}.
+                                                <p className="text-xs text-primary-500/70 mt-1">
+                                                    Enter the code from Telegram. Expires in ~2 minutes.
+                                                    <button onClick={resetAuthFlow} className="text-primary-400 ml-2 hover:underline focus:outline-none">Change phone number</button>
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-dark-200 mb-1">
@@ -529,7 +536,7 @@ export default function SetupPage() {
                                             onChange={e => setUserCode(e.target.value)}
                                             placeholder="12345"
                                             maxLength={6}
-                                            disabled={isVerifyingCode}
+                                            disabled={isVerifyingCode || authState === 'sending'}
                                             className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
@@ -544,7 +551,7 @@ export default function SetupPage() {
                                                     value={userPassword}
                                                     onChange={e => setUserPassword(e.target.value)}
                                                     placeholder="Your Telegram 2FA password"
-                                                    disabled={isVerifyingCode}
+                                                    disabled={isVerifyingCode || authState === '2fa_verifying'}
                                                     className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                             </div>
@@ -556,14 +563,14 @@ export default function SetupPage() {
                                     <div className="flex gap-2">
                                         <button
                                             onClick={verifyUserCode}
-                                            disabled={loading || isVerifyingCode || !userCode.trim()}
+                                            disabled={loading || isVerifyingCode || authState === 'sending' || !userCode.trim()}
                                             className="btn-primary flex-1 py-3 disabled:opacity-50"
                                         >
                                             {isVerifyingCode ? (authState === '2fa_verifying' ? 'Checking 2FA...' : 'Verifying...') : 'Verify & Login'}
                                         </button>
                                         <button
                                             onClick={sendUserCode}
-                                            disabled={loading || isSendingCode || resendCooldown > 0}
+                                            disabled={loading || isSendingCode || authState === 'sending' || resendCooldown > 0}
                                             className="btn-secondary py-3 disabled:opacity-50"
                                             style={{ whiteSpace: 'nowrap' }}
                                         >

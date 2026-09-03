@@ -161,7 +161,7 @@ _db_overrides_applied = False
 _db_settings_store: Optional[Settings] = None  # populated by apply_db_overrides() after init_db()
 
 
-async def _load_db_overrides():
+async def _load_db_overrides(s: Settings):
     """Load and apply DB-stored settings overrides."""
     from .models import AppSetting
     from .database import get_engine
@@ -178,38 +178,38 @@ async def _load_db_overrides():
         for key, val in db_map.items():
             alias_key = key.upper()
             if alias_key == "TELEGRAM_API_ID":
-                if hasattr(settings, "telegram_api_id"):
-                    setattr(settings, "telegram_api_id", int(val) if val else 0)
+                if hasattr(s, "telegram_api_id"):
+                    setattr(s, "telegram_api_id", int(val) if val else 0)
             elif alias_key == "TELEGRAM_API_HASH":
-                if hasattr(settings, "telegram_api_hash"):
-                    setattr(settings, "telegram_api_hash", val)
+                if hasattr(s, "telegram_api_hash"):
+                    setattr(s, "telegram_api_hash", val)
             elif alias_key == "TELEGRAM_BOT_TOKEN":
-                if hasattr(settings, "telegram_bot_token"):
-                    setattr(settings, "telegram_bot_token", val)
+                if hasattr(s, "telegram_bot_token"):
+                    setattr(s, "telegram_bot_token", val)
             elif alias_key == "TELEGRAM_STORAGE_CHANNEL_ID":
-                if hasattr(settings, "telegram_storage_channel_id"):
-                    setattr(settings, "telegram_storage_channel_id", int(val) if val else 0)
+                if hasattr(s, "telegram_storage_channel_id"):
+                    setattr(s, "telegram_storage_channel_id", int(val) if val else 0)
             elif alias_key == "DATABASE_URL":
-                if hasattr(settings, "database_url"):
-                    setattr(settings, "database_url", val)
+                if hasattr(s, "database_url"):
+                    setattr(s, "database_url", val)
             elif alias_key == "JWT_SECRET":
-                if hasattr(settings, "jwt_secret"):
-                    setattr(settings, "jwt_secret", val)
+                if hasattr(s, "jwt_secret"):
+                    setattr(s, "jwt_secret", val)
             elif alias_key == "WEB_BASE_URL":
-                if hasattr(settings, "web_base_url"):
-                    setattr(settings, "web_base_url", val)
+                if hasattr(s, "web_base_url"):
+                    setattr(s, "web_base_url", val)
             elif alias_key == "ADMIN_TELEGRAM_IDS":
-                if hasattr(settings, "admin_ids_str"):
-                    setattr(settings, "admin_ids_str", val)
+                if hasattr(s, "admin_ids_str"):
+                    setattr(s, "admin_ids_str", val)
             elif alias_key == "CACHE_ENABLED":
-                if hasattr(settings, "cache_enabled"):
-                    setattr(settings, "cache_enabled", val.lower() in ("true", "1", "yes"))
+                if hasattr(s, "cache_enabled"):
+                    setattr(s, "cache_enabled", val.lower() in ("true", "1", "yes"))
             elif alias_key == "ADS_ENABLED":
-                if hasattr(settings, "ads_enabled"):
-                    setattr(settings, "ads_enabled", val.lower() in ("true", "1", "yes"))
+                if hasattr(s, "ads_enabled"):
+                    setattr(s, "ads_enabled", val.lower() in ("true", "1", "yes"))
             elif alias_key == "VIDEO_CACHE_ENABLED":
-                if hasattr(settings, "_video_cache_enabled"):
-                    setattr(settings, "_video_cache_enabled", val.lower() in ("true", "1", "yes"))
+                if hasattr(s, "_video_cache_enabled"):
+                    setattr(s, "_video_cache_enabled", val.lower() in ("true", "1", "yes"))
 
 async def mark_db_ready(s: Settings):
     """Call this once from main.py lifespan AFTER init_db() completes.
@@ -225,7 +225,7 @@ async def mark_db_ready(s: Settings):
             _db_overrides_applied = True
             return
         import asyncio
-        await _load_db_overrides()
+        await _load_db_overrides(s)
     except ImportError:
         _db_overrides_applied = True
     except Exception as _e:

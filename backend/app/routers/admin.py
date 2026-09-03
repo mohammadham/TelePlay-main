@@ -48,6 +48,30 @@ async def cache_warmup(payload: dict, admin: User=Depends(require_admin)):
     return {"queued": len(payload.get("track_ids", []))}
 
 # ---- Ads ----
+@router.get("/ads/config")
+async def get_ad_config(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    row = (await db.execute(select(AdConfig).limit(1))).scalar_one_or_none()
+    if not row:
+        row = AdConfig(); db.add(row); await db.commit(); await db.refresh(row)
+    return row
+
+@router.put("/ads/config")
+async def update_ad_config(payload: dict, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    row = (await db.execute(select(AdConfig).limit(1))).scalar_one_or_none()
+    if not row:
+        row = AdConfig(); db.add(row)
+    for k in ["enabled","every_n_tracks","max_per_hour"]:
+        if k in payload: setattr(row, k, payload[k])
+    await db.commit(); await db.refresh(row)
+    return row
+
+@router.get("/ads/stats")
+async def ads_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    from sqlalchemy import func
+    from ..models import AdImpression
+    total = (await db.execute(select(func.count()).select_from(AdImpression))).scalar() or 0
+    return {"total_impressions": total}
+
 @router.get("/ads")
 async def list_ads(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
     rows = (await db.execute(select(Ad).order_by(Ad.created_at.desc()))).scalars().all()
@@ -73,30 +97,6 @@ async def delete_ad(ad_id: int, db: AsyncSession=Depends(get_db), admin: User=De
     from sqlalchemy import delete as sql_del
     await db.execute(sql_del(Ad).where(Ad.id==ad_id)); await db.commit()
     return {"ok": True}
-
-@router.get("/ads/config")
-async def get_ad_config(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
-    row = (await db.execute(select(AdConfig).limit(1))).scalar_one_or_none()
-    if not row:
-        row = AdConfig(); db.add(row); await db.commit(); await db.refresh(row)
-    return row
-
-@router.put("/ads/config")
-async def update_ad_config(payload: dict, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
-    row = (await db.execute(select(AdConfig).limit(1))).scalar_one_or_none()
-    if not row:
-        row = AdConfig(); db.add(row)
-    for k in ["enabled","every_n_tracks","max_per_hour"]:
-        if k in payload: setattr(row, k, payload[k])
-    await db.commit(); await db.refresh(row)
-    return row
-
-@router.get("/ads/stats")
-async def ads_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
-    from sqlalchemy import func
-    from ..models import AdImpression
-    total = (await db.execute(select(func.count()).select_from(AdImpression))).scalar() or 0
-    return {"total_impressions": total}
 
 # ---- Overview & System ----
 import time, platform, sys
@@ -126,7 +126,7 @@ async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(requ
 
 @router.get("/users")
 async def list_users(q: str = None, page: int = 1, per_page: int = 20, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
-    from sqlalchemy import or_
+    from sqlalchemy import or_, func
     from ..models import User as U
     query = select(U)
     if q: query = query.where(or_(U.username.ilike(f"%{q}%"), U.first_name.ilike(f"%{q}%")))

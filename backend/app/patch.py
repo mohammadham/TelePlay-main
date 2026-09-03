@@ -3,7 +3,7 @@ import functools
 from typing import Dict, Optional, Union
 from pyrogram import handlers, types
 from pyrogram import Client as PyroClient
-from pyrogram import errors, raw, session, types
+from pyrogram import errors, raw, session
 from pyrogram.filters import Filter
 
 

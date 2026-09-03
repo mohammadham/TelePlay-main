@@ -221,9 +221,10 @@ class TelegramAuthService:
 
         # Track if code was already sent to prevent duplicate sends
         code_sent = False
+        sent_phone_code_hash = ""
 
         async def _send_once():
-            nonlocal code_sent
+            nonlocal code_sent, sent_phone_code_hash
             client = self._create_client(session_name, api_id, api_hash, proxy)
 
             logger.info("Connecting to Telegram MTProto...")
@@ -273,14 +274,8 @@ class TelegramAuthService:
                     # If code was already sent, don't retry - return success with the code we sent
                     if code_sent:
                         logger.warning(f"Error after code sent (attempt {attempt + 1}): {type(e).__name__}: {e}")
-                        # Code was sent successfully, read hash from session file
-                        stored_hash = ""
-                        if session_file.exists():
-                            try:
-                                session_data = json.loads(session_file.read_text())
-                                stored_hash = session_data.get("phone_code_hash", "")
-                            except:
-                                pass
+                        # Code was sent successfully, use hash from outer scope
+                        stored_hash = sent_phone_code_hash
                         # Code was sent successfully, return what we have
                         return SendCodeResult(
                             success=True,
@@ -362,6 +357,7 @@ class TelegramAuthService:
         async def _verify():
             # CRITICAL: Load session from file so phone_code_hash is preserved
             client_kwargs = dict(
+                name=session_name,
                 api_id=api_id,
                 api_hash=api_hash,
                 proxy=proxy,
@@ -371,7 +367,7 @@ class TelegramAuthService:
                 client_kwargs["session_string"] = session_file.read_text().strip()
                 logger.info(f"Loaded session from {session_file}")
             else:
-                client_kwargs["name"] = session_name
+                # client_kwargs["name"] = session_name
                 logger.warning(f"Session file not found at {session_file}, creating new")
 
             client = Client(**client_kwargs)

@@ -159,14 +159,15 @@ class TelegramAuthService:
         
         Set workdir to session directory so Pyrogram saves session file in the same location.
         """
-        session_dir = self._get_session_dir()
+        # session_dir = self._get_session_dir()
         return Client(
             session_name,
             api_id=api_id,
             api_hash=api_hash,
             proxy=proxy,
             ipv6=False,
-            workdir=str(self._get_session_dir()),
+            # workdir=str(self._get_session_dir()),
+            in_memory=True,
         )
 
     async def _retry_operation(self, operation, *args, max_retries=None, **kwargs):
@@ -241,22 +242,39 @@ class TelegramAuthService:
                 timeout=self.SEND_CODE_TIMEOUT
             )
             code_sent = True
-            
+
             # CRITICAL: Save the phone_code_hash for potential retry scenarios
             phone_code_hash = sent_code.phone_code_hash
+            sent_phone_code_hash = phone_code_hash
             logger.info(f"[_send_once] Code sent, phone_code_hash={phone_code_hash[:20]}...")
 
-            # CRITICAL: Stop client to trigger Pyrogram auto-session save (workdir is set)
-            await client.stop()
-            
-            # Verify the session file was written by Pyrogram
+            # CRITICAL: Export the session_string BEFORE any teardown so verify_code
+            # can reuse the SAME MTProto auth_key. Without this, Telegram will reject
+            # the phone_code_hash because it's tied to a different (lost) session.
             session_file = self._get_session_file(phone)
-            if session_file.exists():
-                file_size = session_file.stat().st_size
-                logger.info(f"[_send_once] Session file auto-saved by Pyrogram: {session_file} ({file_size} bytes)")
-            else:
-                logger.error(f"[_send_once] Session file NOT found after stop: {session_file}")
-            sent_phone_code_hash = phone_code_hash
+            try:
+                session_string = await asyncio.wait_for(
+                    client.export_session_string(), timeout=15.0
+                )
+                session_file.write_text(session_string)
+                logger.info(
+                    f"[_send_once] Session string exported and saved to {session_file} "
+                    f"({len(session_string)} chars)"
+                )
+            except Exception as e:
+                logger.error(
+                    f"[_send_once] Failed to export/save session string: "
+                    f"{type(e).__name__}: {e}"
+                )
+
+            # Use disconnect() (not stop()) because we only called connect(), not start().
+            # Calling stop() on a non-started client raises "Client is already terminated".
+            try:
+                await client.disconnect()
+                logger.debug("[_send_once] Client disconnected cleanly")
+            except Exception as e:
+                logger.debug(f"[_send_once] Disconnect raised (ignoring): {type(e).__name__}: {e}")
+
             return SendCodeResult(
                 success=True,
                 phone_code_hash=phone_code_hash,
@@ -375,6 +393,7 @@ class TelegramAuthService:
                 api_hash=api_hash,
                 proxy=proxy,
                 ipv6=False,
+                in_memory=True,
             )
             if session_file.exists():
                 file_size = session_file.stat().st_size
@@ -383,9 +402,16 @@ class TelegramAuthService:
                     logger.error(f"[_verify] Session file exists but is empty: {session_file}")
                     raise Exception("Session file is empty")
                 client_kwargs["session_string"] = session_string
-                logger.info(f"[_verify] Loaded session from {session_file} ({session_file.stat().st_size} bytes)")
+                logger.info(f"[_verify] Loaded session from {session_file} ({file_size} bytes)")
             else:
-                logger.warning(f"[_verify] Session file not found at {session_file}, creating new (this will fail)")
+                logger.error(
+                    f"[_verify] Session file not found at {session_file}. "
+                    f"The MTProto auth_key from send_code was lost — verification WILL fail. "
+                    f"User must request a new code."
+                )
+                raise Exception(
+                    "No code hash available. Please request a new code first."
+                )
 
             client = Client(**client_kwargs)
 
@@ -403,6 +429,10 @@ class TelegramAuthService:
 
             except PhoneCodeExpired:
                 logger.warning(f"Phone code expired for {phone}")
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
                 return VerifyCodeResult(
                     success=False,
                     error=AuthError.PHONE_CODE_EXPIRED,
@@ -411,6 +441,10 @@ class TelegramAuthService:
             except SessionPasswordNeeded:
                 if not password:
                     logger.info("2FA required, no password provided")
+                    try:
+                        await client.disconnect()
+                    except Exception:
+                        pass
                     return VerifyCodeResult(
                         success=False,
                         has_2fa=True,
@@ -426,15 +460,18 @@ class TelegramAuthService:
             me = await client.get_me()
             logger.info(f"[_verify] User verified: id={me.id}, username={me.username}")
 
-            # Stop client to trigger Pyrogram auto-session save (workdir is set)
-            await client.stop()
+            # Disconnect (we used connect(), not start())
+            try:
+                await client.disconnect()
+            except Exception as e:
+                logger.debug(f"[_verify] Disconnect raised (ignoring): {type(e).__name__}: {e}")
 
             # Clean up temp session file (no longer needed after successful auth)
             try:
-                session_file = self._get_session_file(phone)
-                if session_file.exists():
-                    session_file.unlink()
-                    logger.debug(f"Cleaned up session file: {session_file}")
+                session_file_cleanup = self._get_session_file(phone)
+                if session_file_cleanup.exists():
+                    session_file_cleanup.unlink()
+                    logger.debug(f"Cleaned up session file: {session_file_cleanup}")
             except Exception as e:
                 logger.debug(f"Could not clean up session file: {e}")
 

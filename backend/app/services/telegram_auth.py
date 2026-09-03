@@ -165,7 +165,7 @@ class TelegramAuthService:
         )
 
     async def _retry_operation(self, operation, *args, max_retries=None, **kwargs):
-        """Execute an operation with retry logic."""
+        """Execute an operation with retry logic for transient errors only."""
         max_retries = max_retries or self.MAX_RETRIES
         last_error = None
 
@@ -176,8 +176,14 @@ class TelegramAuthService:
                 last_error = f"Timeout on attempt {attempt + 1}/{max_retries}"
                 logger.warning(last_error)
             except Exception as e:
+                # Only retry on actual transient network errors, not on logic errors
+                error_str = str(e).lower()
+                is_transient = any(x in error_str for x in ['timeout', 'connection', 'network', 'unreachable', 'dns', 'proxy'])
+                if not is_transient:
+                    logger.error(f"Non-transient error, not retrying: {type(e).__name__}: {e}")
+                    raise
                 last_error = f"{type(e).__name__}: {e}"
-                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {last_error}")
+                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed (transient): {last_error}")
 
             if attempt < max_retries - 1:
                 await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))

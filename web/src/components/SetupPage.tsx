@@ -253,6 +253,7 @@ export default function SetupPage() {
                 user_api_hash: userHash,
                 user_session_string: sessionString,
                 user_2fa_password: userPassword || null,
+                user_proxy: proxySkipped ? null : (userProxy.trim() || null),
                 super_admin_id: parseInt(superAdminId),
                 admin_telegram_ids: additionalAdmins
                     .filter(a => a.trim())

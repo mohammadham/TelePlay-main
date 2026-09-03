@@ -348,7 +348,7 @@ function App() {
             <MediaPlayer />
             <Routes>
                 <Route path="/setup" element={needsSetup ? <SetupPage /> : <Navigate to="/login" replace />} />
-                <Route path="/login" element={<LoginPage />} />
+                <Route path="/login" element={!needsSetup ? <LoginPage /> : <Navigate to="/setup" replace />} />
                 <Route path="/auth" element={<AuthCallback />} />
                 <Route path="/" element={<Navigate to={needsSetup ? "/setup" : "/admin"} replace />} />
                 <Route path="/music" element={<ProtectedRoute><MusicLayout /></ProtectedRoute>} />

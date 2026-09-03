@@ -227,7 +227,7 @@ class TelegramAuthService:
             nonlocal code_sent, sent_phone_code_hash
             client = self._create_client(session_name, api_id, api_hash, proxy)
 
-            logger.info("Connecting to Telegram MTProto...")
+            logger.info(f"[_send_once] Connecting to Telegram MTProto... session_file={session_file}")
             await asyncio.wait_for(client.connect(), timeout=self.CONNECT_TIMEOUT)
 
             logger.info("Sending authentication code...")
@@ -236,6 +236,9 @@ class TelegramAuthService:
                 timeout=self.SEND_CODE_TIMEOUT
             )
             code_sent = True
+            # CRITICAL: Save the phone_code_hash for potential retry scenarios
+            sent_phone_code_hash = sent_code.phone_code_hash
+            logger.info(f"[_send_once] Code sent, phone_code_hash={sent_code.phone_code_hash[:20]}...")
 
             # CRITICAL: Persist session immediately so verify can load it
             session_string = await client.export_session_string()
@@ -245,7 +248,12 @@ class TelegramAuthService:
             temp_file.write_text(session_string)
             temp_file.rename(session_file)
             
-            logger.info(f"Session saved to {session_file}, hash: {sent_code.phone_code_hash[:20]}...")
+            # Verify the session file was written
+            if session_file.exists():
+                file_size = session_file.stat().st_size
+                logger.info(f"[_send_once] Session file written: {session_file} ({file_size} bytes)")
+            else:
+                logger.error(f"[_send_once] Session file NOT found after write: {session_file}")
 
             await client.disconnect()
 
@@ -364,11 +372,15 @@ class TelegramAuthService:
                 ipv6=False,
             )
             if session_file.exists():
+                file_size = session_file.stat().st_size
                 client_kwargs["session_string"] = session_file.read_text().strip()
-                logger.info(f"Loaded session from {session_file}")
+                logger.info(f"[_verify] Loaded session from {session_file} ({file_size} bytes)")
+                # Log first 100 chars of session string to verify it's valid
+                session_preview = session_file.read_text().strip()[:100]
+                logger.debug(f"[_verify] Session preview: {session_preview}...")
             else:
                 # client_kwargs["name"] = session_name
-                logger.warning(f"Session file not found at {session_file}, creating new")
+                logger.warning(f"[_verify] Session file not found at {session_file}, creating new")
 
             client = Client(**client_kwargs)
 
@@ -405,7 +417,9 @@ class TelegramAuthService:
 
             # Export session string
             session_string = await client.export_session_string()
+            logger.info(f"[_verify] Session string exported, length: {len(session_string)}")
             me = await client.get_me()
+            logger.info(f"[_verify] User verified: id={me.id}, username={me.username}")
 
             # Clean up temp session file
             try:

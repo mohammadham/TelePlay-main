@@ -1,6 +1,7 @@
 """
 Setup Wizard API — public endpoints for initial configuration
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -15,6 +16,7 @@ from ..encryption import encrypt, decrypt
 from ..services import telegram_auth_service, session_manager
 from ..services.telegram_auth import SendCodeResult, VerifyCodeResult
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/setup", tags=["Setup Wizard"])
 
 
@@ -142,12 +144,14 @@ async def send_user_code(payload: UserSendCodeRequest):
     This is the first step in the authentication flow.
     Returns a phone_code_hash that must be used in the verify step.
     """
+    logger.info(f"[send-code] Request for phone={payload.phone}, api_id={payload.api_id}")
     result: SendCodeResult = await telegram_auth_service.send_code(
         phone=payload.phone,
         api_id=payload.api_id,
         api_hash=payload.api_hash,
         proxy_override=payload.proxy,
     )
+    logger.info(f"[send-code] Result: success={result.success}, hash_len={len(result.phone_code_hash) if result.phone_code_hash else 0}, error={result.error}")
 
     return UserSendCodeResponse(
         success=result.success,
@@ -170,6 +174,7 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
     - First call without password returns has_2fa=true
     - User must then provide password and call again
     """
+    logger.info(f"[verify-code] Request for phone={payload.phone}, hash_len={len(payload.phone_code_hash) if payload.phone_code_hash else 0}")
     result: VerifyCodeResult = await telegram_auth_service.verify_code(
         phone=payload.phone,
         api_id=payload.api_id,
@@ -179,6 +184,7 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         password=payload.password,
         proxy_override=payload.proxy,
     )
+    logger.info(f"[verify-code] Result: success={result.success}, has_2fa={result.has_2fa}, error={result.error}")
 
     return UserVerifyCodeResponse(
         success=result.success,

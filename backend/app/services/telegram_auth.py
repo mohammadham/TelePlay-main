@@ -81,9 +81,22 @@ class TelegramAuthService:
     SIGN_IN_TIMEOUT = 60.0
     MAX_RETRIES = 3
     RETRY_DELAY = 5.0
+    PENDING_TTL = 600.0  # Keep pending client alive for 10 minutes
 
     def __init__(self):
         self._settings = None
+        # In-memory cache of connected clients between send_code and verify_code.
+        # We CANNOT export_session_string() before sign_in (Pyrogram requires user_id),
+        # so we must keep the SAME connected client alive to preserve the MTProto auth_key.
+        # Key: phone (normalized with leading +). Value: (client, created_at_monotonic)
+        self._pending_clients: dict = {}
+        self._pending_lock: Optional[asyncio.Lock] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Lazily create the asyncio lock (needs a running event loop)."""
+        if self._pending_lock is None:
+            self._pending_lock = asyncio.Lock()
+        return self._pending_lock
 
     @property
     def settings(self):
@@ -157,7 +170,9 @@ class TelegramAuthService:
         IMPORTANT: Do NOT pass phone_number to constructor!
         It causes Pyrogram to attempt auto-login which invalidates phone_code_hash.
         
-        Set workdir to session directory so Pyrogram saves session file in the same location.
+        Use in_memory=True so Pyrogram does NOT create/manage a SQLite .session file.
+        We keep the connected client alive in-memory between send_code/verify_code
+        to preserve the MTProto auth_key (which cannot be exported before sign_in).
         """
         # session_dir = self._get_session_dir()
         return Client(
@@ -169,6 +184,50 @@ class TelegramAuthService:
             # workdir=str(self._get_session_dir()),
             in_memory=True,
         )
+
+    async def _store_pending_client(self, phone: str, client: Client) -> None:
+        """Store a connected client keyed by phone, evicting any prior one."""
+        import time as _time
+        async with self._get_lock():
+            prev = self._pending_clients.pop(phone, None)
+            if prev:
+                old_client, _ = prev
+                try:
+                    await old_client.disconnect()
+                except Exception:
+                    pass
+            self._pending_clients[phone] = (client, _time.monotonic())
+            logger.info(f"[pending] Stored connected client for {phone} (total pending={len(self._pending_clients)})")
+
+    async def _pop_pending_client(self, phone: str) -> Optional[Client]:
+        """Retrieve and remove a stored connected client for phone."""
+        import time as _time
+        async with self._get_lock():
+            entry = self._pending_clients.pop(phone, None)
+        if not entry:
+            return None
+        client, created_at = entry
+        age = _time.monotonic() - created_at
+        if age > self.PENDING_TTL:
+            logger.warning(f"[pending] Client for {phone} expired (age={age:.0f}s > {self.PENDING_TTL}s), discarding")
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            return None
+        logger.info(f"[pending] Retrieved connected client for {phone} (age={age:.0f}s)")
+        return client
+
+    async def _cleanup_pending_client(self, phone: str) -> None:
+        """Cleanly disconnect and remove a pending client (used on error paths)."""
+        async with self._get_lock():
+            entry = self._pending_clients.pop(phone, None)
+        if entry:
+            client, _ = entry
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
 
     async def _retry_operation(self, operation, *args, max_retries=None, **kwargs):
         """Execute an operation with retry logic for transient errors only."""
@@ -215,14 +274,12 @@ class TelegramAuthService:
         # Ensure correct types
         api_id = int(api_id)
         api_hash = str(api_hash)
-        if not phone.startswith("+"):
-            phone = "+" + phone
 
-        session_name = self._get_session_name(phone)
-        session_file = self._get_session_file(phone)
-        logger.info(f"Sending code to {phone} with api_id {api_id}")
-
-        proxy = self._build_proxy(proxy_override)
+        logger.info(
+            f"[verify_code] Request: phone={phone}, api_id={api_id}, "
+            f"hash_len={len(phone_code_hash) if phone_code_hash else 0}, "
+            f"code_len={len(code)}, has_password={bool(password)}, proxy={proxy_override}"
+        )
 
         # Track if code was already sent to prevent duplicate sends
         code_sent = False
@@ -233,7 +290,7 @@ class TelegramAuthService:
             # Create fresh client for each attempt - don't reuse across retries
             client = self._create_client(self._get_session_name(phone), api_id, api_hash, self._build_proxy(None))
 
-            logger.info(f"[_send_once] Connecting to Telegram MTProto... session_file={self._get_session_file(phone)}")
+            logger.info(f"[_send_once] Connecting to Telegram MTProto...")
             await asyncio.wait_for(client.connect(), timeout=self.CONNECT_TIMEOUT)
 
             logger.info("Sending authentication code...")
@@ -248,32 +305,15 @@ class TelegramAuthService:
             sent_phone_code_hash = phone_code_hash
             logger.info(f"[_send_once] Code sent, phone_code_hash={phone_code_hash[:20]}...")
 
-            # CRITICAL: Export the session_string BEFORE any teardown so verify_code
-            # can reuse the SAME MTProto auth_key. Without this, Telegram will reject
-            # the phone_code_hash because it's tied to a different (lost) session.
-            session_file = self._get_session_file(phone)
-            try:
-                session_string = await asyncio.wait_for(
-                    client.export_session_string(), timeout=15.0
-                )
-                session_file.write_text(session_string)
-                logger.info(
-                    f"[_send_once] Session string exported and saved to {session_file} "
-                    f"({len(session_string)} chars)"
-                )
-            except Exception as e:
-                logger.error(
-                    f"[_send_once] Failed to export/save session string: "
-                    f"{type(e).__name__}: {e}"
-                )
-
-            # Use disconnect() (not stop()) because we only called connect(), not start().
-            # Calling stop() on a non-started client raises "Client is already terminated".
-            try:
-                await client.disconnect()
-                logger.debug("[_send_once] Client disconnected cleanly")
-            except Exception as e:
-                logger.debug(f"[_send_once] Disconnect raised (ignoring): {type(e).__name__}: {e}")
+            # CRITICAL: We CANNOT call export_session_string() here because Pyrogram
+            # requires user_id (integer) for the session-string format, and user_id
+            # only exists AFTER sign_in. Trying it raises:
+            #   "error: required argument is not an integer"
+            #
+            # Instead we KEEP THE CONNECTED CLIENT ALIVE in-memory so that verify_code
+            # can reuse the SAME MTProto session (same auth_key) that generated
+            # this phone_code_hash. Otherwise Telegram rejects verification.
+            await self._store_pending_client(phone, client)
 
             return SendCodeResult(
                 success=True,
@@ -386,40 +426,21 @@ class TelegramAuthService:
         proxy = self._build_proxy(proxy_override)
 
         async def _verify():
-            # CRITICAL: Load session from file so phone_code_hash is preserved
-            client_kwargs = dict(
-                name=self._get_session_name(phone),
-                api_id=api_id,
-                api_hash=api_hash,
-                proxy=proxy,
-                ipv6=False,
-                in_memory=True,
-            )
-            if session_file.exists():
-                file_size = session_file.stat().st_size
-                session_string = session_file.read_text().strip()
-                if not session_string:
-                    logger.error(f"[_verify] Session file exists but is empty: {session_file}")
-                    raise Exception("Session file is empty")
-                client_kwargs["session_string"] = session_string
-                logger.info(f"[_verify] Loaded session from {session_file} ({file_size} bytes)")
-            else:
+            # CRITICAL: Retrieve the SAME connected client used by send_code.
+            # The MTProto auth_key that generated phone_code_hash lives inside that
+            # client's in-memory storage — we cannot recreate it from scratch.
+            client = await self._pop_pending_client(phone)
+            if client is None:
                 logger.error(
-                    f"[_verify] Session file not found at {session_file}. "
-                    f"The MTProto auth_key from send_code was lost — verification WILL fail. "
-                    f"User must request a new code."
+                    f"[_verify] No pending client found for {phone}. "
+                    f"Either send_code was never called, or the client expired / server restarted."
                 )
                 raise Exception(
                     "No code hash available. Please request a new code first."
                 )
 
-            client = Client(**client_kwargs)
-
-            logger.info("Connecting to Telegram MTProto...")
-            await asyncio.wait_for(client.connect(), timeout=self.CONNECT_TIMEOUT)
-
             # Try sign_in with code (NO password parameter!)
-            logger.info("Attempting sign_in with code...")
+            logger.info("Attempting sign_in with code (using preserved MTProto session)...")
             try:
                 await asyncio.wait_for(
                     client.sign_in(phone, phone_code_hash, code),
@@ -440,11 +461,10 @@ class TelegramAuthService:
                 )
             except SessionPasswordNeeded:
                 if not password:
-                    logger.info("2FA required, no password provided")
-                    try:
-                        await client.disconnect()
-                    except Exception:
-                        pass
+                    logger.info("2FA required, no password provided — keeping client alive for retry")
+                    # IMPORTANT: put the client back into pending so the next
+                    # verify-code call (with password) can reuse it.
+                    await self._store_pending_client(phone, client)
                     return VerifyCodeResult(
                         success=False,
                         has_2fa=True,
@@ -454,7 +474,7 @@ class TelegramAuthService:
                 logger.info("2FA password provided, calling check_password")
                 await client.check_password(password)
 
-            # Export session string
+            # Now the client IS authorized — export_session_string works
             session_string = await client.export_session_string()
             logger.info(f"[_verify] Session string exported, length: {len(session_string)}")
             me = await client.get_me()
@@ -465,15 +485,6 @@ class TelegramAuthService:
                 await client.disconnect()
             except Exception as e:
                 logger.debug(f"[_verify] Disconnect raised (ignoring): {type(e).__name__}: {e}")
-
-            # Clean up temp session file (no longer needed after successful auth)
-            try:
-                session_file_cleanup = self._get_session_file(phone)
-                if session_file_cleanup.exists():
-                    session_file_cleanup.unlink()
-                    logger.debug(f"Cleaned up session file: {session_file_cleanup}")
-            except Exception as e:
-                logger.debug(f"Could not clean up session file: {e}")
 
             logger.info(f"[_verify] Verification successful, returning result")
             return VerifyCodeResult(
@@ -490,20 +501,20 @@ class TelegramAuthService:
             return result
         except Exception as e:
             logger.error(f"User code verify failed: {type(e).__name__}: {e}")
-            try:
-                session_file = self._get_session_file(phone)
-                if session_file.exists():
-                    session_file.unlink()
-            except Exception:
-                pass
-            
+            # Clean up any pending client on unrecoverable errors so the user
+            # can start fresh with a new send_code.
+            await self._cleanup_pending_client(phone)
+
             error_code = AuthError.UNKNOWN
-            message = f"Verification failed: {type(e).__name__}"
-            
-            if "proxy" in str(e).lower() or "socks" in str(e).lower():
+            message = f"Verification failed: {type(e).__name__}: {e}"
+
+            if "no code hash available" in str(e).lower():
+                error_code = AuthError.PHONE_CODE_EXPIRED
+                message = "No code hash available. Please request a new code first."
+            elif "proxy" in str(e).lower() or "socks" in str(e).lower():
                 error_code = AuthError.PROXY_ERROR
                 message = "Proxy connection failed. Please check your proxy configuration."
-            
+
             return VerifyCodeResult(
                 success=False,
                 error=error_code,

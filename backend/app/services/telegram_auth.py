@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -227,6 +228,7 @@ class TelegramAuthService:
         sent_phone_code_hash = ""
 
         async def _send_once():
+            nonlocal code_sent, sent_phone_code_hash
             # Create fresh client for each attempt - don't reuse across retries
             client = self._create_client(self._get_session_name(phone), api_id, api_hash, self._build_proxy(None))
 
@@ -238,6 +240,7 @@ class TelegramAuthService:
                 client.send_code(phone),
                 timeout=self.SEND_CODE_TIMEOUT
             )
+            code_sent = True
             
             # CRITICAL: Save the phone_code_hash for potential retry scenarios
             phone_code_hash = sent_code.phone_code_hash
@@ -253,7 +256,7 @@ class TelegramAuthService:
                 logger.info(f"[_send_once] Session file auto-saved by Pyrogram: {session_file} ({file_size} bytes)")
             else:
                 logger.error(f"[_send_once] Session file NOT found after stop: {session_file}")
-
+            sent_phone_code_hash = phone_code_hash
             return SendCodeResult(
                 success=True,
                 phone_code_hash=phone_code_hash,
@@ -280,11 +283,11 @@ class TelegramAuthService:
                     # If code was already sent, don't retry - return success with the code we sent
                     # Check if the error happened after code was sent
                     error_str = str(e).lower()
-                    if "code" in error_str or "sent" in error_str or "phone_code" in error_str:
+                    if "code" in error_str or "sent" in error_str or "phone_code" in error_str or code_sent :
                         logger.warning(f"Error after code sent (attempt {attempt + 1}): {type(e).__name__}: {e}")
                         return SendCodeResult(
                             success=True,
-                            phone_code_hash="",
+                            phone_code_hash=sent_phone_code_hash ,
                             expires_in_seconds=120,
                             message="Code sent but session save had issues. Check your session file."
                         )

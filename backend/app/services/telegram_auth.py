@@ -271,23 +271,23 @@ class TelegramAuthService:
                         continue
                 except Exception as e:
                     # If code was already sent, don't retry - return success with the code we sent
-if code_sent:
-                    logger.warning(f"Error after code sent (attempt {attempt + 1}): {type(e).__name__}: {e}")
-                    # Code was sent successfully, read hash from session file
-                    stored_hash = ""
-                    if session_file.exists():
-                        try:
-                            session_data = json.loads(session_file.read_text())
-                            stored_hash = session_data.get("phone_code_hash", "")
-                        except:
-                            pass
-                    # Code was sent successfully, return what we have
-                    return SendCodeResult(
-                        success=True,
-                        phone_code_hash=stored_hash,
-                        expires_in_seconds=120,
-                        message="Code sent but session save had issues. Check your session file."
-                    )
+                    if code_sent:
+                        logger.warning(f"Error after code sent (attempt {attempt + 1}): {type(e).__name__}: {e}")
+                        # Code was sent successfully, read hash from session file
+                        stored_hash = ""
+                        if session_file.exists():
+                            try:
+                                session_data = json.loads(session_file.read_text())
+                                stored_hash = session_data.get("phone_code_hash", "")
+                            except:
+                                pass
+                        # Code was sent successfully, return what we have
+                        return SendCodeResult(
+                            success=True,
+                            phone_code_hash=stored_hash,
+                            expires_in_seconds=120,
+                            message="Code sent but session save had issues. Check your session file."
+                        )
                     
                     # Only retry on transient network errors
                     error_str = str(e).lower()

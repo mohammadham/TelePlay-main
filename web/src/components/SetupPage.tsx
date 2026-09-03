@@ -27,6 +27,7 @@ export default function SetupPage() {
     const [userPhone, setUserPhone] = useState('');
     const [userId, setUserId] = useState('');
     const [userHash, setUserHash] = useState('');
+    const [userProxy, setUserProxy] = useState('');  // Proxy configuration
     const [userCode, setUserCode] = useState('');
     const [userPassword, setUserPassword] = useState('');
     const [authState, setAuthState] = useState<AuthState>('idle');
@@ -94,6 +95,7 @@ export default function SetupPage() {
                 phone: userPhone.startsWith('+') ? userPhone : `+${userPhone}`,
                 api_id: parseInt(userId),
                 api_hash: userHash,
+                proxy: userProxy.trim() || undefined,
             });
 
             if (res.data.success) {
@@ -156,6 +158,7 @@ export default function SetupPage() {
                 phone_code_hash: phoneCodeHash,
                 code: userCode,
                 password: needs2fa ? userPassword : undefined,
+                proxy: userProxy.trim() || undefined,
             });
 
             if (res.data.has_2fa && !needs2fa) {
@@ -381,6 +384,19 @@ export default function SetupPage() {
                                             value={userHash}
                                             onChange={e => setUserHash(e.target.value)}
                                             placeholder="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-dark-200 mb-1">
+                                            Proxy (Optional)
+                                        </label>
+                                        <p className="text-xs text-dark-500 mb-1">SOCKS5 or HTTP proxy for restricted networks. Format: socks5://user:pass@host:port or http://host:port</p>
+                                        <input
+                                            type="text"
+                                            value={userProxy}
+                                            onChange={e => setUserProxy(e.target.value)}
+                                            placeholder="socks5://user:pass@host:1080 or http://host:8080"
                                             className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                         />
                                     </div>

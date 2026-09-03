@@ -36,6 +36,7 @@ class UserSendCodeRequest(BaseModel):
     phone: str = Field(..., pattern=r"^\+\d{10,15}$")
     api_id: int = Field(..., gt=0)
     api_hash: str = Field(..., min_length=10)
+    proxy: Optional[str] = None  # Optional proxy: "socks5://user:pass@host:port" or "http://host:port"
 
 
 class UserSendCodeResponse(BaseModel):
@@ -53,6 +54,7 @@ class UserVerifyCodeRequest(BaseModel):
     phone_code_hash: str
     code: str
     password: Optional[str] = None  # 2FA password
+    proxy: Optional[str] = None  # Optional proxy
 
 
 class UserVerifyCodeResponse(BaseModel):
@@ -143,6 +145,7 @@ async def send_user_code(payload: UserSendCodeRequest):
         phone=payload.phone,
         api_id=payload.api_id,
         api_hash=payload.api_hash,
+        proxy_override=payload.proxy,
     )
 
     return UserSendCodeResponse(
@@ -173,6 +176,7 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
         phone_code_hash=payload.phone_code_hash,
         code=payload.code,
         password=payload.password,
+        proxy_override=payload.proxy,
     )
 
     return UserVerifyCodeResponse(

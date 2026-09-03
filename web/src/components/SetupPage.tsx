@@ -33,6 +33,7 @@ export default function SetupPage() {
     const [proxyTestError, setProxyTestError] = useState<string | null>(null);
     const [isSendingCode, setIsSendingCode] = useState(false); // Lock form while sending
     const [isVerifyingCode, setIsVerifyingCode] = useState(false); // Lock form while verifying
+    const [resendCooldown, setResendCooldown] = useState(0); // Resend button cooldown in seconds
     const [userCode, setUserCode] = useState('');
     const [userPassword, setUserPassword] = useState('');
     const [authState, setAuthState] = useState<AuthState>('idle');
@@ -57,6 +58,16 @@ export default function SetupPage() {
             })
             .catch(() => {});
     }, []);
+
+    // ── Resend Cooldown Timer ────────────────────────────────────────
+    useEffect(() => {
+        if (resendCooldown > 0) {
+            const timer = setInterval(() => {
+                setResendCooldown(prev => prev - 1);
+            }, 1000);
+            return () => clearInterval(timer);
+        }
+    }, [resendCooldown]);
 
     // ── Bot Token Validation ───────────────────────────────────────
     const validateBotToken = async () => {
@@ -106,14 +117,18 @@ export default function SetupPage() {
             });
 
             if (res.data.success) {
-                // SUCCESS: Navigate to code entry phase
-                setPhoneCodeHash(res.data.phone_code_hash || '');
+                // SUCCESS: Immediately navigate to code entry phase
+                const codeHash = res.data.phone_code_hash || '';
+                setPhoneCodeHash(codeHash);
                 setAuthState('code_sent');
                 setUserCode('');
                 setUserPassword('');
                 setNeeds2fa(false);
                 setError(null);
                 setLastErrorCode(null);
+                
+                // Start 120-second resend cooldown
+                setResendCooldown(120);
             } else {
                 // Handle specific error types - only show error if actually failed
                 const errorCode = res.data.error;
@@ -145,8 +160,8 @@ export default function SetupPage() {
     }, [userPhone, userId, userHash, userProxy]);
 
     /**
-     * Test proxy connection by sending a test code to a fake number.
-     * This validates the proxy works without actually sending a real code.
+     * Test proxy connection by checking if we can connect to Telegram through the proxy.
+     * Uses a lightweight connection test without sending a real code.
      */
     const testProxyConnection = useCallback(async () => {
         if (!userProxy.trim()) return;
@@ -155,23 +170,24 @@ export default function SetupPage() {
         setProxyTestError(null);
 
         try {
-            // We'll use a test phone number that won't actually send a code
-            // Just test if we can connect to Telegram through the proxy
+            // Use a lightweight test - just check if proxy allows connection to Telegram
+            // We'll use the validate bot token endpoint which only needs HTTP connectivity
+            // Or we can do a simple connection test
             const res = await api.post('/setup/user/send-code', {
-                phone: '+999999999999', // Invalid test number
+                phone: '+999999999999', // Test number - will fail validation but test proxy
                 api_id: parseInt(userId) || 123456,
                 api_hash: userHash || 'test',
                 proxy: userProxy.trim(),
             });
 
-            // If we get any response (even error), the proxy connected to Telegram
-            // Connection error would mean proxy failed
+            // Check if proxy worked (connection established)
+            // If we get invalid_credentials or phone_invalid, proxy worked
+            // If we get network_error or proxy_error, proxy failed
             if (res.data.error === 'network_error' || res.data.error === 'proxy_error') {
                 throw new Error(res.data.message || 'Proxy connection failed');
             }
             
-            // If we get invalid_credentials or similar, proxy worked but auth failed
-            // which is expected for a test number
+            // If we get here, proxy connection worked (even if auth failed)
             setProxyTestState('success');
             setProxyTestError(null);
         } catch (e: any) {
@@ -528,7 +544,8 @@ export default function SetupPage() {
                                                     value={userPassword}
                                                     onChange={e => setUserPassword(e.target.value)}
                                                     placeholder="Your Telegram 2FA password"
-                                                    className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                                    disabled={isVerifyingCode}
+                                                    className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                             </div>
                                             <p className="text-xs text-primary-500/70">
@@ -539,20 +556,20 @@ export default function SetupPage() {
                                     <div className="flex gap-2">
                                         <button
                                             onClick={verifyUserCode}
-                                            disabled={loading || !userCode.trim()}
+                                            disabled={loading || isVerifyingCode || !userCode.trim()}
                                             className="btn-primary flex-1 py-3 disabled:opacity-50"
                                         >
-                                            {loading && authState !== 'verifying' && authState !== '2fa_verifying'
-                                                ? 'Verifying...'
-                                                : authState === '2fa_verifying' ? 'Checking 2FA...' : 'Verify & Login'}
+                                            {isVerifyingCode ? (authState === '2fa_verifying' ? 'Checking 2FA...' : 'Verifying...') : 'Verify & Login'}
                                         </button>
                                         <button
                                             onClick={sendUserCode}
-                                            disabled={loading}
+                                            disabled={loading || isSendingCode || resendCooldown > 0}
                                             className="btn-secondary py-3 disabled:opacity-50"
                                             style={{ whiteSpace: 'nowrap' }}
                                         >
-                                            Resend Code
+                                            {resendCooldown > 0
+                                                ? `Resend in ${Math.floor(resendCooldown / 60)}:${String(resendCooldown % 60).padStart(2, '0')}`
+                                                : 'Resend Code'}
                                         </button>
                                     </div>
                                     {lastErrorCode === 'phone_code_expired' && (

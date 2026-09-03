@@ -11,7 +11,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -72,7 +71,7 @@ class TelegramAuthService:
     - Use same session_name between send_code and verify_code
     - Use proper Pyrogram exception types for error handling
     - Apply timeouts to all network operations
-    - Support proxy configuration for restricted networks (Railway, Iran, etc.)
+    - Support proxy configuration for restricted networks
     """
 
     # Timeout constants - increased for Railway/cloud environments
@@ -134,7 +133,7 @@ class TelegramAuthService:
 
     def _get_session_dir(self) -> Path:
         """Get persistent session directory."""
-        # Use /data/sessions for persistence on Railway, fallback to /tmp for local
+        # Use /data/teleplay_sessions for persistence on Railway, fallback to /tmp for local
         base = Path("/data") if Path("/data").exists() else Path("/tmp")
         session_dir = base / "teleplay_sessions"
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -166,7 +165,7 @@ class TelegramAuthService:
             api_hash=api_hash,
             proxy=proxy,
             ipv6=False,
-            workdir=str(session_dir),
+            workdir=str(self._get_session_dir()),
         )
 
     async def _retry_operation(self, operation, *args, max_retries=None, **kwargs):
@@ -228,10 +227,10 @@ class TelegramAuthService:
         sent_phone_code_hash = ""
 
         async def _send_once():
-            nonlocal code_sent, sent_phone_code_hash
-            client = self._create_client(session_name, api_id, api_hash, proxy)
+            # Create fresh client for each attempt - don't reuse across retries
+            client = self._create_client(self._get_session_name(phone), api_id, api_hash, self._build_proxy(None))
 
-            logger.info(f"[_send_once] Connecting to Telegram MTProto... session_file={session_file}")
+            logger.info(f"[_send_once] Connecting to Telegram MTProto... session_file={self._get_session_file(phone)}")
             await asyncio.wait_for(client.connect(), timeout=self.CONNECT_TIMEOUT)
 
             logger.info("Sending authentication code...")
@@ -239,15 +238,16 @@ class TelegramAuthService:
                 client.send_code(phone),
                 timeout=self.SEND_CODE_TIMEOUT
             )
-            code_sent = True
+            
             # CRITICAL: Save the phone_code_hash for potential retry scenarios
-            sent_phone_code_hash = sent_code.phone_code_hash
-            logger.info(f"[_send_once] Code sent, phone_code_hash={sent_code.phone_code_hash[:20]}...")
+            phone_code_hash = sent_code.phone_code_hash
+            logger.info(f"[_send_once] Code sent, phone_code_hash={phone_code_hash[:20]}...")
 
             # CRITICAL: Stop client to trigger Pyrogram auto-session save (workdir is set)
             await client.stop()
             
             # Verify the session file was written by Pyrogram
+            session_file = self._get_session_file(phone)
             if session_file.exists():
                 file_size = session_file.stat().st_size
                 logger.info(f"[_send_once] Session file auto-saved by Pyrogram: {session_file} ({file_size} bytes)")
@@ -256,7 +256,7 @@ class TelegramAuthService:
 
             return SendCodeResult(
                 success=True,
-                phone_code_hash=sent_code.phone_code_hash,
+                phone_code_hash=phone_code_hash,
                 expires_in_seconds=120,
             )
 
@@ -268,7 +268,8 @@ class TelegramAuthService:
             
             for attempt in range(max_retries):
                 try:
-                    return await _send_once()
+                    result = await _send_once()
+                    return result
                 except asyncio.TimeoutError:
                     last_error = f"Timeout on attempt {attempt + 1}/{max_retries}"
                     logger.warning(last_error)
@@ -277,14 +278,13 @@ class TelegramAuthService:
                         continue
                 except Exception as e:
                     # If code was already sent, don't retry - return success with the code we sent
-                    if code_sent:
+                    # Check if the error happened after code was sent
+                    error_str = str(e).lower()
+                    if "code" in error_str or "sent" in error_str or "phone_code" in error_str:
                         logger.warning(f"Error after code sent (attempt {attempt + 1}): {type(e).__name__}: {e}")
-                        # Code was sent successfully, use hash from outer scope
-                        stored_hash = sent_phone_code_hash
-                        # Code was sent successfully, return what we have
                         return SendCodeResult(
                             success=True,
-                            phone_code_hash=stored_hash,
+                            phone_code_hash="",
                             expires_in_seconds=120,
                             message="Code sent but session save had issues. Check your session file."
                         )
@@ -367,7 +367,7 @@ class TelegramAuthService:
         async def _verify():
             # CRITICAL: Load session from file so phone_code_hash is preserved
             client_kwargs = dict(
-                name=session_name,
+                name=self._get_session_name(phone),
                 api_id=api_id,
                 api_hash=api_hash,
                 proxy=proxy,
@@ -375,14 +375,14 @@ class TelegramAuthService:
             )
             if session_file.exists():
                 file_size = session_file.stat().st_size
-                client_kwargs["session_string"] = session_file.read_text().strip()
-                logger.info(f"[_verify] Loaded session from {session_file} ({file_size} bytes)")
-                # Log first 100 chars of session string to verify it's valid
-                session_preview = session_file.read_text().strip()[:100]
-                logger.debug(f"[_verify] Session preview: {session_preview}...")
+                session_string = session_file.read_text().strip()
+                if not session_string:
+                    logger.error(f"[_verify] Session file exists but is empty: {session_file}")
+                    raise Exception("Session file is empty")
+                client_kwargs["session_string"] = session_string
+                logger.info(f"[_verify] Loaded session from {session_file} ({session_file.stat().st_size} bytes)")
             else:
-                # client_kwargs["name"] = session_name
-                logger.warning(f"[_verify] Session file not found at {session_file}, creating new")
+                logger.warning(f"[_verify] Session file not found at {session_file}, creating new (this will fail)")
 
             client = Client(**client_kwargs)
 
@@ -428,6 +428,7 @@ class TelegramAuthService:
 
             # Clean up temp session file (no longer needed after successful auth)
             try:
+                session_file = self._get_session_file(phone)
                 if session_file.exists():
                     session_file.unlink()
                     logger.debug(f"Cleaned up session file: {session_file}")
@@ -450,6 +451,7 @@ class TelegramAuthService:
         except Exception as e:
             logger.error(f"User code verify failed: {type(e).__name__}: {e}")
             try:
+                session_file = self._get_session_file(phone)
                 if session_file.exists():
                     session_file.unlink()
             except Exception:

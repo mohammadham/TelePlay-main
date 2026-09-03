@@ -175,6 +175,8 @@ async def verify_user_code(payload: UserVerifyCodeRequest):
     - User must then provide password and call again
     """
     logger.info(f"[verify-code] Request for phone={payload.phone}, hash_len={len(payload.phone_code_hash) if payload.phone_code_hash else 0}")
+    
+    # If phone_code_hash is empty, the backend will try to load it from session file
     result: VerifyCodeResult = await telegram_auth_service.verify_code(
         phone=payload.phone,
         api_id=payload.api_id,

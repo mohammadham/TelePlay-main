@@ -71,6 +71,10 @@ class SessionManager:
 
         Returns user info if valid, None if invalid.
         """
+        if not session_string:
+            logger.warning("Session validation failed: empty session string")
+            return None
+            
         try:
             from ..patch import Client
 
@@ -93,7 +97,7 @@ class SessionManager:
                 "last_name": me.last_name,
             }
         except Exception as e:
-            logger.error(f"Session validation failed: {e}")
+            logger.error(f"Session validation failed: {type(e).__name__}: {e}")
             return None
 
     async def save_account_from_auth(
@@ -164,7 +168,15 @@ class SessionManager:
             from ..encryption import decrypt
 
             session_str = decrypt(account.session_string_encrypted)
+            if not session_str:
+                logger.error(f"Failed to decrypt session string for account {account.name}")
+                return False
+                
             api_hash = decrypt(account.api_hash_encrypted)
+            if not api_hash:
+                logger.error(f"Failed to decrypt api_hash for account {account.name}")
+                return False
+                
             proxy = decrypt(account.proxy_encrypted) if account.proxy_encrypted else None
 
             client = Client(
@@ -181,7 +193,7 @@ class SessionManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load account {account.name} to pool: {e}")
+            logger.error(f"Failed to load account {account.name} to pool: {type(e).__name__}: {e}")
             return False
 
     async def remove_account_from_pool(self, account_id: int) -> bool:

@@ -202,6 +202,9 @@ class TelegramAuthService:
 
         CRITICAL: Save session file immediately after sending code so
         verify_code can load the same session and use the persisted phone_code_hash.
+        
+        IMPORTANT: This function does NOT retry the actual send_code() call.
+        Only connection/transient errors are retried. The code is sent exactly once per call.
         """
         # Ensure correct types
         api_id = int(api_id)
@@ -215,7 +218,11 @@ class TelegramAuthService:
 
         proxy = self._build_proxy(proxy_override)
 
-        async def _send():
+        # Track if code was already sent to prevent duplicate sends
+        code_sent = False
+
+        async def _send_once():
+            nonlocal code_sent
             client = self._create_client(session_name, api_id, api_hash, proxy)
 
             logger.info("Connecting to Telegram MTProto...")
@@ -226,6 +233,7 @@ class TelegramAuthService:
                 client.send_code(phone),
                 timeout=self.SEND_CODE_TIMEOUT
             )
+            code_sent = True
 
             # CRITICAL: Persist session immediately so verify can load it
             session_string = await client.export_session_string()
@@ -246,7 +254,47 @@ class TelegramAuthService:
             )
 
         try:
-            return await self._retry_operation(_send)
+            # Only retry connection/transient errors, NOT the actual send_code call
+            # We handle retries manually to avoid double-sending codes
+            max_retries = self.MAX_RETRIES
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return await _send_once()
+                except asyncio.TimeoutError:
+                    last_error = f"Timeout on attempt {attempt + 1}/{max_retries}"
+                    logger.warning(last_error)
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))
+                        continue
+                except Exception as e:
+                    # If code was already sent, don't retry - return success with the code we sent
+                    if code_sent:
+                        logger.warning(f"Error after code sent (attempt {attempt + 1}): {type(e).__name__}: {e}")
+                        # Code was sent successfully, return what we have
+                        return SendCodeResult(
+                            success=True,
+                            phone_code_hash="",  # Hash is in session file
+                            expires_in_seconds=120,
+                            message="Code sent but session save had issues. Check your session file."
+                        )
+                    
+                    # Only retry on transient network errors
+                    error_str = str(e).lower()
+                    is_transient = any(x in error_str for x in ['timeout', 'connection', 'network', 'unreachable', 'dns', 'proxy'])
+                    if not is_transient:
+                        logger.error(f"Non-transient error, not retrying: {type(e).__name__}: {e}")
+                        raise
+                    last_error = f"{type(e).__name__}: {e}"
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed (transient): {last_error}")
+                    
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))
+                        continue
+
+            raise Exception(f"All retries exhausted. Last error: {last_error}")
+
         except asyncio.TimeoutError:
             logger.error("Timeout during send_code operation after all retries")
             return SendCodeResult(

@@ -358,7 +358,8 @@ class TelegramAuthService:
 
         session_name = self._get_session_name(phone)
         session_file = self._get_session_file(phone)
-        logger.info(f"Verifying code for {phone}, hash: {phone_code_hash[:20]}...")
+        logger.info(f"[verify_code] Request: phone={phone}, api_id={api_id}, hash_len={len(phone_code_hash) if phone_code_hash else 0}, code_len={len(code)}, has_password={bool(password)}, proxy={proxy_override}")
+        logger.info(f"[verify_code] Session file path: {session_file}, exists={session_file.exists()}")
 
         proxy = self._build_proxy(proxy_override)
 

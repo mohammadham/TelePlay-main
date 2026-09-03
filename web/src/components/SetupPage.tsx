@@ -31,6 +31,8 @@ export default function SetupPage() {
     const [proxySkipped, setProxySkipped] = useState(false); // Track if user skipped proxy
     const [proxyTestState, setProxyTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
     const [proxyTestError, setProxyTestError] = useState<string | null>(null);
+    const [isSendingCode, setIsSendingCode] = useState(false); // Lock form while sending
+    const [isVerifyingCode, setIsVerifyingCode] = useState(false); // Lock form while verifying
     const [userCode, setUserCode] = useState('');
     const [userPassword, setUserPassword] = useState('');
     const [authState, setAuthState] = useState<AuthState>('idle');
@@ -81,6 +83,7 @@ export default function SetupPage() {
     /**
      * Send login code to phone number.
      * Handles timeout, expired codes, and network errors gracefully.
+     * Locks form during send, navigates to code entry on success.
      */
     const sendUserCode = useCallback(async () => {
         if (!userPhone.trim() || !userId.trim() || !userHash.trim()) {
@@ -88,6 +91,7 @@ export default function SetupPage() {
             return;
         }
 
+        setIsSendingCode(true);
         setAuthState('sending');
         setError(null);
         setLastErrorCode(null);
@@ -102,22 +106,27 @@ export default function SetupPage() {
             });
 
             if (res.data.success) {
+                // SUCCESS: Navigate to code entry phase
                 setPhoneCodeHash(res.data.phone_code_hash || '');
                 setAuthState('code_sent');
                 setUserCode('');
                 setUserPassword('');
                 setNeeds2fa(false);
+                setError(null);
+                setLastErrorCode(null);
             } else {
-                // Handle specific error types
+                // Handle specific error types - only show error if actually failed
                 const errorCode = res.data.error;
                 const errorMessage = res.data.message || res.data.error || 'Failed to send code';
 
+                // Don't show "network error" if code was actually sent
                 if (errorCode === 'timeout') {
                     setError('Connection timeout. Check your internet connection or proxy settings.');
                 } else if (errorCode === 'phone_code_expired') {
                     setError('Request timed out. Please check your network and try again.');
                 } else if (errorCode === 'network_error') {
-                    setError('Network error. If you are in Iran, please configure a Telegram proxy.');
+                    // Only show network error if no code was sent
+                    setError('Network error. If you are in a restricted region, please configure a Telegram proxy.');
                 } else {
                     setError(errorMessage);
                 }
@@ -130,6 +139,7 @@ export default function SetupPage() {
             setAuthState('error');
             setLastErrorCode('unknown');
         } finally {
+            setIsSendingCode(false);
             setLoading(false);
         }
     }, [userPhone, userId, userHash, userProxy]);
@@ -175,6 +185,7 @@ export default function SetupPage() {
      * Verify login code (and optional 2FA password).
      * On first attempt with 2FA, returns has_2fa=true.
      * On retry with password, completes the full auth flow.
+     * Locks form during verification.
      */
     const verifyUserCode = useCallback(async () => {
         if (!userCode.trim()) {
@@ -186,6 +197,7 @@ export default function SetupPage() {
             return;
         }
 
+        setIsVerifyingCode(true);
         setAuthState(needs2fa ? '2fa_verifying' : 'verifying');
         setError(null);
         setLoading(true);
@@ -235,9 +247,10 @@ export default function SetupPage() {
             setAuthState('error');
             setLastErrorCode('unknown');
         } finally {
+            setIsVerifyingCode(false);
             setLoading(false);
         }
-    }, [userCode, phoneCodeHash, needs2fa, userPassword, userPhone, userId, userHash]);
+    }, [userCode, phoneCodeHash, needs2fa, userPassword, userPhone, userId, userHash, userProxy]);
 
     // ── Complete Setup ─────────────────────────────────────────────
     const handleComplete = async () => {
@@ -400,7 +413,8 @@ export default function SetupPage() {
                                             value={userPhone}
                                             onChange={e => setUserPhone(e.target.value)}
                                             placeholder="+989xxxxxxxxx"
-                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            disabled={isSendingCode}
+                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     <div>
@@ -413,7 +427,8 @@ export default function SetupPage() {
                                             value={userId}
                                             onChange={e => setUserId(e.target.value)}
                                             placeholder="2345678"
-                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            disabled={isSendingCode}
+                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     <div>
@@ -425,7 +440,8 @@ export default function SetupPage() {
                                             value={userHash}
                                             onChange={e => setUserHash(e.target.value)}
                                             placeholder="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
-                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            disabled={isSendingCode}
+                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     <div>
@@ -438,13 +454,14 @@ export default function SetupPage() {
                                             value={userProxy}
                                             onChange={e => setUserProxy(e.target.value)}
                                             placeholder="socks5://user:pass@host:1080 or http://host:8080"
-                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            disabled={isSendingCode}
+                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={testProxyConnection}
-                                            disabled={loading || !userProxy.trim()}
+                                            disabled={loading || isSendingCode || !userProxy.trim()}
                                             className="btn-secondary w-full py-2.5 disabled:opacity-50"
                                         >
                                             {loading && proxyTestState === 'testing' ? 'Testing...' : 'Test Proxy Connection'}
@@ -464,10 +481,10 @@ export default function SetupPage() {
                                     )}
                                     <button
                                         onClick={sendUserCode}
-                                        disabled={loading || authState === 'sending'}
+                                        disabled={loading || isSendingCode || !userPhone.trim() || !userId.trim() || !userHash.trim()}
                                         className="btn-primary w-full py-3 disabled:opacity-50"
                                     >
-                                        {loading && authState === 'sending' ? 'Sending...' : 'Send Login Code'}
+                                        {isSendingCode ? 'Sending Code...' : 'Send Login Code'}
                                     </button>
                                     {lastErrorCode === 'timeout' && (
                                         <p className="text-xs text-yellow-400 mt-1">
@@ -496,7 +513,8 @@ export default function SetupPage() {
                                             onChange={e => setUserCode(e.target.value)}
                                             placeholder="12345"
                                             maxLength={6}
-                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            disabled={isVerifyingCode}
+                                            className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     {(authState === '2fa_required' || authState === '2fa_verifying') && (

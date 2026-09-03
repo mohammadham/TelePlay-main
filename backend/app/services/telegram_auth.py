@@ -276,9 +276,8 @@ class TelegramAuthService:
         api_hash = str(api_hash)
 
         logger.info(
-            f"[verify_code] Request: phone={phone}, api_id={api_id}, "
-            f"hash_len={len(phone_code_hash) if phone_code_hash else 0}, "
-            f"code_len={len(code)}, has_password={bool(password)}, proxy={proxy_override}"
+            f"[send_code] Request: phone={phone}, api_id={api_id}, "
+            f"proxy={proxy_override}"
         )
 
         # Track if code was already sent to prevent duplicate sends

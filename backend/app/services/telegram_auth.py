@@ -423,15 +423,16 @@ class TelegramAuthService:
             me = await client.get_me()
             logger.info(f"[_verify] User verified: id={me.id}, username={me.username}")
 
-            # Clean up temp session file
+            # Stop client to trigger Pyrogram auto-session save (workdir is set)
+            await client.stop()
+
+            # Clean up temp session file (no longer needed after successful auth)
             try:
                 if session_file.exists():
                     session_file.unlink()
                     logger.debug(f"Cleaned up session file: {session_file}")
             except Exception as e:
                 logger.debug(f"Could not clean up session file: {e}")
-
-            await client.disconnect()
 
             logger.info(f"[_verify] Verification successful, returning result")
             return VerifyCodeResult(

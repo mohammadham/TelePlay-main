@@ -47,16 +47,11 @@ export default function SetupPage() {
     const [superAdminId, setSuperAdminId] = useState('');
     const [additionalAdmins, setAdditionalAdmins] = useState<string[]>(['']);
 
-    // Fetch setup status on mount
+    // Redirect handled by parent App.tsx based on setupData.configured.
+    // Do NOT fetch status here — that caused a redirect loop.
+    // We only store autoConfig for UI display if needed.
     useEffect(() => {
-        api.get('/setup/status')
-            .then(res => {
-                setAutoConfig(res.data);
-                if (res.data.configured || res.data.has_admin) {
-                    window.location.href = '/login';
-                }
-            })
-            .catch(() => {});
+        // No self-redirect: App.tsx owns the setup→login routing.
     }, []);
 
     // ── Resend Cooldown Timer ────────────────────────────────────────

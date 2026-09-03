@@ -343,6 +343,7 @@ class AdminUser(Base):
     can_manage_bots: Mapped[bool] = mapped_column(Boolean, default=False)
     can_manage_accounts: Mapped[bool] = mapped_column(Boolean, default=False)
     can_manage_admins: Mapped[bool] = mapped_column(Boolean, default=False)
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("admin_users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime)

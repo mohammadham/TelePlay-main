@@ -156,13 +156,17 @@ class TelegramAuthService:
 
         IMPORTANT: Do NOT pass phone_number to constructor!
         It causes Pyrogram to attempt auto-login which invalidates phone_code_hash.
+        
+        Set workdir to session directory so Pyrogram saves session file in the same location.
         """
+        session_dir = self._get_session_dir()
         return Client(
             session_name,
             api_id=api_id,
             api_hash=api_hash,
             proxy=proxy,
             ipv6=False,
+            workdir=str(session_dir),
         )
 
     async def _retry_operation(self, operation, *args, max_retries=None, **kwargs):
@@ -240,22 +244,15 @@ class TelegramAuthService:
             sent_phone_code_hash = sent_code.phone_code_hash
             logger.info(f"[_send_once] Code sent, phone_code_hash={sent_code.phone_code_hash[:20]}...")
 
-            # CRITICAL: Persist session immediately so verify can load it
-            session_string = await client.export_session_string()
+            # CRITICAL: Stop client to trigger Pyrogram auto-session save (workdir is set)
+            await client.stop()
             
-            # Atomic write to prevent corruption
-            temp_file = session_file.with_suffix('.tmp')
-            temp_file.write_text(session_string)
-            temp_file.rename(session_file)
-            
-            # Verify the session file was written
+            # Verify the session file was written by Pyrogram
             if session_file.exists():
                 file_size = session_file.stat().st_size
-                logger.info(f"[_send_once] Session file written: {session_file} ({file_size} bytes)")
+                logger.info(f"[_send_once] Session file auto-saved by Pyrogram: {session_file} ({file_size} bytes)")
             else:
-                logger.error(f"[_send_once] Session file NOT found after write: {session_file}")
-
-            await client.disconnect()
+                logger.error(f"[_send_once] Session file NOT found after stop: {session_file}")
 
             return SendCodeResult(
                 success=True,
@@ -356,6 +353,10 @@ class TelegramAuthService:
         if not phone.startswith("+"):
             phone = "+" + phone
 
+        # Ensure correct types
+        api_id = int(api_id)
+        api_hash = str(api_hash)
+
         session_name = self._get_session_name(phone)
         session_file = self._get_session_file(phone)
         logger.info(f"[verify_code] Request: phone={phone}, api_id={api_id}, hash_len={len(phone_code_hash) if phone_code_hash else 0}, code_len={len(code)}, has_password={bool(password)}, proxy={proxy_override}")
@@ -432,6 +433,7 @@ class TelegramAuthService:
 
             await client.disconnect()
 
+            logger.info(f"[_verify] Verification successful, returning result")
             return VerifyCodeResult(
                 success=True,
                 session_string=session_string,
@@ -441,7 +443,9 @@ class TelegramAuthService:
             )
 
         try:
-            return await self._retry_operation(_verify)
+            result = await self._retry_operation(_verify)
+            logger.info(f"[verify_code] Returning: success={result.success}, has_2fa={result.has_2fa}, error={result.error}")
+            return result
         except Exception as e:
             logger.error(f"User code verify failed: {type(e).__name__}: {e}")
             try:

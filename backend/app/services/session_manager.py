@@ -64,6 +64,7 @@ class SessionManager:
         api_id: int,
         api_hash: str,
         session_string: str,
+        proxy: Optional[str] = None,
     ) -> Optional[dict]:
         """
         Validate a session string by connecting to Telegram.
@@ -78,6 +79,7 @@ class SessionManager:
                 api_id=api_id,
                 api_hash=api_hash,
                 session_string=session_string,
+                proxy=proxy,
                 in_memory=True,
             )
             await client.start()
@@ -159,15 +161,18 @@ class SessionManager:
         try:
             from ..patch import Client
             from ..pool_manager import pool_manager
+            from ..encryption import decrypt
 
             session_str = decrypt(account.session_string_encrypted)
             api_hash = decrypt(account.api_hash_encrypted)
+            proxy = decrypt(account.proxy_encrypted) if account.proxy_encrypted else None
 
             client = Client(
                 name=f"user_{account.id}",
                 api_id=account.api_id,
                 api_hash=api_hash,
                 session_string=session_str,
+                proxy=proxy,
                 ipv6=False,
             )
             await client.start()

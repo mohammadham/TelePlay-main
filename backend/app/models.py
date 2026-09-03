@@ -314,6 +314,7 @@ class UserAccount(Base):
     api_hash_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     session_string_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     two_fa_password_encrypted: Mapped[Optional[str]] = mapped_column(Text)
+    proxy_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     user_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True)
     username: Mapped[Optional[str]] = mapped_column(String(100))
     purpose: Mapped[str] = mapped_column(String(20), default="STORAGE")  # STORAGE, STREAMING, DOWNLOAD

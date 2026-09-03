@@ -28,6 +28,9 @@ export default function SetupPage() {
     const [userId, setUserId] = useState('');
     const [userHash, setUserHash] = useState('');
     const [userProxy, setUserProxy] = useState('');  // Proxy configuration
+    const [proxySkipped, setProxySkipped] = useState(false); // Track if user skipped proxy
+    const [proxyTestState, setProxyTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+    const [proxyTestError, setProxyTestError] = useState<string | null>(null);
     const [userCode, setUserCode] = useState('');
     const [userPassword, setUserPassword] = useState('');
     const [authState, setAuthState] = useState<AuthState>('idle');
@@ -129,7 +132,44 @@ export default function SetupPage() {
         } finally {
             setLoading(false);
         }
-    }, [userPhone, userId, userHash]);
+    }, [userPhone, userId, userHash, userProxy]);
+
+    /**
+     * Test proxy connection by sending a test code to a fake number.
+     * This validates the proxy works without actually sending a real code.
+     */
+    const testProxyConnection = useCallback(async () => {
+        if (!userProxy.trim()) return;
+        
+        setProxyTestState('testing');
+        setProxyTestError(null);
+
+        try {
+            // We'll use a test phone number that won't actually send a code
+            // Just test if we can connect to Telegram through the proxy
+            const res = await api.post('/setup/user/send-code', {
+                phone: '+999999999999', // Invalid test number
+                api_id: parseInt(userId) || 123456,
+                api_hash: userHash || 'test',
+                proxy: userProxy.trim(),
+            });
+
+            // If we get any response (even error), the proxy connected to Telegram
+            // Connection error would mean proxy failed
+            if (res.data.error === 'network_error' || res.data.error === 'proxy_error') {
+                throw new Error(res.data.message || 'Proxy connection failed');
+            }
+            
+            // If we get invalid_credentials or similar, proxy worked but auth failed
+            // which is expected for a test number
+            setProxyTestState('success');
+            setProxyTestError(null);
+        } catch (e: any) {
+            const errorMsg = e?.response?.data?.message || e?.response?.data?.detail || e.message || 'Proxy test failed';
+            setProxyTestState('error');
+            setProxyTestError(errorMsg);
+        }
+    }, [userProxy, userId, userHash]);
 
     /**
      * Verify login code (and optional 2FA password).
@@ -400,6 +440,27 @@ export default function SetupPage() {
                                             className="w-full bg-dark-900/60 border border-white/[0.08] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                         />
                                     </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={testProxyConnection}
+                                            disabled={loading || !userProxy.trim()}
+                                            className="btn-secondary w-full py-2.5 disabled:opacity-50"
+                                        >
+                                            {loading && proxyTestState === 'testing' ? 'Testing...' : 'Test Proxy Connection'}
+                                        </button>
+                                        <button
+                                            onClick={() => setProxySkipped(!proxySkipped)}
+                                            className={`btn-secondary w-full py-2.5 ${proxySkipped ? 'bg-green-500/20 border-green-500/30 text-green-400' : ''}`}
+                                        >
+                                            {proxySkipped ? '✓ Proxy Skipped' : 'Skip Proxy (No Proxy Needed)'}
+                                        </button>
+                                    </div>
+                                    {proxyTestState === 'success' && (
+                                        <p className="text-xs text-green-400 mt-1">✓ Proxy connection successful!</p>
+                                    )}
+                                    {proxyTestState === 'error' && (
+                                        <p className="text-xs text-red-400 mt-1">✗ Proxy connection failed: {proxyTestError}</p>
+                                    )}
                                     <button
                                         onClick={sendUserCode}
                                         disabled={loading || authState === 'sending'}

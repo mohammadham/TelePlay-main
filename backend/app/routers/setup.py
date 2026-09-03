@@ -77,6 +77,7 @@ class SetupCompleteRequest(BaseModel):
     user_api_hash: str
     user_session_string: str
     user_2fa_password: Optional[str] = None
+    user_proxy: Optional[str] = None  # Optional proxy for user account
     # Super admin
     super_admin_id: int
     # Optional additional admins
@@ -235,6 +236,7 @@ async def complete_setup(
         api_hash_encrypted=encrypt(payload.user_api_hash),
         session_string_encrypted=encrypt(payload.user_session_string),
         two_fa_password_encrypted=encrypt(payload.user_2fa_password) if payload.user_2fa_password else None,
+        proxy_encrypted=encrypt(payload.user_proxy) if payload.user_proxy else None,
         purpose="STORAGE",
         is_active=True,
     )

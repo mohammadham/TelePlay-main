@@ -285,7 +285,7 @@ export default function SetupPage() {
             });
             localStorage.setItem('access_token', res.data.access_token);
             localStorage.setItem('refresh_token', res.data.refresh_token);
-            setStep('complete');
+            window.location.href = '/login';
         } catch (e: any) {
             setError(e?.response?.data?.detail || 'Setup failed');
         } finally {

@@ -160,7 +160,7 @@ async def list_playlists(db: AsyncSession=Depends(get_db), current_user: User=De
     return out
 
 @router.post("/playlists/{pid}/tracks/{tid}")
-async def add_to_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def add_to_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     p = (await db.execute(select(Playlist).where(Playlist.id==pid, Playlist.user_id==current_user.id))).scalar_one_or_none()
     if not p: raise HTTPException(404, "Playlist not found")
     # next position
@@ -170,7 +170,7 @@ async def add_to_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_db), 
     return {"ok": True}
 
 @router.delete("/playlists/{pid}/tracks/{tid}")
-async def remove_from_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def remove_from_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     await db.execute(delete(PlaylistTrack).where(PlaylistTrack.playlist_id==pid, PlaylistTrack.track_id==tid))
     await db.commit()
     return {"ok": True}
@@ -178,7 +178,7 @@ async def remove_from_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_
 # Likes
 @router.post("/likes/{track_id}")
 @limiter.limit("30/minute")
-async def like_track(track_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def like_track(track_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, bool]:
     exists = (await db.execute(select(Like).where(Like.user_id==current_user.id, Like.track_id==track_id))).scalar_one_or_none()
     if not exists:
         db.add(Like(user_id=current_user.id, track_id=track_id))
@@ -188,7 +188,7 @@ async def like_track(track_id: int, db: AsyncSession=Depends(get_db), current_us
     return {"liked": True}
 
 @router.delete("/likes/{track_id}")
-async def unlike_track(track_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def unlike_track(track_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, bool]:
     await db.execute(delete(Like).where(Like.user_id==current_user.id, Like.track_id==track_id))
     t = (await db.execute(select(Track).where(Track.id==track_id))).scalar_one_or_none()
     if t and t.like_count>0: t.like_count -= 1
@@ -197,7 +197,7 @@ async def unlike_track(track_id: int, db: AsyncSession=Depends(get_db), current_
 
 # History
 @router.post("/history")
-async def add_history(payload: dict, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def add_history(payload: Dict[str, Any], db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     h = ListenHistory(user_id=current_user.id, track_id=payload["track_id"], position=payload.get("position",0), duration=payload.get("duration"), completed=payload.get("completed", False))
     db.add(h)
     # increment play_count
@@ -213,7 +213,7 @@ async def get_history(limit: int=20, db: AsyncSession=Depends(get_db), current_u
 
 # Downloads
 @router.get("/downloads")
-async def list_downloads(db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def list_downloads(db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> List[Dict[str, Any]]:
     from ..models import DownloadQueue
     rows = (await db.execute(select(DownloadQueue).where(DownloadQueue.user_id==current_user.id).order_by(DownloadQueue.created_at.desc()))).scalars().all()
     # enrich with track
@@ -225,7 +225,7 @@ async def list_downloads(db: AsyncSession=Depends(get_db), current_user: User=De
 
 @router.post("/downloads")
 @limiter.limit("10/minute")
-async def add_download(payload: dict, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def add_download(payload: Dict[str, Any], db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     from ..models import DownloadQueue
     track_id = payload.get("track_id")
     if not track_id: raise HTTPException(400, "track_id required")

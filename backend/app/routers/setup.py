@@ -10,7 +10,7 @@ from typing import Optional, List
 
 from ..database import get_db
 from ..models import BotConfig, UserAccount, AdminUser
-from ..config import get_settings, mark_db_ready
+from ..config import get_settings, mark_db_ready, mark_setup_complete
 from ..auth import create_access_token, create_refresh_token
 from ..encryption import encrypt, decrypt
 from ..services import telegram_auth_service, session_manager
@@ -325,6 +325,8 @@ async def complete_setup(
     # 6. Apply DB overrides to settings (must await — it's an async function)
     settings = get_settings()
     await mark_db_ready(settings)
+    # Set in-memory flag so is_configured() returns True immediately
+    mark_setup_complete()
 
     # 7. Load user account into pool
     await session_manager.load_account_to_pool(user_acc)

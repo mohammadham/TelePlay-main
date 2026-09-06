@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict, field_validator
 from functools import lru_cache
 from typing import Optional
+from sqlalchemy import select
 
 
 class Settings(BaseSettings):
@@ -234,15 +235,52 @@ async def mark_db_ready(s: Settings):
     else:
         _db_overrides_applied = True
 
+# Local flag: set True once complete_setup succeeds — survives across requests
+_setup_complete = False
+
+
+def mark_setup_complete():
+    """Call from complete_setup after successful commit to set in-memory flag."""
+    global _setup_complete
+    _setup_complete = True
+
+
 def is_configured(settings: Settings) -> bool:
-    """True if real credentials are set (not template defaults)."""
-    if not (
+    """True if real credentials are set (not template defaults).
+
+    Checks in this order:
+      1. Real env vars present (works when DATABASE_URL is in .env)
+      2. In-memory flag set by complete_setup (survives across requests)
+      3. DB state: main bot + storage account + super admin exist
+    """
+    # Primary: real env vars are set
+    if (
         settings.telegram_api_id
         and settings.telegram_api_hash
         and settings.telegram_bot_token
         and settings.telegram_storage_channel_id
         and settings.jwt_secret != "change-me-in-production-please-set-via-panel"
     ):
+        return True
+
+    # In-memory flag — set by complete_setup after commit
+    if _setup_complete:
+        return True
+
+    # Fallback: check DB state directly
+    try:
+        from .models import BotConfig, UserAccount, AdminUser
+        from .database import get_engine
+        eng = get_engine()
+        if eng is None:
+            return False
+        # Use run_sync to avoid event-loop issues inside sync function
+        def _check(conn) -> bool:
+            main_bot = conn.execute(select(BotConfig).where(BotConfig.name == "main").limit(1)).scalar_one_or_none()
+            storage_acc = conn.execute(select(UserAccount).where(UserAccount.name == "storage_1").limit(1)).scalar_one_or_none()
+            super_admin = conn.execute(select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1)).scalar_one_or_none()
+            return bool(main_bot and storage_acc and super_admin)
+
+        return eng.sync_engine.run_sync(_check)
+    except Exception:
         return False
-    # Both local SQLite and prod DBs are valid once credentials are set
-    return True

@@ -3,7 +3,7 @@ Music domain API — Tracks, Artists, Albums, Playlists, Likes, History
 """
 import hashlib
 import json
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession

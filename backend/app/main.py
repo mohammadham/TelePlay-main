@@ -17,8 +17,6 @@ import os
 
 logging.getLogger("pyrogram").setLevel(logging.INFO)
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from .config import get_settings, mark_db_ready
 from .database import init_db, get_db
 from .telegram import start_telegram_client, stop_telegram_client

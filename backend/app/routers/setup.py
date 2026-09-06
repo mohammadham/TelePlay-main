@@ -213,75 +213,118 @@ async def complete_setup(
             detail=f"Invalid bot token: {bot_validation.error}"
         )
 
-    # 2. Create BotConfig records
-    main_bot = BotConfig(
-        name="main",
-        token_encrypted=encrypt(payload.bot_token),
-        bot_user_id=bot_validation.bot_user_id,
-        username=bot_validation.username,
-        purpose="MAIN",
-        is_active=True,
-    )
-    db.add(main_bot)
+    # 2. Create or update BotConfig records (idempotent — handle re-runs)
+    stmt = select(BotConfig).where(BotConfig.name == "main")
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    if existing:
+        existing.token_encrypted = encrypt(payload.bot_token)
+        existing.bot_user_id = bot_validation.bot_user_id
+        existing.username = bot_validation.username
+        existing.is_active = True
+    else:
+        db.add(BotConfig(
+            name="main",
+            token_encrypted=encrypt(payload.bot_token),
+            bot_user_id=bot_validation.bot_user_id,
+            username=bot_validation.username,
+            purpose="MAIN",
+            is_active=True,
+        ))
 
     for i, token in enumerate(payload.extra_bot_tokens):
         val = await _validate_bot_token(token)
         if val.valid:
-            db.add(BotConfig(
-                name=f"helper_{i+1}",
-                token_encrypted=encrypt(token),
-                bot_user_id=val.bot_user_id,
-                username=val.username,
-                purpose="HELPER",
-                is_active=True,
-            ))
+            helper_name = f"helper_{i+1}"
+            stmt = select(BotConfig).where(BotConfig.name == helper_name)
+            existing_helper = (await db.execute(stmt)).scalar_one_or_none()
+            if existing_helper:
+                existing_helper.token_encrypted = encrypt(token)
+                existing_helper.bot_user_id = val.bot_user_id
+                existing_helper.username = val.username
+                existing_helper.is_active = True
+            else:
+                db.add(BotConfig(
+                    name=helper_name,
+                    token_encrypted=encrypt(token),
+                    bot_user_id=val.bot_user_id,
+                    username=val.username,
+                    purpose="HELPER",
+                    is_active=True,
+                ))
 
-    # 3. Create UserAccount (MTProto) from verified session
-    user_acc = UserAccount(
-        name="storage_1",
-        phone=payload.user_phone,
-        api_id=payload.user_api_id,
-        api_hash_encrypted=encrypt(payload.user_api_hash),
-        session_string_encrypted=encrypt(payload.user_session_string),
-        two_fa_password_encrypted=encrypt(payload.user_2fa_password) if payload.user_2fa_password else None,
-        proxy_encrypted=encrypt(payload.user_proxy) if payload.user_proxy else None,
-        purpose="STORAGE",
-        is_active=True,
-    )
-    db.add(user_acc)
+    # 3. Create or update UserAccount (MTProto) — idempotent
+    stmt = select(UserAccount).where(UserAccount.name == "storage_1")
+    existing_user_acc = (await db.execute(stmt)).scalar_one_or_none()
+    if existing_user_acc:
+        existing_user_acc.phone = payload.user_phone
+        existing_user_acc.api_id = payload.user_api_id
+        existing_user_acc.api_hash_encrypted = encrypt(payload.user_api_hash)
+        existing_user_acc.session_string_encrypted = encrypt(payload.user_session_string)
+        existing_user_acc.two_fa_password_encrypted = encrypt(payload.user_2fa_password) if payload.user_2fa_password else None
+        existing_user_acc.proxy_encrypted = encrypt(payload.user_proxy) if payload.user_proxy else None
+        existing_user_acc.is_active = True
+        user_acc = existing_user_acc
+    else:
+        user_acc = UserAccount(
+            name="storage_1",
+            phone=payload.user_phone,
+            api_id=payload.user_api_id,
+            api_hash_encrypted=encrypt(payload.user_api_hash),
+            session_string_encrypted=encrypt(payload.user_session_string),
+            two_fa_password_encrypted=encrypt(payload.user_2fa_password) if payload.user_2fa_password else None,
+            proxy_encrypted=encrypt(payload.user_proxy) if payload.user_proxy else None,
+            purpose="STORAGE",
+            is_active=True,
+        )
+        db.add(user_acc)
 
-    # 4. Create Super Admin
-    super_admin = AdminUser(
-        telegram_id=payload.super_admin_id,
-        role="SUPER_ADMIN",
-        is_active=True,
-        can_manage_bots=True,
-        can_manage_accounts=True,
-        can_manage_admins=True,
-    )
-    db.add(super_admin)
+    # 4. Create or update Super Admin — idempotent
+    stmt = select(AdminUser).where(AdminUser.telegram_id == payload.super_admin_id)
+    existing_admin = (await db.execute(stmt)).scalar_one_or_none()
+    if existing_admin:
+        existing_admin.role = "SUPER_ADMIN"
+        existing_admin.is_active = True
+        existing_admin.can_manage_bots = True
+        existing_admin.can_manage_accounts = True
+        existing_admin.can_manage_admins = True
+        super_admin = existing_admin
+    else:
+        super_admin = AdminUser(
+            telegram_id=payload.super_admin_id,
+            role="SUPER_ADMIN",
+            is_active=True,
+            can_manage_bots=True,
+            can_manage_accounts=True,
+            can_manage_admins=True,
+        )
+        db.add(super_admin)
 
-    # 5. Additional admins
+    # 5. Additional admins — idempotent
     admin_ids_to_create = [
         aid for aid in payload.admin_telegram_ids
         if aid != payload.super_admin_id
     ]
     for admin_id in admin_ids_to_create:
-        db.add(AdminUser(
-            telegram_id=admin_id,
-            role="ADMIN",
-            can_manage_bots=False,
-            can_manage_accounts=False,
-            can_manage_admins=False,
-        ))
+        stmt = select(AdminUser).where(AdminUser.telegram_id == admin_id)
+        existing = (await db.execute(stmt)).scalar_one_or_none()
+        if existing:
+            existing.is_active = True
+        else:
+            db.add(AdminUser(
+                telegram_id=admin_id,
+                role="ADMIN",
+                can_manage_bots=False,
+                can_manage_accounts=False,
+                can_manage_admins=False,
+            ))
 
     await db.commit()
     await db.refresh(user_acc)
     await db.refresh(super_admin)
 
-    # 6. Apply DB overrides to settings
+    # 6. Apply DB overrides to settings (must await — it's an async function)
     settings = get_settings()
-    mark_db_ready(settings)
+    await mark_db_ready(settings)
 
     # 7. Load user account into pool
     await session_manager.load_account_to_pool(user_acc)

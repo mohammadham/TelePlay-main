@@ -236,11 +236,13 @@ async def mark_db_ready(s: Settings):
 
 def is_configured(settings: Settings) -> bool:
     """True if real credentials are set (not template defaults)."""
-    return bool(
+    if not (
         settings.telegram_api_id
         and settings.telegram_api_hash
         and settings.telegram_bot_token
         and settings.telegram_storage_channel_id
-        and settings.database_url != "sqlite:///./data/teleplay.db"
         and settings.jwt_secret != "change-me-in-production-please-set-via-panel"
-    )
+    ):
+        return False
+    # Both local SQLite and prod DBs are valid once credentials are set
+    return True

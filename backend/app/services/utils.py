@@ -39,6 +39,35 @@ def sanitize_filename(name: str) -> str:
     
     return name if name else "unnamed_file"
 
+
+def sanitize_text(value: str) -> str:
+    """
+    Sanitize text to prevent XSS and HTML injection.
+    Strips HTML tags, dangerous characters, and control characters.
+    Limits length to 255 characters.
+    """
+    if not value:
+        return ""
+
+    # Remove null bytes
+    value = value.replace("\x00", "")
+
+    # Remove HTML tags and entities (strip <script>, <style>, etc.)
+    value = re.sub(r'<[^>]+>', '', value)
+    value = re.sub(r'&[a-zA-Z#][a-zA-Z0-9#]*;', '', value)
+
+    # Remove dangerous characters: < > " ' & and control characters
+    value = re.sub(r'[<>"'\''\x00-\x1f]', '', value)
+
+    # Trim whitespace
+    value = value.strip()
+
+    # Limit length
+    if len(value) > 255:
+        value = value[:255]
+
+    return value
+
 def add_urls_to_file(file: File) -> dict:
     """Add stream and thumbnail URLs to file response."""
     data = {

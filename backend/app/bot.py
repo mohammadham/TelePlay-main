@@ -17,6 +17,7 @@ from .models import User, File, Folder, LoginCode
 from .config import get_settings
 from .auth import create_access_token
 from .utils import format_size, format_duration
+from .services import sanitize_filename, sanitize_text
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -50,6 +51,36 @@ def sanitize_filename(name: str) -> str:
             name = name[:255]
     
     return name if name else "unnamed_file"
+
+
+def sanitize_text(value: str) -> str:
+    """
+    Sanitize text to prevent XSS and HTML injection.
+    Strips HTML tags, dangerous characters, and control characters.
+    Limits length to 255 characters.
+    """
+    import re
+    if not value:
+        return ""
+
+    # Remove null bytes
+    value = value.replace("\x00", "")
+
+    # Remove HTML tags and entities
+    value = re.sub(r'<[^>]+>', '', value)
+    value = re.sub(r'&[a-zA-Z#][a-zA-Z0-9#]*;', '', value)
+
+    # Remove dangerous characters and control characters
+    value = re.sub(r'[<>"\'\x00-\x1f]', '', value)
+
+    # Trim whitespace
+    value = value.strip()
+
+    # Limit length
+    if len(value) > 255:
+        value = value[:255]
+
+    return value
 
 
 async def get_or_create_user(telegram_id: int, username: str = None, 
@@ -370,7 +401,7 @@ async def newfolder_command(client, message: Message):
             return
         
         # Create folder
-        folder = Folder(user_id=user.id, name=folder_name)
+        folder = Folder(user_id=user.id, name=sanitize_text(folder_name))
         db.add(folder)
         await db.commit()
     
@@ -733,7 +764,7 @@ async def handle_callback(client, callback: CallbackQuery):
                     await reply.reply(f"❌ Folder **{folder_name}** already exists.")
                     return
                 
-                folder = Folder(user_id=user.id, name=folder_name)
+                folder = Folder(user_id=user.id, name=sanitize_text(folder_name))
                 db.add(folder)
                 await db.commit()
             
@@ -916,7 +947,7 @@ async def handle_callback(client, callback: CallbackQuery):
                 file = result.scalar_one_or_none()
                 
                 if file:
-                    file.file_name = new_name
+                    file.file_name = sanitize_filename(new_name)
                     await db.commit()
                     await reply.reply(f"✅ File renamed to **{new_name}**")
                 else:
@@ -1021,7 +1052,7 @@ async def handle_callback(client, callback: CallbackQuery):
                 folder = result.scalar_one_or_none()
                 
                 if folder:
-                    folder.name = new_name
+                    folder.name = sanitize_text(new_name)
                     await db.commit()
                     await reply.reply(f"✅ Folder renamed to **{new_name}**")
                 else:

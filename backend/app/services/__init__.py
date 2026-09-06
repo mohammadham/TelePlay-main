@@ -36,6 +36,7 @@ __all__ = [
     "session_manager",
     "escape_like",
     "sanitize_filename",
+    "sanitize_text",
     "add_urls_to_file",
     "fetch_recent_files",
     "fetch_continue_watching_files",

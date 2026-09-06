@@ -11,6 +11,7 @@ from ..models import Folder, File, User
 from ..schemas import FolderResponse, FolderCreate, FolderUpdate, FolderWithChildren
 from ..auth import get_current_user
 from ..telegram import delete_from_storage_channel
+from ..services import sanitize_text
 
 
 router = APIRouter(prefix="/folders", tags=["Folders"])
@@ -180,7 +181,7 @@ async def create_folder(
     
     folder = Folder(
         user_id=current_user.id,
-        name=folder_data.name,
+        name=sanitize_text(folder_data.name),
         parent_id=folder_data.parent_id,
     )
     db.add(folder)
@@ -216,7 +217,7 @@ async def update_folder(
     
     # Update fields
     if update_data.name is not None:
-        folder.name = update_data.name
+        folder.name = sanitize_text(update_data.name)
     if update_data.parent_id is not None:
         # Prevent moving folder into itself
         if update_data.parent_id == folder_id:

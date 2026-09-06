@@ -1,9 +1,9 @@
 # Summary — Remaining Phases (All Deferred)
 
-## Phase 09 — Security Hardening (Deferred)
-- [ ] Input sanitization on file/folder names (XSS prevention)
-- [ ] SQL injection audit on ilike queries (ORM parameterized — low risk, verify)
-- [ ] pytest tests/test_security.py
+## Phase 09 — Security Hardening (Completed)
+- [x] Input sanitization on file/folder names (XSS prevention) — `sanitize_text()` added to services, applied in folders.py, music.py, bot.py
+- [x] SQL injection audit on ilike queries — `escape_like()` now used consistently in admin.py users/files search
+- [x] pytest tests/test_security.py — tests for sanitize_text, sanitize_filename, escape_like
 
 ## Phase 10 — Telegram Bot Security (Deferred)
 - [ ] Inline query rate limit per user

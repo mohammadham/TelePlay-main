@@ -8,6 +8,7 @@ from ..database import get_db
 from ..models import CacheConfig, Ad, AdConfig, User
 from ..auth import require_admin
 from .. import cache_manager
+from ..services import escape_like
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -140,7 +141,7 @@ async def list_users(q: str = None, page: int = 1, per_page: int = 20, db: Async
     from sqlalchemy import or_, func
     from ..models import User as U
     query = select(U)
-    if q: query = query.where(or_(U.username.ilike(f"%{q}%"), U.first_name.ilike(f"%{q}%")))
+    if q: query = query.where(or_(U.username.ilike(f"%{escape_like(q)}%", escape="\\"), U.first_name.ilike(f"%{escape_like(q)}%", escape="\\")))
     query = query.order_by(U.created_at.desc()).offset((page-1)*per_page).limit(per_page)
     rows = (await db.execute(query)).scalars().all()
     total = (await db.execute(select(func.count()).select_from(U))).scalar() or 0
@@ -152,7 +153,7 @@ async def list_files_admin(file_type: str = None, q: str = None, page: int = 1, 
     from ..models import File
     query = select(File)
     if file_type: query = query.where(File.file_type==file_type)
-    if q: query = query.where(File.file_name.ilike(f"%{q}%"))
+    if q: query = query.where(File.file_name.ilike(f"%{escape_like(q)}%", escape="\\"))
     query = query.order_by(File.created_at.desc()).offset((page-1)*per_page).limit(per_page)
     rows = (await db.execute(query)).scalars().all()
     total = (await db.execute(select(func.count()).select_from(File))).scalar() or 0

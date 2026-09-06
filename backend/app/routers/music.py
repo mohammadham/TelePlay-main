@@ -15,6 +15,7 @@ from ..database import get_db
 from ..models import User, Track, Artist, Album, Playlist, PlaylistTrack, Like, Follow, ListenHistory, File
 from ..schemas import TrackResponse, ArtistResponse, AlbumResponse, PlaylistResponse
 from ..auth import get_current_user
+from ..services import sanitize_text
 
 router = APIRouter(prefix="/v1/music", tags=["Music"])
 
@@ -84,13 +85,22 @@ async def create_track(payload: Dict[str, Any], db: AsyncSession = Depends(get_d
         r = await db.execute(select(Artist).where(Artist.name==payload["artist_name"]))
         a = r.scalar_one_or_none()
         if not a:
-            a = Artist(name=payload["artist_name"])
+            a = Artist(name=sanitize_text(payload["artist_name"]))
             db.add(a); await db.flush()
         artist_id = a.id
     if not artist_id: raise HTTPException(400, "artist_id or artist_name required")
     file_id = payload.get("file_id")
     if not file_id: raise HTTPException(400, "file_id required")
-    t = Track(title=payload.get("title","Untitled"), artist_id=artist_id, album_id=payload.get("album_id"), file_id=file_id, duration=payload.get("duration"), genre=payload.get("genre"), track_number=payload.get("track_number"), media_type=payload.get("media_type", "audio"))
+    t = Track(
+    title=sanitize_text(payload.get("title", "Untitled")),
+    artist_id=artist_id,
+    album_id=payload.get("album_id"),
+    file_id=file_id,
+    duration=payload.get("duration"),
+    genre=sanitize_text(payload.get("genre")),
+    track_number=payload.get("track_number"),
+    media_type=payload.get("media_type", "audio")
+)
     db.add(t); await db.commit()
     await db.refresh(t)
     # reload with artist
@@ -147,7 +157,7 @@ async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get
 @router.post("/playlists", response_model=PlaylistResponse)
 @limiter.limit("10/minute")
 async def create_playlist(payload: Dict[str, Any], db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> PlaylistResponse:
-    p = Playlist(user_id=current_user.id, title=payload.get("title","New Playlist"), is_public=payload.get("is_public", False))
+    p = Playlist(user_id=current_user.id, title=sanitize_text(payload.get("title","New Playlist")), is_public=payload.get("is_public", False))
     db.add(p); await db.commit(); await db.refresh(p)
     return PlaylistResponse(id=p.id, user_id=p.user_id, title=p.title, is_public=p.is_public, created_at=p.created_at, tracks=[])
 

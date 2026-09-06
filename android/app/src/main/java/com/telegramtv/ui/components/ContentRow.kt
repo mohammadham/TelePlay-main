@@ -36,6 +36,11 @@ import com.telegramtv.data.model.Folder
 import com.telegramtv.data.model.TVMusicTrack
 import com.telegramtv.ui.theme.*
 
+private fun buildImageUrl(path: String?, serverUrl: String): String? {
+    if (path.isNullOrBlank()) return null
+    return if (path.startsWith("http")) path else "$serverUrl$path"
+}
+
 /**
  * Horizontal content row for the home screen.
  * Displays a title and horizontally scrolling items.
@@ -111,6 +116,7 @@ fun MusicRow(
             items(tracks, key = { it.id }) { track ->
                 MusicCard(
                     track = track,
+                    serverUrl = serverUrl,
                     streamUrl = serverUrl + (track.streamUrl ?: ""),
                     onClick = { onTrackClick(track.fileId) }
                 )
@@ -126,6 +132,7 @@ fun MusicRow(
 @Composable
 private fun MusicCard(
     track: TVMusicTrack,
+    serverUrl: String,
     streamUrl: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -161,9 +168,10 @@ private fun MusicCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Cover image
-            if (!track.coverUrl.isNullOrBlank()) {
+            val coverUrl = buildImageUrl(track.coverUrl, serverUrl)
+            if (!coverUrl.isNullOrBlank()) {
                 AsyncImage(
-                    model = track.coverUrl,
+                    model = coverUrl,
                     contentDescription = track.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

@@ -21,6 +21,7 @@ from .telegram_auth import (
 from .session_manager import SessionManager, session_manager
 from .utils import (
     sanitize_filename,
+    sanitize_text,
     add_urls_to_file,
     fetch_recent_files,
     fetch_continue_watching_files,

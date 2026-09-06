@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
+import { useAppStore } from '../lib/store';
 import logo from '../assets/logo.png';
 
 type SetupStep = 'bot' | 'user' | 'admin' | 'complete';
@@ -264,6 +265,8 @@ export default function SetupPage() {
         }
     }, [userCode, phoneCodeHash, needs2fa, userPassword, userPhone, userId, userHash, userProxy]);
 
+    const { addToast } = useAppStore();
+
     // ── Complete Setup ─────────────────────────────────────────────
     const handleComplete = async () => {
         if (!botValid || !userVerified) return;
@@ -287,9 +290,11 @@ export default function SetupPage() {
             localStorage.setItem('access_token', res.data.access_token);
             localStorage.setItem('refresh_token', res.data.refresh_token);
             setStep('complete');
-            window.location.href = '/login';
+            addToast('Setup complete! 🎉', 'success');
+            setTimeout(() => { window.location.href = '/login'; }, 1500);
         } catch (e: any) {
             setError(e?.response?.data?.detail || 'Setup failed');
+            addToast('Setup failed — please try again', 'error');
         } finally {
             setLoading(false);
         }

@@ -5,6 +5,8 @@ import FileBrowser from './components/FileBrowser';
 import GlobalContextMenu from './components/GlobalContextMenu';
 import SetupPage from './components/SetupPage';
 import NotFound from './components/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
+import Toasts from './components/Toasts';
 import logo from './assets/logo.png';
 
 function AuthCallback() {
@@ -382,9 +384,10 @@ function App() {
     const needsSetup = !setupLoading && setupData && !setupData.configured;
 
     return (
-        <>
+        <ErrorBoundary>
             <GlobalContextMenu />
             <MediaPlayer />
+            <Toasts />
             <Routes>
                 {/* Public routes (order matters — more specific first) */}
                 <Route path="/setup" element={needsSetup ? <SetupPage /> : <Navigate to="/login" replace />} />
@@ -409,7 +412,7 @@ function App() {
                 {/* Catch-all: authenticated or 404 depending on setup state */}
                 <Route path="/*" element={<RouteGuard />} />
             </Routes>
-        </>
+        </ErrorBoundary>
     );
 }
 

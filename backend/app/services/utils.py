@@ -57,7 +57,7 @@ def sanitize_text(value: str) -> str:
     value = re.sub(r'&[a-zA-Z#][a-zA-Z0-9#]*;', '', value)
 
     # Remove dangerous characters: < > " ' & and control characters
-    value = re.sub(r'[<>"'\''\x00-\x1f]', '', value)
+    value = re.sub(r"[<>\"\x00-\x1f]", '', value)
 
     # Trim whitespace
     value = value.strip()

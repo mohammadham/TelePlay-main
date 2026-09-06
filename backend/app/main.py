@@ -1,11 +1,8 @@
 """
 FastAPI main application with Telegram MTProto client lifecycle.
 """
-import gzip
-import io
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from fastapi import FastAPI, Request, Depends
 from sqlalchemy import text
@@ -61,7 +58,7 @@ async def lifespan(app: FastAPI):
         raise
     await init_db()
     logger.info("Database initialized")
-    
+
     # Run migration from legacy settings
     from .migration import migrate_existing_settings, ensure_default_bot_config
     from .database import get_sessionmaker
@@ -69,18 +66,18 @@ async def lifespan(app: FastAPI):
     async with session_maker() as db:
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
-    
+
     await mark_db_ready(settings)
     logger.info("DB settings applied")
     await start_telegram_client()
     logger.info("Telegram client started")
-    
+
     # Load user accounts into pool
     from .pool_manager import load_user_accounts
     await load_user_accounts()
-    
+
     yield
-    
+
     logger.info("Shutting down...")
     await stop_telegram_client()
     logger.info("Telegram client stopped")
@@ -111,39 +108,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Accept", "Range"],
     expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "ETag"],
 )
-
-# Skip binary content types — already compressed or would be corrupted by gzip.
-_BINARY_CONTENT_TYPES = ("video/", "audio/", "application/octet-stream", "image/")
-
-
-@app.middleware("http")
-async def gzip_compression_middleware(request: Request, call_next):
-    """Compress JSON/text API responses with gzip when client accepts it and body exceeds threshold."""
-    response = await call_next(request)
-    accept_encoding: Optional[str] = request.headers.get("accept-encoding", "")
-    if "gzip" not in accept_encoding.lower():
-        return response
-    if response.status_code < 200 or response.status_code >= 300:
-        return response
-    # Skip binary content types — they are either already compressed or would be corrupted
-    ct = (response.headers.get("content-type") or "").lower()
-    if any(ct.startswith(p) for p in _BINARY_CONTENT_TYPES):
-        return response
-    body = b""
-    async for chunk in response.body_iterator:
-        body += chunk
-    if len(body) < 1000:
-        return response.__class__(content=body, headers=response.headers, status_code=response.status_code)
-    compressed = gzip.compress(body)
-    response.body_iterator.close()
-    # Drop stale Content-Length so server uses chunked encoding instead.
-    headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
-    headers["content-encoding"] = "gzip"
-    return response.__class__(
-        content=io.BytesIO(compressed),
-        headers=headers,
-        status_code=response.status_code,
-    )
 
 
 @app.middleware("http")

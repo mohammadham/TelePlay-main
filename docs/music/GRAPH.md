@@ -76,24 +76,21 @@ graph TD
 - .env.example به‌روزرسانی شد — همه متغیرهای جدید مستند
 
 ## بعدی
-- Branch فیلم: `git checkout -b feature/video-platform` (Netflix-like, جداگانه) — ✅ ایجاد شد 2026-08-30 (docs/video + models_video.py)
 - تست E2E: upload via bot (admin) → Track create → play in /music → admin purge
 - k6 load test + Prometheus
 
-## بررسی نهایی 2026-08-30 — موزیک کامل شد
+## بررسی نهایی 2026-09-06 — موزیک + ویدئو کامل شد
 - [x] استریم موزیک: وب + اندروید (FileDownloader + MusicService) + لیست دانلود (`/v1/music/downloads`)
-- [x] ظاهر شکیل: Spotify (NowPlayingBar سبز) + RadioJavan (Vazirmatn RTL) — web/music؛ اندروید MusicHomeScreen
+- [x] ظاهر شکیل: Spotify (NowPlayingBar سبز) + RadioJavan (Vazirmatn RTL) — web/music
 - [x] کش ادمین: max_size/max_file/strategy/TTL + purge/warmup + stats + streaming cache-aside
 - [x] ربات فقط ادمین: ADMIN_TELEGRAM_IDS + bot guard + require_admin
 - [x] تبلیغات: تحقیق + /ads/next + impression + Admin CRUD (یکتانت پیشنهادی)
-- [x] بهینه مقیاس‌پذیر: indexes, Redis, pool 40, RateLimit, CDN-ready
-- [x] مستندات: 8 docs + 8 todos + GRAPH living
+- [x] بهینه مقیاس‌پذیر: indexes, Redis, pool 40, RateLimit, CDN-ready, ETag, Gzip
+- [x] مستندات: 8 music docs + 8 todos + video docs (4 + todos) + GRAPH living
+- [x] پلتفرم ویدئو: Movie/Series/Episode models + /v1/video API + VideoHome/Hero/Row + cache
 
-## اندروید موزیک — تکمیل
-- TelePlayApi.kt: 12 endpoint موزیک افزوده شد
-- MusicModels.kt + MusicRepository.kt
-- MusicHomeScreen.kt + MusicViewModel.kt + BottomNav Music tab
-- FileDownloader.kt (pause/resume Range) + DownloadService reuse برای offline
-
-## ویدئو — برنچ جدا
-- `feature/video-platform` ایجاد شد؛ docs/video (4 فایل) + models_video.py (Movie/Series/Episode) — آماده توسعه Netflix-like
+## ویدئو — ادغام شده
+- `feature/video-platform` کدها ادغام شد به `feature/music-platform` (2026-09-06)
+- 9 endpoints ویدئو: movies/series/episodes/browse/search/progress
+- کش مجزا (20GB LRU) + VideoProgress برای ادامه تماشا
+- UI Netflix-like: Hero backdrop + genre rows + hover scale

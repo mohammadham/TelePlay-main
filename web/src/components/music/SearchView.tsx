@@ -6,7 +6,7 @@ import { useMusicStore } from '../../lib/musicStore'
 
 export default function SearchView(){
   const [q,setQ]=useState('')
-  const { data } = useQuery({ queryKey:['music-search',q], queryFn: async()=>(await api.get('/v1/music/search',{ params:{ q }})).data, enabled: q.length>=2 })
+  const { data } = useQuery({ queryKey:['music-search',q], queryFn: async()=>(await api.get('/v1/music/search',{ params:{ q }})).data, enabled: q.length>=2, staleTime: 30000 })
   const { setQueue } = useMusicStore()
   const tracks = data?.tracks || []
   return (

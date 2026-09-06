@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi_compression import GZipMiddleware
 import os
 
 logging.getLogger("pyrogram").setLevel(logging.INFO)
@@ -106,8 +107,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Range"],
-    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "ETag"],
 )
+
+# Enable gzip compression for API responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.middleware("http")

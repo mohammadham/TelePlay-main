@@ -3,6 +3,7 @@ Music domain API — Tracks, Artists, Albums, Playlists, Likes, History
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, or_
 from sqlalchemy.orm import selectinload
@@ -39,7 +40,13 @@ async def list_tracks(
     tracks = result.scalars().all()
     # liked set
     liked_ids = set((await db.execute(select(Like.track_id).where(Like.user_id==current_user.id))).scalars().all())
-    return [TrackResponse(**_track_to_resp(t, t.id in liked_ids)) for t in tracks]
+    result = [TrackResponse(**_track_to_resp(t, t.id in liked_ids)) for t in tracks]
+    import json
+    return Response(
+        content=json.dumps([r.model_dump() for r in result]),
+        media_type="application/json",
+        headers={"Cache-Control": "public, max-age=60"}
+    )
 
 @router.get("/tracks/{track_id}", response_model=TrackResponse)
 async def get_track(track_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -83,7 +90,9 @@ async def list_artists(q: Optional[str]=None, db: AsyncSession=Depends(get_db), 
     if q: query = query.where(Artist.name.ilike(f"%{q}%"))
     query = query.order_by(Artist.name).limit(50)
     result = await db.execute(query)
-    return [ArtistResponse.model_validate(a, from_attributes=True) for a in result.scalars().all()]
+    import json
+    artists = [a.model_validate(a, from_attributes=True) for a in result.scalars().all()]
+    return Response(content=json.dumps([a.model_dump() for a in artists]), media_type="application/json", headers={"Cache-Control": "public, max-age=120"})
 
 @router.get("/albums", response_model=list[AlbumResponse])
 async def list_albums(artist_id: Optional[int]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
@@ -91,14 +100,22 @@ async def list_albums(artist_id: Optional[int]=None, db: AsyncSession=Depends(ge
     if artist_id: query = query.where(Album.artist_id==artist_id)
     query = query.order_by(Album.created_at.desc()).limit(50)
     result = await db.execute(query)
-    return [AlbumResponse.model_validate(a, from_attributes=True) for a in result.scalars().all()]
+    import json
+    albums = [a.model_validate(a, from_attributes=True) for a in result.scalars().all()]
+    return Response(content=json.dumps([a.model_dump() for a in albums]), media_type="application/json", headers={"Cache-Control": "public, max-age=120"})
 
 @router.get("/search")
 async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     tracks = (await db.execute(select(Track).where(Track.title.ilike(f"%{q}%")).options(selectinload(Track.artist)).limit(20))).scalars().all()
     artists = (await db.execute(select(Artist).where(Artist.name.ilike(f"%{q}%")).limit(20))).scalars().all()
     albums = (await db.execute(select(Album).where(Album.title.ilike(f"%{q}%")).limit(20))).scalars().all()
-    return {"tracks": [TrackResponse(**_track_to_resp(t)) for t in tracks], "artists": [ArtistResponse.model_validate(a, from_attributes=True) for a in artists], "albums": [AlbumResponse.model_validate(a, from_attributes=True) for a in albums]}
+    import json
+    data = {
+        "tracks": [TrackResponse(**_track_to_resp(t)).model_dump() for t in tracks],
+        "artists": [ArtistResponse.model_validate(a, from_attributes=True).model_dump() for a in artists],
+        "albums": [AlbumResponse.model_validate(a, from_attributes=True).model_dump() for a in albums]
+    }
+    return Response(content=json.dumps(data), media_type="application/json", headers={"Cache-Control": "public, max-age=60"})
 
 # Playlists
 @router.post("/playlists", response_model=PlaylistResponse)

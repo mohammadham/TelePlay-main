@@ -5,8 +5,8 @@ import { useMusicStore } from '../../lib/musicStore'
 import { useState } from 'react'
 
 export default function MusicHome() {
-  const { data: tracks } = useQuery({ queryKey: ['music-tracks'], queryFn: async () => (await api.get('/v1/music/tracks?per_page=20')).data })
-  const { data: artists } = useQuery({ queryKey: ['music-artists'], queryFn: async () => (await api.get('/v1/music/artists')).data })
+  const { data: tracks } = useQuery({ queryKey: ['music-tracks'], queryFn: async () => (await api.get('/v1/music/tracks?per_page=20')).data, staleTime: 60000 })
+  const { data: artists } = useQuery({ queryKey: ['music-artists'], queryFn: async () => (await api.get('/v1/music/artists')).data, staleTime: 120000 })
   const { setQueue } = useMusicStore()
   const [downloading, setDownloading] = useState<number|null>(null)
   const list: any[] = Array.isArray(tracks) ? tracks : []

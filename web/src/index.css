@@ -1,8 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&family=Inter:wght@400;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&family=Inter:wght@400;600;700&display=swap');
 :root {
   font-family:
     "Vazirmatn",
@@ -69,30 +70,30 @@ body {
    ============================================ */
 
 .btn-primary {
-  @apply bg-gradient-to-r from-primary-600 to-primary-500 
+  @apply bg-gradient-to-r from-primary-600 to-primary-500
          hover:from-primary-500 hover:to-primary-400
          text-white font-medium px-4 py-2 rounded-lg
-         transition-all duration-200 
+         transition-all duration-200
          hover:shadow-lg hover:shadow-primary-500/25
          active:scale-[0.98];
 }
 
 .btn-secondary {
-  @apply bg-dark-700/80 hover:bg-dark-600/80 
+  @apply bg-dark-700/80 hover:bg-dark-600/80
          text-white font-medium px-4 py-2 rounded-lg
          border border-white/[0.08] hover:border-white/[0.15]
          transition-all duration-200;
 }
 
 .btn-ghost {
-  @apply bg-transparent hover:bg-white/[0.08] 
+  @apply bg-transparent hover:bg-white/[0.08]
          text-dark-300 hover:text-white
          font-medium px-4 py-2 rounded-lg
          transition-all duration-200;
 }
 
 .btn-icon {
-  @apply p-2 rounded-lg bg-transparent hover:bg-white/[0.08] 
+  @apply p-2 rounded-lg bg-transparent hover:bg-white/[0.08]
          text-dark-400 hover:text-white
          transition-all duration-200;
 }
@@ -121,7 +122,7 @@ body {
    ============================================ */
 
 .card-hover {
-  @apply transition-all duration-300 
+  @apply transition-all duration-300
          hover:scale-[1.02] hover:-translate-y-0.5
          hover:shadow-xl hover:shadow-primary-500/5
          hover:border-white/[0.12];
@@ -146,9 +147,9 @@ body {
 }
 
 .context-menu-item {
-  @apply flex items-center gap-3 px-3 py-2 text-sm 
+  @apply flex items-center gap-3 px-3 py-2 text-sm
          text-dark-200 hover:text-white
-         hover:bg-white/[0.06] cursor-pointer 
+         hover:bg-white/[0.06] cursor-pointer
          transition-all duration-150;
 }
 
@@ -169,7 +170,7 @@ body {
    ============================================ */
 
 .drag-over {
-  @apply ring-2 ring-primary-500 border-2 border-dashed border-primary-500/50 
+  @apply ring-2 ring-primary-500 border-2 border-dashed border-primary-500/50
          bg-primary-500/5 scale-[1.02];
 }
 
@@ -178,7 +179,7 @@ body {
    ============================================ */
 
 .skeleton {
-  @apply bg-gradient-to-r from-dark-800 via-dark-700 to-dark-800 
+  @apply bg-gradient-to-r from-dark-800 via-dark-700 to-dark-800
          bg-[length:200%_100%] animate-shimmer rounded;
 }
 
@@ -187,7 +188,7 @@ body {
    ============================================ */
 
 .badge {
-  @apply inline-flex items-center px-2 py-0.5 rounded-full 
+  @apply inline-flex items-center px-2 py-0.5 rounded-full
          text-xs font-medium bg-dark-700/80 text-dark-300
          border border-white/[0.05];
 }
@@ -223,7 +224,7 @@ body {
 }
 
 .progress-bar-thumb {
-  @apply absolute top-1/2 -translate-y-1/2 w-3 h-3 
+  @apply absolute top-1/2 -translate-y-1/2 w-3 h-3
          bg-white rounded-full shadow-lg
          opacity-0 group-hover:opacity-100 transition-opacity;
 }

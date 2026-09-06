@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 
 export default function Downloads(){
-  const { data } = useQuery({ queryKey:['downloads'], queryFn: async()=>(await api.get('/v1/music/downloads')).data.catch(()=>[]) })
+  const { data } = useQuery({ queryKey:['downloads'], queryFn: async()=>(await api.get('/v1/music/downloads')).data.catch(()=>[]), staleTime: 60000 })
   const list = Array.isArray(data)? data : []
   return (
     <div className="p-6">

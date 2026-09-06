@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export default function PlaylistView(){
   const qc = useQueryClient()
-  const { data } = useQuery({ queryKey:['playlists'], queryFn: async()=>(await api.get('/v1/music/playlists')).data })
+  const { data } = useQuery({ queryKey:['playlists'], queryFn: async()=>(await api.get('/v1/music/playlists')).data, staleTime: 60000 })
   const [title,setTitle]=useState('')
   const create = useMutation({ mutationFn: async()=>(await api.post('/v1/music/playlists',{ title })).data, onSuccess: ()=>{ setTitle(''); qc.invalidateQueries({queryKey:['playlists']}) } })
   return (

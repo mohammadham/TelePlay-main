@@ -23,8 +23,46 @@ _lru: OrderedDict[str, dict] = OrderedDict()
 _lock = asyncio.Lock()
 _total_bytes = 0
 
-# TODO: integrate Redis for metadata (track JSON, hit counters)
-# import redis.asyncio as redis; redis_client = redis.from_url(os.getenv("REDIS_URL"))
+import redis.asyncio as redis
+_redis_client: Optional[redis.Redis] = None
+
+async def _get_redis() -> Optional[redis.Redis]:
+    """Lazy-initialize Redis client."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    try:
+        url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        _redis_client = redis.from_url(url, socket_timeout=2, socket_connect_timeout=2)
+        await _redis_client.ping()
+        return _redis_client
+    except Exception:
+        return None
+
+async def get_cached_chunk_with_redis(track_id: int, offset: int, length: int) -> Optional[bytes]:
+    """Check Redis cache first, then fall back to disk."""
+    r = await _get_redis()
+    if r is None:
+        return None
+    k = _key(track_id, offset, length)
+    try:
+        data = await r.get(f"chunk:{k}")
+        if data:
+            return data
+    except Exception:
+        pass
+    return None
+
+async def put_cached_chunk_with_redis(track_id: int, offset: int, length: int, data: bytes, ttl: int = 3600) -> None:
+    """Write to Redis cache with TTL."""
+    r = await _get_redis()
+    if r is None or len(data) > 10 * 1024 * 1024:  # skip large chunks
+        return
+    k = _key(track_id, offset, length)
+    try:
+        await r.set(f"chunk:{k}", data, ex=ttl)
+    except Exception:
+        pass
 
 def _key(track_id: int, offset: int, length: int) -> str:
     return f"{track_id}:{offset}:{length}"

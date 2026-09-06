@@ -67,12 +67,18 @@ async def stream_file(
         raise HTTPException(status_code=404, detail="Message not found in channel")
     
     async def file_streamer():
-        # cache-aside for audio
+        # cache-aside for audio: Redis first, then disk
         try:
-            from ..cache_manager import get_cached_chunk, put_cached_chunk
+            from ..cache_manager import get_cached_chunk_with_redis, put_cached_chunk_with_redis, get_cached_chunk, put_cached_chunk
             from ..config import get_settings
             settings = get_settings()
             if settings.cache_enabled and "audio" in (file.mime_type or ""):
+                # Check Redis cache first (faster)
+                cached = await get_cached_chunk_with_redis(file.id, from_bytes, until_bytes - from_bytes + 1)
+                if cached:
+                    yield cached
+                    return
+                # Fall back to disk cache
                 cached = await get_cached_chunk(file.id, from_bytes, until_bytes - from_bytes + 1)
                 if cached:
                     yield cached
@@ -81,6 +87,8 @@ async def stream_file(
                 async for chunk in stream_file_generator(telegram.tg_client, message, from_bytes, until_bytes):
                     buf += chunk
                     yield chunk
+                # Store in both Redis and disk
+                await put_cached_chunk_with_redis(file.id, from_bytes, until_bytes - from_bytes + 1, buf)
                 await put_cached_chunk(file.id, from_bytes, until_bytes - from_bytes + 1, buf, file.file_size)
                 return
         except Exception:

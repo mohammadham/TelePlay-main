@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
+import logo from '../assets/logo.png';
 
 type SetupStep = 'bot' | 'user' | 'admin' | 'complete';
 type AuthState = 'idle' | 'sending' | 'code_sent' | 'verifying' | '2fa_required' | '2fa_verifying' | 'success' | 'error';
@@ -350,7 +351,7 @@ export default function SetupPage() {
 
                 {/* Logo */}
                 <div className="text-center mb-6">
-                    <img src="/assets/logo.png" alt="TelePlay" className="w-16 h-16 mx-auto mb-3 drop-shadow-2xl" />
+                    <img src={logo} alt="TelePlay" className="w-16 h-16 mx-auto mb-3 drop-shadow-2xl" />
                     <h1 className="text-2xl font-bold text-gradient mb-1">TelePlay Setup</h1>
                     <p className="text-dark-400 text-sm">
                         {step === 'bot' && 'Configure your Telegram bot'}

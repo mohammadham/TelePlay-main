@@ -267,20 +267,19 @@ def is_configured(settings: Settings) -> bool:
     if _setup_complete:
         return True
 
-    # Fallback: check DB state directly
+    # Fallback: check DB state directly — run_sync avoids event-loop conflicts
     try:
         from .models import BotConfig, UserAccount, AdminUser
         from .database import get_engine
         eng = get_engine()
         if eng is None:
             return False
-        # Use run_sync to avoid event-loop issues inside sync function
         def _check(conn) -> bool:
             main_bot = conn.execute(select(BotConfig).where(BotConfig.name == "main").limit(1)).scalar_one_or_none()
             storage_acc = conn.execute(select(UserAccount).where(UserAccount.name == "storage_1").limit(1)).scalar_one_or_none()
             super_admin = conn.execute(select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1)).scalar_one_or_none()
             return bool(main_bot and storage_acc and super_admin)
-
-        return eng.sync_engine.run_sync(_check)
+        result = eng.sync_engine.run_sync(_check)
+        return bool(result)
     except Exception:
         return False

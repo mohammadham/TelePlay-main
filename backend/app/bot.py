@@ -7,6 +7,7 @@ import logging
 import secrets
 import string
 from datetime import datetime, timedelta
+from typing import Dict
 from pyrogram import filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from sqlalchemy import select, func
@@ -21,6 +22,27 @@ from .services import sanitize_filename, sanitize_text
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# In-memory rate limiter for inline queries per user (milliseconds timestamps)
+_inline_query_rates: Dict[int, list] = {}
+_INLINE_QUERY_MAX_PER_MINUTE = 10
+
+
+def check_inline_rate_limit(user_id: int) -> bool:
+    """
+    Check if user is within inline query rate limit.
+    Returns True if allowed, False if rate-limited.
+    """
+    now = datetime.utcnow().timestamp()
+    window_start = now - 60  # 1-minute sliding window
+    timestamps = _inline_query_rates.get(user_id, [])
+    # Prune old entries
+    timestamps = [t for t in timestamps if t > window_start]
+    if len(timestamps) >= _INLINE_QUERY_MAX_PER_MINUTE:
+        return False
+    timestamps.append(now)
+    _inline_query_rates[user_id] = timestamps
+    return True
 
 
 def sanitize_filename(name: str) -> str:

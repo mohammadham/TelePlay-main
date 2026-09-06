@@ -1,8 +1,10 @@
 """
 Music domain API — Tracks, Artists, Albums, Playlists, Likes, History
 """
+import hashlib
+import json
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, or_
@@ -41,11 +43,16 @@ async def list_tracks(
     # liked set
     liked_ids = set((await db.execute(select(Like.track_id).where(Like.user_id==current_user.id))).scalars().all())
     result = [TrackResponse(**_track_to_resp(t, t.id in liked_ids)) for t in tracks]
-    import json
+    data = json.dumps([r.model_dump() for r in result], sort_keys=True)
+    etag = hashlib.md5(data.encode()).hexdigest()
+    # Handle conditional request
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip('"') == etag:
+        return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=60"})
     return Response(
-        content=json.dumps([r.model_dump() for r in result]),
+        content=data,
         media_type="application/json",
-        headers={"Cache-Control": "public, max-age=60"}
+        headers={"Cache-Control": "public, max-age=60", "ETag": f'"{etag}"'}
     )
 
 @router.get("/tracks/{track_id}", response_model=TrackResponse)
@@ -90,9 +97,13 @@ async def list_artists(q: Optional[str]=None, db: AsyncSession=Depends(get_db), 
     if q: query = query.where(Artist.name.ilike(f"%{q}%"))
     query = query.order_by(Artist.name).limit(50)
     result = await db.execute(query)
-    import json
     artists = [a.model_validate(a, from_attributes=True) for a in result.scalars().all()]
-    return Response(content=json.dumps([a.model_dump() for a in artists]), media_type="application/json", headers={"Cache-Control": "public, max-age=120"})
+    data = json.dumps([a.model_dump() for a in artists], sort_keys=True)
+    etag = hashlib.md5(data.encode()).hexdigest()
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip('"') == etag:
+        return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=120"})
+    return Response(content=data, media_type="application/json", headers={"Cache-Control": "public, max-age=120", "ETag": f'"{etag}"'})
 
 @router.get("/albums", response_model=list[AlbumResponse])
 async def list_albums(artist_id: Optional[int]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
@@ -100,22 +111,30 @@ async def list_albums(artist_id: Optional[int]=None, db: AsyncSession=Depends(ge
     if artist_id: query = query.where(Album.artist_id==artist_id)
     query = query.order_by(Album.created_at.desc()).limit(50)
     result = await db.execute(query)
-    import json
     albums = [a.model_validate(a, from_attributes=True) for a in result.scalars().all()]
-    return Response(content=json.dumps([a.model_dump() for a in albums]), media_type="application/json", headers={"Cache-Control": "public, max-age=120"})
+    data = json.dumps([a.model_dump() for a in albums], sort_keys=True)
+    etag = hashlib.md5(data.encode()).hexdigest()
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip('"') == etag:
+        return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=120"})
+    return Response(content=data, media_type="application/json", headers={"Cache-Control": "public, max-age=120", "ETag": f'"{etag}"'})
 
 @router.get("/search")
 async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     tracks = (await db.execute(select(Track).where(Track.title.ilike(f"%{q}%")).options(selectinload(Track.artist)).limit(20))).scalars().all()
     artists = (await db.execute(select(Artist).where(Artist.name.ilike(f"%{q}%")).limit(20))).scalars().all()
     albums = (await db.execute(select(Album).where(Album.title.ilike(f"%{q}%")).limit(20))).scalars().all()
-    import json
     data = {
         "tracks": [TrackResponse(**_track_to_resp(t)).model_dump() for t in tracks],
         "artists": [ArtistResponse.model_validate(a, from_attributes=True).model_dump() for a in artists],
         "albums": [AlbumResponse.model_validate(a, from_attributes=True).model_dump() for a in albums]
     }
-    return Response(content=json.dumps(data), media_type="application/json", headers={"Cache-Control": "public, max-age=60"})
+    json_data = json.dumps(data, sort_keys=True)
+    etag = hashlib.md5(json_data.encode()).hexdigest()
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip('"') == etag:
+        return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=60"})
+    return Response(content=json_data, media_type="application/json", headers={"Cache-Control": "public, max-age=60", "ETag": f'"{etag}"'})
 
 # Playlists
 @router.post("/playlists", response_model=PlaylistResponse)

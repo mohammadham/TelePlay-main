@@ -3,6 +3,7 @@ Telegram Bot handlers using PyroTGFork MTProto.
 Handles commands, file uploads, and inline callbacks.
 """
 
+import logging
 import secrets
 import string
 from datetime import datetime, timedelta
@@ -15,28 +16,10 @@ from .database import async_session
 from .models import User, File, Folder, LoginCode
 from .config import get_settings
 from .auth import create_access_token
+from .utils import format_size, format_duration
 
 settings = get_settings()
-
-
-def format_size(size_bytes: int) -> str:
-    """Format bytes to human readable size."""
-    for unit in ['B', 'KB', 'MB', 'GB']:
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
-
-
-def format_duration(seconds: int) -> str:
-    """Format seconds to human readable duration."""
-    if not seconds:
-        return ""
-    hours, remainder = divmod(seconds, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}h {minutes}m"
-    return f"{minutes}m {secs}s"
+logger = logging.getLogger(__name__)
 
 
 def sanitize_filename(name: str) -> str:
@@ -107,6 +90,11 @@ async def check_auth(client, message: Message):
     admin_ids = settings.admin_ids
     if admin_ids:
         if message.from_user.id not in admin_ids:
+            logger.warning(
+                "Blocked non-admin bot attempt: user_id=%s chat_id=%s",
+                message.from_user.id,
+                message.chat.id,
+            )
             if message.text and message.text.startswith("/start"):
                 await message.reply(
                     "🚫 **Access Restricted — Admin Only**\n\n"
@@ -551,11 +539,15 @@ async def handle_file(client, message: Message):
         
         # Extract file info
         raw_filename = getattr(media, "file_name", None) or f"{file_type}_{message.id}"
+        file_size = getattr(media, "file_size", 0)
+        if file_size and file_size > 500 * 1024 * 1024:  # 500MB
+            await message.reply("File too large. Maximum allowed size is 500MB.")
+            return
         file_info = {
             "file_id": media.file_id,
             "file_unique_id": media.file_unique_id,
             "file_name": sanitize_filename(raw_filename),
-            "file_size": media.file_size,
+            "file_size": file_size,
             "mime_type": getattr(media, "mime_type", None),
             "duration": getattr(media, "duration", None),
             "width": getattr(media, "width", None),

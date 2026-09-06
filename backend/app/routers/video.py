@@ -5,12 +5,17 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from ..database import get_db
 from ..models import User, Movie, Series, Episode, VideoProgress
 from ..schemas import MovieResponse, SeriesResponse, EpisodeResponse
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/v1/video", tags=["Video"])
+
+# Rate limiter for video endpoints
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _movie_to_resp(m: Movie) -> dict:
@@ -51,6 +56,7 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db), current_u
 
 
 @router.post("/movies", response_model=MovieResponse)
+@limiter.limit("10/minute")
 async def create_movie(payload: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from ..config import get_settings
     settings = get_settings()

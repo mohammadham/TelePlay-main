@@ -80,7 +80,7 @@ class TelegramAuthService:
     SEND_CODE_TIMEOUT = 90.0
     SIGN_IN_TIMEOUT = 60.0
     MAX_RETRIES = 3
-    RETRY_DELAY = 5.0
+    RETRY_DELAY = 3.0
     PENDING_TTL = 600.0  # Keep pending client alive for 10 minutes
 
     def __init__(self):

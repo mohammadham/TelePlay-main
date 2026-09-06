@@ -1,7 +1,7 @@
 """
 Admin APIs — Cache & Ads management (admin-only)
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from ..database import get_db
@@ -20,7 +20,11 @@ async def get_cache_config(db: AsyncSession=Depends(get_db), admin: User=Depends
     return row
 
 @router.put("/cache/config")
-async def update_cache_config(payload: dict, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+async def update_cache_config(payload: dict, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin), request: Request = None):
+    from ..models import AuditLog
+    ip = request.client.host if request and request.client else None
+    db.add(AuditLog(user_id=admin.id, action="update_cache_config", target=str(payload.get("strategy")), ip_address=ip))
+    await db.commit()
     row = (await db.execute(select(CacheConfig).limit(1))).scalar_one_or_none()
     if not row:
         row = CacheConfig(); db.add(row)
@@ -36,9 +40,13 @@ async def cache_stats(admin: User=Depends(require_admin)):
     return s
 
 @router.post("/cache/purge")
-async def cache_purge(payload: dict, admin: User=Depends(require_admin)):
+async def cache_purge(payload: dict, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin), request: Request = None):
+    from ..models import AuditLog
     scope = payload.get("scope","all")
     tid = payload.get("track_id")
+    ip = request.client.host if request and request.client else None
+    db.add(AuditLog(user_id=admin.id, action="purge_cache", target=f"scope={scope} track_id={tid}", ip_address=ip))
+    await db.commit()
     n = await cache_manager.purge(scope, tid)
     return {"purged": n}
 

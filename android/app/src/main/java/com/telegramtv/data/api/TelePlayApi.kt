@@ -246,4 +246,17 @@ interface TelePlayApi {
 
     @GET("ads/next")
     suspend fun getNextAd(@Query("play_count") playCount: Int): Response<Map<String, Any>>
+
+    // ============ Video Platform ============
+    @GET("v1/video/browse")
+    suspend fun getVideoBrowse(): Response<com.telegramtv.data.model.VideoBrowse>
+
+    @GET("v1/video/movies")
+    suspend fun getMovies(
+        @Query("genre") genre: String? = null,
+        @Query("q") q: String? = null
+    ): Response<List<com.telegramtv.data.model.Movie>>
+
+    @POST("v1/video/progress")
+    suspend fun updateVideoProgress(@Body body: Map<String, Any>): Response<Unit>
 }

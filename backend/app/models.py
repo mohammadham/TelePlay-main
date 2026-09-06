@@ -349,6 +349,18 @@ class AdminUser(Base):
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
 
+# ==================== SECURITY DOMAIN ====================
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    target: Mapped[Optional[str]] = mapped_column(String(255))
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 # ==================== VIDEO DOMAIN (Netflix-like) ====================
 
 class Movie(Base):

@@ -3,18 +3,23 @@ Music domain API — Tracks, Artists, Albums, Playlists, Likes, History
 """
 import hashlib
 import json
-from typing import Optional
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, or_
 from sqlalchemy.orm import selectinload
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from ..database import get_db
 from ..models import User, Track, Artist, Album, Playlist, PlaylistTrack, Like, Follow, ListenHistory, File
 from ..schemas import TrackResponse, ArtistResponse, AlbumResponse, PlaylistResponse
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/v1/music", tags=["Music"])
+
+# Rate limiter for music endpoints
+limiter = Limiter(key_func=get_remote_address)
 
 def _track_to_resp(t: Track, is_liked=False) -> dict:
     return {
@@ -138,6 +143,7 @@ async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get
 
 # Playlists
 @router.post("/playlists", response_model=PlaylistResponse)
+@limiter.limit("10/minute")
 async def create_playlist(payload: dict, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     p = Playlist(user_id=current_user.id, title=payload.get("title","New Playlist"), is_public=payload.get("is_public", False))
     db.add(p); await db.commit(); await db.refresh(p)
@@ -171,6 +177,7 @@ async def remove_from_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_
 
 # Likes
 @router.post("/likes/{track_id}")
+@limiter.limit("30/minute")
 async def like_track(track_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     exists = (await db.execute(select(Like).where(Like.user_id==current_user.id, Like.track_id==track_id))).scalar_one_or_none()
     if not exists:
@@ -217,6 +224,7 @@ async def list_downloads(db: AsyncSession=Depends(get_db), current_user: User=De
     return out
 
 @router.post("/downloads")
+@limiter.limit("10/minute")
 async def add_download(payload: dict, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     from ..models import DownloadQueue
     track_id = payload.get("track_id")

@@ -55,19 +55,14 @@
 | 09 | Security Hardening | ✅ | `6ede868` |
 | 10 | Bot Security | ✅ | `4102ab9` |
 | 11 | Code Quality | ✅ | `4102ab9` |
-| 12 | TV App (Leanback) | 🔄 Partial | — |
+| 12 | TV App (Leanback) | ✅ | `2622f0e` |
 | 13 | Music Video & Reel | ✅ | `6f75ef4` |
 
 ---
 
 # Deferred Items
 
-## Phase 12 — TV App (Remaining)
-- Hero row for featured music_video content (requires backend API endpoint)
-- Continue Listening by genre row
-- Dedicated TvMainActivity with full Leanback Dashboard
-
 ## Future Enhancements
-- TV search with voice input integration
 - Playlist management on TV
 - User profiles/avatars on TV
+- TV-specific onboarding flow

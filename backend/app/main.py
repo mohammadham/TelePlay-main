@@ -142,7 +142,31 @@ async def gzip_compression_middleware(request: Request, call_next):
         status_code=response.status_code,
     )
 
-app.add_middleware(gzip_compression_middleware)
+@app.middleware("http")
+async def gzip_compression_middleware(request: Request, call_next):
+    """Compress JSON/text API responses with gzip when client accepts it and body exceeds threshold."""
+    response = await call_next(request)
+    accept_encoding: Optional[str] = request.headers.get("accept-encoding", "")
+    if "gzip" not in accept_encoding.lower():
+        return response
+    if response.status_code < 200 or response.status_code >= 300:
+        return response
+    # Skip binary content types — they are either already compressed or would be corrupted
+    ct = (response.headers.get("content-type") or "").lower()
+    if any(ct.startswith(p) for p in _BINARY_CONTENT_TYPES):
+        return response
+    body = b""
+    async for chunk in response.body_iterator:
+        body += chunk
+    if len(body) < 1000:
+        return response.__class__(content=body, headers=response.headers, status_code=response.status_code)
+    compressed = gzip.compress(body)
+    response.body_iterator.close()
+    return response.__class__(
+        content=io.BytesIO(compressed),
+        headers={**response.headers, "content-encoding": "gzip", "content-length": str(len(compressed))},
+        status_code=response.status_code,
+    )
 
 
 @app.middleware("http")

@@ -95,8 +95,8 @@ async def tv_browse(
 
 def _track_to_resp(t: Track) -> dict:
     cover_url = None
-    if t.cover_file_id:
-        cover_url = f"/api/stream/cover/{t.cover_file_id}"
+    if t.album and t.album.cover_file_id:
+        cover_url = f"/api/stream/cover/{t.album.cover_file_id}"
     return {
         "id": t.id,
         "title": t.title,

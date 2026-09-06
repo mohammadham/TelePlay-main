@@ -15,7 +15,7 @@ from ..database import get_db
 from ..models import User, Track, Artist, Album, Playlist, PlaylistTrack, Like, Follow, ListenHistory, File
 from ..schemas import TrackResponse, ArtistResponse, AlbumResponse, PlaylistResponse
 from ..auth import get_current_user
-from ..services import sanitize_text
+from ..services import sanitize_text, escape_like
 
 router = APIRouter(prefix="/v1/music", tags=["Music"])
 
@@ -35,12 +35,13 @@ def _track_to_resp(t: Track, is_liked: bool = False) -> Dict[str, Any]:
 
 @router.get("/tracks", response_model=list[TrackResponse])
 async def list_tracks(
+    request: Request = None,
     q: Optional[str] = None, artist_id: Optional[int] = None, album_id: Optional[int] = None,
     genre: Optional[str] = None, media_type: Optional[str] = None,
     page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     query = select(Track).options(selectinload(Track.artist), selectinload(Track.album))
-    if q: query = query.where(or_(Track.title.ilike(f"%{q}%"), Track.genre.ilike(f"%{q}%")))
+    if q: query = query.where(or_(Track.title.ilike(f"%{escape_like(q)}%", escape="\\"), Track.genre.ilike(f"%{escape_like(q)}%", escape="\\")))
     if artist_id: query = query.where(Track.artist_id == artist_id)
     if album_id: query = query.where(Track.album_id == album_id)
     if genre: query = query.where(Track.genre == genre)
@@ -54,7 +55,7 @@ async def list_tracks(
     data = json.dumps([r.model_dump() for r in result], sort_keys=True)
     etag = hashlib.md5(data.encode()).hexdigest()
     # Handle conditional request
-    if_none_match = request.headers.get("if-none-match")
+    if_none_match = request.headers.get("if-none-match") if request else None
     if if_none_match and if_none_match.strip('"') == etag:
         return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=60"})
     return Response(
@@ -109,21 +110,21 @@ async def create_track(payload: Dict[str, Any], db: AsyncSession = Depends(get_d
     return TrackResponse(**_track_to_resp(t))
 
 @router.get("/artists", response_model=list[ArtistResponse])
-async def list_artists(q: Optional[str]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def list_artists(request: Request = None, q: Optional[str]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     query = select(Artist)
-    if q: query = query.where(Artist.name.ilike(f"%{q}%"))
+    if q: query = query.where(Artist.name.ilike(f"%{escape_like(q)}%", escape="\\"))
     query = query.order_by(Artist.name).limit(50)
     result = await db.execute(query)
     artists = [a.model_validate(a, from_attributes=True) for a in result.scalars().all()]
     data = json.dumps([a.model_dump() for a in artists], sort_keys=True)
     etag = hashlib.md5(data.encode()).hexdigest()
-    if_none_match = request.headers.get("if-none-match")
+    if_none_match = request.headers.get("if-none-match") if request else None
     if if_none_match and if_none_match.strip('"') == etag:
         return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=120"})
     return Response(content=data, media_type="application/json", headers={"Cache-Control": "public, max-age=120", "ETag": f'"{etag}"'})
 
 @router.get("/albums", response_model=list[AlbumResponse])
-async def list_albums(artist_id: Optional[int]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def list_albums(request: Request = None, artist_id: Optional[int]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     query = select(Album).options(selectinload(Album.artist))
     if artist_id: query = query.where(Album.artist_id==artist_id)
     query = query.order_by(Album.created_at.desc()).limit(50)
@@ -131,16 +132,16 @@ async def list_albums(artist_id: Optional[int]=None, db: AsyncSession=Depends(ge
     albums = [a.model_validate(a, from_attributes=True) for a in result.scalars().all()]
     data = json.dumps([a.model_dump() for a in albums], sort_keys=True)
     etag = hashlib.md5(data.encode()).hexdigest()
-    if_none_match = request.headers.get("if-none-match")
+    if_none_match = request.headers.get("if-none-match") if request else None
     if if_none_match and if_none_match.strip('"') == etag:
         return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=120"})
     return Response(content=data, media_type="application/json", headers={"Cache-Control": "public, max-age=120", "ETag": f'"{etag}"'})
 
 @router.get("/search")
-async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
-    tracks = (await db.execute(select(Track).where(Track.title.ilike(f"%{q}%")).options(selectinload(Track.artist)).limit(20))).scalars().all()
-    artists = (await db.execute(select(Artist).where(Artist.name.ilike(f"%{q}%")).limit(20))).scalars().all()
-    albums = (await db.execute(select(Album).where(Album.title.ilike(f"%{q}%")).limit(20))).scalars().all()
+async def search(request: Request = None, q: str = Query(..., min_length=1), db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+    tracks = (await db.execute(select(Track).where(Track.title.ilike(f"%{escape_like(q)}%", escape="\\")).options(selectinload(Track.artist)).limit(20))).scalars().all()
+    artists = (await db.execute(select(Artist).where(Artist.name.ilike(f"%{escape_like(q)}%", escape="\\")).limit(20))).scalars().all()
+    albums = (await db.execute(select(Album).where(Album.title.ilike(f"%{escape_like(q)}%", escape="\\")).limit(20))).scalars().all()
     data = {
         "tracks": [TrackResponse(**_track_to_resp(t)).model_dump() for t in tracks],
         "artists": [ArtistResponse.model_validate(a, from_attributes=True).model_dump() for a in artists],
@@ -148,7 +149,7 @@ async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get
     }
     json_data = json.dumps(data, sort_keys=True)
     etag = hashlib.md5(json_data.encode()).hexdigest()
-    if_none_match = request.headers.get("if-none-match")
+    if_none_match = request.headers.get("if-none-match") if request else None
     if if_none_match and if_none_match.strip('"') == etag:
         return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=60"})
     return Response(content=json_data, media_type="application/json", headers={"Cache-Control": "public, max-age=60", "ETag": f'"{etag}"'})

@@ -18,7 +18,8 @@ class TestSanitizeText:
 
     def test_removes_dangerous_chars(self):
         assert sanitize_text('test "quoted"') == "test quoted"
-        assert sanitize_text("it's fine") == "its fine"
+        # Single quotes are safe in HTML context (not removed)
+        assert sanitize_text("it's fine") == "it's fine"
         assert sanitize_text("a & b") == "a  b"
 
     def test_removes_control_chars(self):

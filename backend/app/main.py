@@ -113,13 +113,21 @@ app.add_middleware(
 )
 
 # Custom gzip compression middleware (replaces removed fastapi-compression package)
+# Skips binary streams (video/audio/file downloads) to avoid corruption.
+_BINARY_CONTENT_TYPES = ("video/", "audio/", "application/octet-stream", "image/")
+
+
 async def gzip_compression_middleware(request: Request, call_next):
-    """Compress response with gzip when client accepts it and body exceeds threshold."""
+    """Compress JSON/text API responses with gzip when client accepts it and body exceeds threshold."""
     response = await call_next(request)
     accept_encoding: Optional[str] = request.headers.get("accept-encoding", "")
     if "gzip" not in accept_encoding.lower():
         return response
     if response.status_code < 200 or response.status_code >= 300:
+        return response
+    # Skip binary content types — they are either already compressed or would be corrupted
+    ct = (response.headers.get("content-type") or "").lower()
+    if any(ct.startswith(p) for p in _BINARY_CONTENT_TYPES):
         return response
     body = b""
     async for chunk in response.body_iterator:

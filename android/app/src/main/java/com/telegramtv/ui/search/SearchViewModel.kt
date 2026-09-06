@@ -3,7 +3,9 @@ package com.telegramtv.ui.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.telegramtv.data.model.FileItem
+import com.telegramtv.data.model.Track
 import com.telegramtv.data.repository.FilesRepository
+import com.telegramtv.data.repository.MusicRepository
 import com.telegramtv.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -14,6 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class SearchMode { FILES, MUSIC }
+
 /**
  * Search screen UI state.
  */
@@ -21,7 +25,9 @@ data class SearchUiState(
     val query: String = "",
     val isSearching: Boolean = false,
     val results: List<FileItem> = emptyList(),
+    val musicResults: List<Track> = emptyList(),
     val hasSearched: Boolean = false,
+    val searchMode: SearchMode = SearchMode.FILES,
     val serverUrl: String = "",
     val folders: List<com.telegramtv.data.model.Folder> = emptyList(),
     val error: String? = null
@@ -34,6 +40,7 @@ data class SearchUiState(
 class SearchViewModel @Inject constructor(
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     private val filesRepository: FilesRepository,
+    private val musicRepository: MusicRepository,
     private val foldersRepository: com.telegramtv.data.repository.FoldersRepository,
     private val settingsRepository: SettingsRepository,
     private val authRepository: com.telegramtv.data.repository.AuthRepository,
@@ -80,6 +87,7 @@ class SearchViewModel @Inject constructor(
             } else {
                 _uiState.value = _uiState.value.copy(
                     results = emptyList(),
+                    musicResults = emptyList(),
                     hasSearched = false
                 )
             }
@@ -87,11 +95,28 @@ class SearchViewModel @Inject constructor(
     }
 
     /**
-     * Execute search.
+     * Switch between FILES and MUSIC search mode.
+     */
+    fun switchMode(mode: SearchMode) {
+        _uiState.value = _uiState.value.copy(searchMode = mode)
+        if (_uiState.value.query.length >= 2) {
+            search(_uiState.value.query)
+        }
+    }
+
+    /**
+     * Execute search based on current mode.
      */
     private suspend fun search(query: String) {
         _uiState.value = _uiState.value.copy(isSearching = true, error = null)
 
+        when (_uiState.value.searchMode) {
+            SearchMode.FILES -> searchFiles(query)
+            SearchMode.MUSIC -> searchMusic(query)
+        }
+    }
+
+    private suspend fun searchFiles(query: String) {
         val result = filesRepository.searchFiles(query, limit = 50)
         result.fold(
             onSuccess = { files ->
@@ -111,6 +136,26 @@ class SearchViewModel @Inject constructor(
         )
     }
 
+    private suspend fun searchMusic(query: String) {
+        val result = musicRepository.getTracks(q = query)
+        result.fold(
+            onSuccess = { tracks ->
+                _uiState.value = _uiState.value.copy(
+                    isSearching = false,
+                    musicResults = tracks,
+                    hasSearched = true
+                )
+            },
+            onFailure = { e ->
+                _uiState.value = _uiState.value.copy(
+                    isSearching = false,
+                    error = e.message ?: "Music search failed",
+                    hasSearched = true
+                )
+            }
+        )
+    }
+
     /**
      * Clear search.
      */
@@ -118,7 +163,9 @@ class SearchViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             query = "",
             results = emptyList(),
-            hasSearched = false
+            musicResults = emptyList(),
+            hasSearched = false,
+            searchMode = SearchMode.FILES
         )
     }
 

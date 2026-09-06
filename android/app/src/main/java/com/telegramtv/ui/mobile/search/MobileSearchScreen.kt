@@ -24,10 +24,14 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.telegramtv.ui.search.SearchViewModel
+import com.telegramtv.ui.search.SearchMode
 import com.telegramtv.ui.theme.*
 import com.telegramtv.ui.mobile.components.*
 import com.telegramtv.data.model.FileItem
+import com.telegramtv.data.model.Track
 import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
@@ -35,6 +39,7 @@ import android.util.Log
 fun MobileSearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     onPlayFile: (Int) -> Unit,
+    onPlayTrack: (Int) -> Unit = {},
     onGoToFolder: (Int, String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -77,30 +82,33 @@ fun MobileSearchScreen(
                         contentDescription = "Search",
                         tint = MobileTextSecondary
                     )
-                    
+
                     Spacer(modifier = Modifier.width(12.dp))
-                    
-                TextField(
-            value = uiState.query,
-            onValueChange = { 
-                Log.d("MobileSearchScreen", "Query changed: $it")
-                viewModel.onQueryChange(it) 
-            },
-            placeholder = { Text("Search files...", color = MobileTextSecondary) },
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
-            ),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-            modifier = Modifier.weight(1f),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MobileTextPrimary)
-        )
-                    
+
+                    TextField(
+                        value = uiState.query,
+                        onValueChange = {
+                            Log.d("MobileSearchScreen", "Query changed: $it")
+                            viewModel.onQueryChange(it)
+                        },
+                        placeholder = { Text(
+                            if (uiState.searchMode == SearchMode.MUSIC) "Search music..." else "Search files...",
+                            color = MobileTextSecondary
+                        ) },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+                        modifier = Modifier.weight(1f),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MobileTextPrimary)
+                    )
+
                     if (uiState.query.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onQueryChange("") }) {
                             Icon(Icons.Default.Close, "Clear", tint = MobileTextSecondary)
@@ -108,6 +116,24 @@ fun MobileSearchScreen(
                     }
                 }
             }
+        }
+
+        // Search mode tabs
+        TabRow(
+            selectedTabIndex = if (uiState.searchMode == SearchMode.MUSIC) 1 else 0,
+            containerColor = MobileBackground,
+            contentColor = MobileTextPrimary
+        ) {
+            Tab(
+                selected = uiState.searchMode == SearchMode.FILES,
+                onClick = { viewModel.switchMode(SearchMode.FILES) },
+                text = { Text("Files", color = if (uiState.searchMode == SearchMode.FILES) MobilePrimary else MobileTextSecondary) }
+            )
+            Tab(
+                selected = uiState.searchMode == SearchMode.MUSIC,
+                onClick = { viewModel.switchMode(SearchMode.MUSIC) },
+                text = { Text("Music", color = if (uiState.searchMode == SearchMode.MUSIC) MobilePrimary else MobileTextSecondary) }
+            )
         }
 
         if (uiState.isSearching) {
@@ -118,8 +144,16 @@ fun MobileSearchScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
             }
+        } else if (uiState.searchMode == SearchMode.MUSIC && uiState.musicResults.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (uiState.query.isNotEmpty()) {
+                    Text("No music found for \"${uiState.query}\"", color = MobileTextSecondary)
+                } else {
+                    Text("Type to search music", color = MobileTextSecondary)
+                }
+            }
         } else if (uiState.results.isEmpty()) {
-             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (uiState.query.isNotEmpty()) {
                     Text("No results found for \"${uiState.query}\"", color = MobileTextSecondary)
                 } else {
@@ -127,33 +161,49 @@ fun MobileSearchScreen(
                 }
             }
         } else {
-            Log.d("MobileSearchScreen", "Showing ${uiState.results.size} results")
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 150.dp),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(uiState.results) { file ->
-                     SearchFileCard(
-                        file = file, 
-                        serverUrl = uiState.serverUrl, 
-                        onClick = onPlayFile,
-                        onRename = { showRenameFileDialog = it },
-                        onDelete = { showDeleteFileDialog = it },
-                        onMove = { showMoveFileDialog = it },
-                        onDownload = { viewModel.downloadFile(it) },
-                        onExternalPlayer = { viewModel.openInExternalPlayer(it) },
-                        onCopyPublic = { viewModel.copyPublicLink(it) },
-                        onRevokePublic = { viewModel.revokePublicLink(it) },
-                        onCopyDownload = { viewModel.copyDownloadLink(it) },
-                        onGoToFolder = { 
-                            // folderId might be null for root files, but user wants to 'go to folder'
-                            // Let's assume folderName is "Home" if folderId is null
-                            onGoToFolder(file.folderId ?: -1, "Files") 
-                        }
-                    )
+            if (uiState.searchMode == SearchMode.MUSIC) {
+                Log.d("MobileSearchScreen", "Showing ${uiState.musicResults.size} music results")
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(uiState.musicResults) { track ->
+                        SearchMusicCard(
+                            track = track,
+                            onPlay = { onPlayTrack(track.fileId) }
+                        )
+                    }
+                }
+            } else {
+                Log.d("MobileSearchScreen", "Showing ${uiState.results.size} file results")
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(uiState.results) { file ->
+                        SearchFileCard(
+                            file = file,
+                            serverUrl = uiState.serverUrl,
+                            onClick = onPlayFile,
+                            onRename = { showRenameFileDialog = it },
+                            onDelete = { showDeleteFileDialog = it },
+                            onMove = { showMoveFileDialog = it },
+                            onDownload = { viewModel.downloadFile(it) },
+                            onExternalPlayer = { viewModel.openInExternalPlayer(it) },
+                            onCopyPublic = { viewModel.copyPublicLink(it) },
+                            onRevokePublic = { viewModel.revokePublicLink(it) },
+                            onCopyDownload = { viewModel.copyDownloadLink(it) },
+                            onGoToFolder = {
+                                onGoToFolder(file.folderId ?: -1, "Files")
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -209,7 +259,7 @@ fun MobileSearchScreen(
 
 @Composable
 fun SearchFileCard(
-    file: com.telegramtv.data.model.FileItem,
+    file: FileItem,
     serverUrl: String,
     onClick: (Int) -> Unit,
     onRename: (FileItem) -> Unit,
@@ -235,8 +285,8 @@ fun SearchFileCard(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MobileSurface)
             ) {
-                 coil.compose.AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
                         .data("$serverUrl/api/stream/${file.id}/thumbnail")
                         .crossfade(true)
                         .build(),
@@ -245,7 +295,7 @@ fun SearchFileCard(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            
+
             // Context Menu Overlay
             Box(
                 modifier = Modifier
@@ -266,13 +316,95 @@ fun SearchFileCard(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = file.fileName,
             color = MobileTextPrimary,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+    }
+}
+
+@Composable
+fun SearchMusicCard(
+    track: Track,
+    onPlay: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPlay() }
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MobileSurface)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (!track.coverUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(track.coverUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(Color(0xFF282828)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (track.mediaType == "reel") "🎬" else "🎵",
+                            fontSize = androidx.compose.ui.text.style.TextStyle.Default.fontSize * 2
+                        )
+                    }
+                }
+
+                // Media type badge
+                if (track.mediaType != "audio") {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .background(
+                                color = if (track.mediaType == "reel") Color(0xFF8B5CF6) else Color(0xFFEF4444),
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (track.mediaType == "reel") "Reel" else "MV",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = track.title,
+            color = MobileTextPrimary,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        Text(
+            text = track.artist?.name ?: "Unknown",
+            color = MobileTextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp)
         )

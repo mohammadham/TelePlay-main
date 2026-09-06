@@ -156,6 +156,7 @@ fun MainAppScreen(
             composable(BottomNavItem.Search.route) {
                 com.telegramtv.ui.mobile.search.MobileSearchScreen(
                     onPlayFile = onNavigateToPlayer,
+                    onPlayTrack = onNavigateToPlayer,
                     onGoToFolder = { folderId, folderName ->
                          tabNavController.navigate(BottomNavItem.Home.route + "?folderId=$folderId&folderName=$folderName") {
                             popUpTo(tabNavController.graph.findStartDestination().id) {

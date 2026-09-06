@@ -21,7 +21,7 @@ router = APIRouter(prefix="/v1/music", tags=["Music"])
 # Rate limiter for music endpoints
 limiter = Limiter(key_func=get_remote_address)
 
-def _track_to_resp(t: Track, is_liked=False) -> dict:
+def _track_to_resp(t: Track, is_liked: bool = False) -> Dict[str, Any]:
     return {
         "id": t.id, "title": t.title, "artist_id": t.artist_id,
         "artist": t.artist, "album_id": t.album_id, "album": t.album,
@@ -69,7 +69,7 @@ async def get_track(track_id: int, db: AsyncSession = Depends(get_db), current_u
     return TrackResponse(**_track_to_resp(t, liked))
 
 @router.post("/tracks", response_model=TrackResponse)
-async def create_track(payload: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_track(payload: Dict[str, Any], db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)) -> TrackResponse:
     # Admin-only track creation (uses existing File)
     from ..config import get_settings
     settings = get_settings()

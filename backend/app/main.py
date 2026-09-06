@@ -3,7 +3,8 @@ FastAPI main application with Telegram MTProto client lifecycle.
 """
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -16,8 +17,10 @@ import os
 
 logging.getLogger("pyrogram").setLevel(logging.INFO)
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from .config import get_settings, mark_db_ready
-from .database import init_db
+from .database import init_db, get_db
 from .telegram import start_telegram_client, stop_telegram_client
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router, video_router
 from .routers.settings import router as settings_router
@@ -146,9 +149,15 @@ app.include_router(admin_admins_router, prefix="/api")
 
 
 @app.get("/health")
-async def health():
-    """Health check for container orchestration."""
-    return {"status": "healthy"}
+async def health(db: AsyncSession = Depends(get_db)):
+    """Health check — verifies DB connectivity."""
+    status = {"status": "healthy", "db": "connected"}
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        status["db"] = f"error: {e}"
+        status["status"] = "degraded"
+    return status
 
 
 # Mount static files (assets)

@@ -307,6 +307,7 @@ import PlaylistView from './components/music/PlaylistView';
 import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
 import AdminDashboard from './components/admin/AdminDashboard';
+import VideoHome from './components/video/VideoHome';
 
 function MusicLayout() {
     return (
@@ -319,6 +320,7 @@ function MusicLayout() {
 function MusicSearchLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><SearchView /><NowPlayingBar/></div> }
 function MusicPlaylistsLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><PlaylistView /><NowPlayingBar/></div> }
 function MusicDownloadsLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><Downloads /><NowPlayingBar/></div> }
+function VideoLayout(){ return <VideoHome /> }
 
 function AdminLayout() {
     return <AdminDashboard />;
@@ -331,6 +333,7 @@ const PUBLIC_ROUTES = ['/setup', '/login', '/auth'];
 // All valid app routes (pre-setup → redirect to /setup; post-setup → show 404)
 const KNOWN_ROUTES = [
     '/', '/admin', '/admin/cache', '/admin/settings',
+    '/video',
     '/music', '/music/search', '/music/playlists', '/music/downloads',
 ];
 
@@ -401,6 +404,7 @@ function App() {
                 <Route path="/" element={<ProtectedRoute><Navigate to={needsSetup ? "/setup" : "/admin"} replace /></ProtectedRoute>} />
 
                 {/* Authenticated routes */}
+                <Route path="/video" element={<ProtectedRoute><VideoLayout /></ProtectedRoute>} />
                 <Route path="/music" element={<ProtectedRoute><MusicLayout /></ProtectedRoute>} />
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists" element={<ProtectedRoute><MusicPlaylistsLayout /></ProtectedRoute>} />

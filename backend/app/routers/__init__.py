@@ -9,6 +9,7 @@ from .tv import router as tv_router
 from .music import router as music_router
 from .admin import router as admin_router
 from .ads import router as ads_router
+from .video import router as video_router
 
-__all__ = ["files_router", "folders_router", "streaming_router", "auth_router", "tv_router", "music_router", "admin_router", "ads_router"]
+__all__ = ["files_router", "folders_router", "streaming_router", "auth_router", "tv_router", "music_router", "admin_router", "ads_router", "video_router"]
 

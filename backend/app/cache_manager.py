@@ -116,6 +116,9 @@ async def get_stats() -> dict:
             "max_mb": DEFAULT_MAX_SIZE_MB,
             "cached_chunks": len(_lru),
             "strategy": DEFAULT_STRATEGY,
+            "video_used_mb": round(_video_bytes / 1024 / 1024, 2),
+            "video_max_mb": VIDEO_MAX_SIZE_MB,
+            "video_chunks": len(_video_lru),
         }
 
 async def purge(scope: str = "all", track_id: Optional[int] = None) -> int:
@@ -135,3 +138,56 @@ async def purge(scope: str = "all", track_id: Optional[int] = None) -> int:
                 _lru.pop(k, None)
                 removed += 1
     return removed
+
+
+# ==================== VIDEO CACHE ====================
+VIDEO_CACHE_DIR = os.getenv("VIDEO_CACHE_DIR", "/tmp/teleplay_cache_video")
+VIDEO_MAX_SIZE_MB = int(os.getenv("VIDEO_CACHE_MAX_SIZE_MB", "20480"))
+VIDEO_MAX_FILE_MB = int(os.getenv("VIDEO_CACHE_MAX_FILE_SIZE_MB", "500"))
+
+_video_dir = Path(VIDEO_CACHE_DIR)
+_video_dir.mkdir(parents=True, exist_ok=True)
+
+_video_lru: OrderedDict[str, dict] = OrderedDict()
+_video_bytes = 0
+
+
+async def get_video_chunk(file_id: int, offset: int, length: int) -> Optional[bytes]:
+    """Get cached video chunk by file_id."""
+    k = f"{file_id}:{offset}:{length}"
+    async with _lock:
+        if k in _video_lru:
+            _video_lru.move_to_end(k)
+            path = _video_dir / f"{k.replace(':', '_')}.chunk"
+            if path.exists():
+                return path.read_bytes()
+            _video_lru.pop(k, None)
+    return None
+
+
+async def put_video_chunk(file_id: int, offset: int, length: int, data: bytes, file_size: int) -> None:
+    """Cache video chunk to disk with LRU eviction."""
+    global _video_bytes
+    if file_size > VIDEO_MAX_FILE_MB * 1024 * 1024:
+        return
+    k = f"{file_id}:{offset}:{length}"
+    path = _video_dir / f"{k.replace(':', '_')}.chunk"
+    async with _lock:
+        if k in _video_lru:
+            return
+        data_len = len(data)
+        while _video_bytes + data_len > VIDEO_MAX_SIZE_MB * 1024 * 1024 and _video_lru:
+            oldest_k, oldest_v = _video_lru.popitem(last=False)
+            (_video_dir / f"{oldest_k.replace(':', '_')}.chunk").unlink(missing_ok=True)
+            _video_bytes -= oldest_v.get("size", 0)
+        path.write_bytes(data)
+        _video_lru[k] = {"size": data_len}
+        _video_bytes += data_len
+
+
+async def get_video_stats() -> dict:
+    return {
+        "video_used_mb": round(_video_bytes / 1024 / 1024, 2),
+        "video_max_mb": VIDEO_MAX_SIZE_MB,
+        "video_chunks": len(_video_lru),
+    }

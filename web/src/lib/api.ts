@@ -530,3 +530,8 @@ export const useSetupStatus = () => {
         retry: 1,
     });
 };
+
+export const getVideoBrowse = async () => {
+    const { data } = await api.get('/v1/video/browse');
+    return data;
+};

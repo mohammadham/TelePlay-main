@@ -1,9 +1,10 @@
-import { Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode, useSetupStatus } from './lib/api';
 import FileBrowser from './components/FileBrowser';
 import GlobalContextMenu from './components/GlobalContextMenu';
 import SetupPage from './components/SetupPage';
+import NotFound from './components/NotFound';
 import logo from './assets/logo.png';
 
 function AuthCallback() {
@@ -36,7 +37,6 @@ function AuthCallback() {
         }
     }, [token, navigate]);
 
-    // If saved but still on this page, try redirect again
     useEffect(() => {
         if (saved) {
             const timer = setTimeout(() => {
@@ -80,17 +80,11 @@ function AuthCallback() {
     );
 }
 
-// Add Key icon to imports if not already imported (it's not, need to check imports)
-// Wait, I can't easily add imports here without multiple replace.
-// I'll stick to simple UI for now or check imports first.
-// App.tsx imports: Routes, Route, Navigate, useSearchParams, useNavigate (react-router-dom); useEffect, useState (react); useCurrentUser (./lib/api); FileBrowser
-// It does NOT import lucide-react icons. I'll use text or existing SVG.
-
 function LoginPage() {
     const { mutate: loginByCode, isPending: isVerifying } = useLoginWithCode();
     const { mutate: generateCode, isPending: isGenerating } = useGenerateLoginCode();
     const { mutate: verifyCode } = useVerifyLoginCode();
-    
+
     const [code, setCode] = useState('');
     const [isPolling, setIsPolling] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -210,14 +204,14 @@ function LoginPage() {
                                 </p>
                             )}
                         </form>
-                        
+
                         {isPolling && (
                             <div className="flex items-center justify-center gap-2 mt-4 text-xs text-dark-400">
                                 <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></div>
                                 Waiting for confirmation...
                             </div>
                         )}
-                        
+
                         <p className="text-xs text-dark-500 mt-4">
                             Send <span className="text-primary-400 font-mono bg-dark-800/50 px-1.5 py-0.5 rounded">/login {code || 'CODE'}</span> to the bot to get a code.
                         </p>
@@ -241,8 +235,8 @@ function LoginPage() {
 
 function BotLink({ code }: { code?: string }) {
     const { data: botInfo } = useBotInfo();
-    const botUrl = botInfo?.username 
-        ? `https://t.me/${botInfo.username}${code ? `?start=${code}` : ''}` 
+    const botUrl = botInfo?.username
+        ? `https://t.me/${botInfo.username}${code ? `?start=${code}` : ''}`
         : '#';
 
     return (
@@ -264,14 +258,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { data: user, isLoading, error } = useCurrentUser();
     const token = localStorage.getItem('access_token');
 
-    console.log('[ProtectedRoute] Token exists:', !!token);
-    console.log('[ProtectedRoute] isLoading:', isLoading);
-    console.log('[ProtectedRoute] error:', error);
-    console.log('[ProtectedRoute] user:', user);
-
     if (!token) {
-        console.log('[ProtectedRoute] No token, redirecting to login');
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/404" replace />;
     }
 
     if (isLoading) {
@@ -286,8 +274,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
 
     if (error) {
-        console.log('[ProtectedRoute] Auth error, showing error message');
-        // Show error instead of immediately redirecting
         return (
             <div className="min-h-screen flex items-center justify-center bg-dark-950 p-4">
                 <div className="text-center max-w-md">
@@ -298,11 +284,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
                     <button
                         onClick={() => {
                             localStorage.removeItem('access_token');
-                            window.location.href = '/login';
+                            window.location.href = '/404';
                         }}
                         className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded text-white"
                     >
-                        Go to Login
+                        صفحه ۴۰۴
                     </button>
                 </div>
             </div>
@@ -315,8 +301,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 import MediaPlayer from './components/MediaPlayer';
 import MusicHome from './components/music/MusicHome';
 import NowPlayingBar from './components/music/NowPlayingBar';
-import CachePanel from './components/admin/CachePanel';
-import AdsPanel from './components/admin/AdsPanel';
 import PlaylistView from './components/music/PlaylistView';
 import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
@@ -338,6 +322,61 @@ function AdminLayout() {
     return <AdminDashboard />;
 }
 
+// ── Allowed paths for pre-setup vs post-setup ────────────────────────────────
+// These paths are always accessible regardless of setup state.
+const PUBLIC_ROUTES = ['/setup', '/login', '/auth'];
+
+// All valid app routes (pre-setup → redirect to /setup; post-setup → show 404)
+const KNOWN_ROUTES = [
+    '/', '/admin', '/admin/cache', '/admin/settings',
+    '/music', '/music/search', '/music/playlists', '/music/downloads',
+];
+
+function RouteGuard() {
+    const location = useLocation();
+    const { data: setupData, isLoading: setupLoading } = useSetupStatus();
+    const needsSetup = !setupLoading && setupData && !setupData.configured;
+    const [resolved, setResolved] = useState(false);
+
+    // Resolve once to avoid Flash of wrong content before status loads
+    useEffect(() => {
+        const timer = setTimeout(() => setResolved(true), 0);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const path = location.pathname;
+
+    // Still loading — show spinner
+    if (!resolved || setupLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-dark-950">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                    <p className="text-dark-400">Loading…</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Public routes always render
+    if (PUBLIC_ROUTES.includes(path)) {
+        return null; // Let parent Routes handle them
+    }
+
+    if (needsSetup) {
+        // Not set up yet → force redirect to /setup
+        return <Navigate to="/setup" replace />;
+    }
+
+    // Setup is complete — known authenticated routes need token check
+    if (KNOWN_ROUTES.includes(path)) {
+        return null; // Let parent Routes handle them
+    }
+
+    // Unknown route after setup → 404
+    return <Navigate to="/404" replace />;
+}
+
 function App() {
     const { data: setupData, isLoading: setupLoading } = useSetupStatus();
     const needsSetup = !setupLoading && setupData && !setupData.configured;
@@ -347,10 +386,18 @@ function App() {
             <GlobalContextMenu />
             <MediaPlayer />
             <Routes>
+                {/* Public routes (order matters — more specific first) */}
                 <Route path="/setup" element={needsSetup ? <SetupPage /> : <Navigate to="/login" replace />} />
                 <Route path="/login" element={!needsSetup ? <LoginPage /> : <Navigate to="/setup" replace />} />
                 <Route path="/auth" element={<AuthCallback />} />
-                <Route path="/" element={<Navigate to={needsSetup ? "/setup" : "/admin"} replace />} />
+
+                {/* 404 page */}
+                <Route path="/404" element={<NotFound />} />
+
+                {/* Root — redirects based on setup state */}
+                <Route path="/" element={<ProtectedRoute><Navigate to={needsSetup ? "/setup" : "/admin"} replace /></ProtectedRoute>} />
+
+                {/* Authenticated routes */}
                 <Route path="/music" element={<ProtectedRoute><MusicLayout /></ProtectedRoute>} />
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists" element={<ProtectedRoute><MusicPlaylistsLayout /></ProtectedRoute>} />
@@ -358,14 +405,9 @@ function App() {
                 <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
-                <Route
-                    path="/*"
-                    element={
-                        <ProtectedRoute>
-                            <FileBrowser />
-                        </ProtectedRoute>
-                    }
-                />
+
+                {/* Catch-all: authenticated or 404 depending on setup state */}
+                <Route path="/*" element={<RouteGuard />} />
             </Routes>
         </>
     );

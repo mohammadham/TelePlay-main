@@ -8,15 +8,16 @@ from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
-from ..models import File, User, Folder, WatchProgress
+from ..models import File, User, Folder, WatchProgress, Track
 from ..auth import get_current_user
 from ..config import get_settings
 from ..services import (
-    escape_like, 
-    add_urls_to_file, 
-    fetch_recent_files, 
+    escape_like,
+    add_urls_to_file,
+    fetch_recent_files,
     fetch_continue_watching_files
 )
+from ..schemas import TrackResponse  # used in type hints if needed
 
 router = APIRouter(prefix="/tv", tags=["TV"])
 settings = get_settings()
@@ -29,15 +30,15 @@ async def tv_browse(
 ):
     """
     Get TV home screen data in a single request.
-    Returns continue watching, recent files, and folders.
+    Returns continue watching, recent files, folders, and music data.
     Optimized for TV client to minimize API calls.
     """
     # Get continue watching
     continue_watching = await fetch_continue_watching_files(db, current_user.id, 20)
-    
+
     # Get recent files
     recent_files = await fetch_recent_files(db, current_user.id, 20)
-    
+
     # Get top-level folders
     folders_query = (
         select(Folder)
@@ -46,7 +47,33 @@ async def tv_browse(
     )
     folders_result = await db.execute(folders_query)
     folders = folders_result.scalars().all()
-    
+
+    # Get featured music videos (play_count >= 10, media_type=music_video)
+    featured_mvs_query = (
+        select(Track)
+        .where(
+            Track.media_type == "music_video",
+            Track.play_count >= 10
+        )
+        .options(selectinload(Track.artist))
+        .order_by(desc(Track.play_count))
+        .limit(10)
+    )
+    featured_mvs_result = await db.execute(featured_mvs_query)
+    featured_mvs = featured_mvs_result.scalars().all()
+
+    # Get music history (recently played tracks) grouped by genre
+    history_query = (
+        select(Track)
+        .join(File, Track.file_id == File.id)
+        .where(File.user_id == current_user.id)
+        .options(selectinload(Track.artist))
+        .order_by(desc(File.created_at))
+        .limit(20)
+    )
+    history_result = await db.execute(history_query)
+    history_tracks = history_result.scalars().all()
+
     return {
         "continue_watching": [add_urls_to_file(f) for f in continue_watching],
         "recent": [add_urls_to_file(f) for f in recent_files],
@@ -55,11 +82,89 @@ async def tv_browse(
                 "id": f.id,
                 "name": f.name,
                 "parent_id": f.parent_id,
-                "file_count": None  # Can be computed if needed
+                "file_count": None
             }
             for f in folders
-        ]
+        ],
+        "featured_music_videos": [
+            _track_to_resp(t) for t in featured_mvs
+        ],
+        "music_history_by_genre": _tracks_by_genre(history_tracks),
     }
+
+
+def _track_to_resp(t: Track) -> dict:
+    cover_url = None
+    if t.cover_file_id:
+        cover_url = f"/api/stream/cover/{t.cover_file_id}"
+    return {
+        "id": t.id,
+        "title": t.title,
+        "artist_id": t.artist_id,
+        "artist": {"id": t.artist.id, "name": t.artist.name} if t.artist else None,
+        "album_id": t.album_id,
+        "file_id": t.file_id,
+        "duration": t.duration,
+        "genre": t.genre,
+        "play_count": t.play_count,
+        "like_count": t.like_count,
+        "stream_url": f"/api/stream/{t.file_id}",
+        "cover_url": cover_url,
+        "media_type": t.media_type,
+    }
+
+
+def _tracks_by_genre(tracks: List[Track]) -> dict:
+    """Group tracks by genre for TV browse."""
+    genres = {}
+    for t in tracks:
+        g = t.genre or "Unknown"
+        if g not in genres:
+            genres[g] = []
+        if len(genres[g]) < 8:
+            genres[g].append(_track_to_resp(t))
+    return genres
+
+
+@router.get("/music/featured")
+async def tv_music_featured(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get featured music videos for TV hero row."""
+    query = (
+        select(Track)
+        .where(
+            Track.media_type == "music_video",
+            Track.play_count >= 10
+        )
+        .options(selectinload(Track.artist))
+        .order_by(desc(Track.play_count))
+        .limit(10)
+    )
+    result = await db.execute(query)
+    tracks = result.scalars().all()
+    return [_track_to_resp(t) for t in tracks]
+
+
+@router.get("/music/history/by-genre")
+async def tv_music_history_by_genre(
+    limit: int = Query(20, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get recently played tracks grouped by genre."""
+    query = (
+        select(Track)
+        .join(File, Track.file_id == File.id)
+        .where(File.user_id == current_user.id)
+        .options(selectinload(Track.artist))
+        .order_by(desc(File.created_at))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    tracks = result.scalars().all()
+    return _tracks_by_genre(tracks)
 
 
 @router.get("/continue")
@@ -92,6 +197,8 @@ async def tv_search(
     current_user: User = Depends(get_current_user),
 ):
     """Search files for TV client."""
+    from sqlalchemy import or_ as sql_or
+
     # Search files by name
     files_query = (
         select(File)
@@ -105,7 +212,7 @@ async def tv_search(
     )
     files_result = await db.execute(files_query)
     files = files_result.scalars().all()
-    
+
     # Search folders by name
     folders_query = (
         select(Folder)
@@ -118,7 +225,19 @@ async def tv_search(
     )
     folders_result = await db.execute(folders_query)
     folders = folders_result.scalars().all()
-    
+
+    # Search music tracks
+    tracks_query = (
+        select(Track)
+        .where(
+            Track.title.ilike(f"%{escape_like(q)}%", escape="\\")
+        )
+        .options(selectinload(Track.artist))
+        .limit(limit)
+    )
+    tracks_result = await db.execute(tracks_query)
+    tracks = tracks_result.scalars().all()
+
     return {
         "files": [add_urls_to_file(f) for f in files],
         "folders": [
@@ -128,7 +247,8 @@ async def tv_search(
                 "parent_id": f.parent_id
             }
             for f in folders
-        ]
+        ],
+        "music": [_track_to_resp(t) for t in tracks],
     }
 
 
@@ -143,16 +263,16 @@ async def tv_folder_detail(
     Returns folder info, subfolders, files, and parent path for navigation.
     """
     from fastapi import HTTPException
-    
+
     # Get the folder
     folder_result = await db.execute(
         select(Folder).where(Folder.id == folder_id, Folder.user_id == current_user.id)
     )
     folder = folder_result.scalar_one_or_none()
-    
+
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
-    
+
     # Get subfolders
     subfolders_result = await db.execute(
         select(Folder)
@@ -160,7 +280,7 @@ async def tv_folder_detail(
         .order_by(Folder.name)
     )
     subfolders = subfolders_result.scalars().all()
-    
+
     # Get files in this folder
     files_result = await db.execute(
         select(File)
@@ -169,7 +289,7 @@ async def tv_folder_detail(
         .order_by(File.file_name)
     )
     files = files_result.scalars().all()
-    
+
     # Build parent path for breadcrumb navigation
     parent_path = []
     current_folder = folder
@@ -190,7 +310,7 @@ async def tv_folder_detail(
             current_folder = parent
         else:
             break
-    
+
     return {
         "folder": {
             "id": folder.id,

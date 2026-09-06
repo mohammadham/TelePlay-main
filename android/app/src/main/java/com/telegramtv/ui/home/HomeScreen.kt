@@ -106,6 +106,24 @@ fun HomeScreen(
                             }
                         }
 
+                        // Featured Music Videos hero row
+                        if (uiState.featuredMusicVideos.isNotEmpty()) {
+                            item {
+                                ContentSection(
+                                    title = "Featured Music Videos",
+                                    subtitle = "Top plays",
+                                    icon = Icons.Default.VideoLibrary
+                                ) {
+                                    MusicRow(
+                                        title = "",
+                                        tracks = uiState.featuredMusicVideos,
+                                        serverUrl = uiState.serverUrl,
+                                        onTrackClick = onFileClick
+                                    )
+                                }
+                            }
+                        }
+
                         // Recently Added section
                         if (uiState.recentFiles.isNotEmpty()) {
                             item {
@@ -120,6 +138,31 @@ fun HomeScreen(
                                         serverUrl = uiState.serverUrl,
                                         onFileClick = onFileClick
                                     )
+                                }
+                            }
+                        }
+
+                        // Listen by Genre section
+                        if (uiState.musicHistoryByGenre.isNotEmpty()) {
+                            val genreNames = uiState.musicHistoryByGenre.keys.take(5)
+                            genreNames.forEach { genre ->
+                                val genreTracks = uiState.musicHistoryByGenre[genre] ?: emptyList()
+                                if (genreTracks.isNotEmpty()) {
+                                    item {
+                                        ContentSection(
+                                            title = genre,
+                                            subtitle = "${genreTracks.size} tracks",
+                                            icon = Icons.Default.MusicNote
+                                        ) {
+                                            MusicRow(
+                                                title = "",
+                                                tracks = genreTracks,
+                                                serverUrl = uiState.serverUrl,
+                                                onTrackClick = onFileClick,
+                                                showBadge = false
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

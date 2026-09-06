@@ -41,4 +41,15 @@ class MusicRepository @Inject constructor(private val api: TelePlayApi) {
         val r = api.getDownloads()
         if (r.isSuccessful) Result.success(r.body()!!) else Result.failure(Exception(r.message()))
     } catch (e: Exception) { Result.failure(e) }
+
+    // TV-specific methods
+    suspend fun getFeaturedMusicVideos(): Result<List<com.telegramtv.data.model.TVMusicTrack>> = try {
+        val r = api.getMusicFeatured()
+        if (r.isSuccessful) Result.success(r.body()!!) else Result.failure(Exception("featured ${r.code()}"))
+    } catch (e: Exception) { Result.failure(e) }
+
+    suspend fun getMusicHistoryByGenre(limit: Int = 20): Result<Map<String, List<com.telegramtv.data.model.TVMusicTrack>>> = try {
+        val r = api.getMusicHistoryByGenre(limit)
+        if (r.isSuccessful) Result.success(r.body()!!) else Result.failure(Exception("genre ${r.code()}"))
+    } catch (e: Exception) { Result.failure(e) }
 }

@@ -246,4 +246,11 @@ interface TelePlayApi {
 
     @GET("ads/next")
     suspend fun getNextAd(@Query("play_count") playCount: Int): Response<Map<String, Any>>
+
+    // ============ TV Music Endpoints ============
+    @GET("tv/music/featured")
+    suspend fun getMusicFeatured(): Response<List<com.telegramtv.data.model.TVMusicTrack>>
+
+    @GET("tv/music/history/by-genre")
+    suspend fun getMusicHistoryByGenre(@Query("limit") limit: Int = 20): Response<Map<String, List<com.telegramtv.data.model.TVMusicTrack>>>
 }

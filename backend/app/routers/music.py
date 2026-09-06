@@ -23,13 +23,16 @@ router = APIRouter(prefix="/v1/music", tags=["Music"])
 limiter = Limiter(key_func=get_remote_address)
 
 def _track_to_resp(t: Track, is_liked: bool = False) -> Dict[str, Any]:
+    cover_url: Optional[str] = None
+    if t.album and t.album.cover_file_id:
+        cover_url = f"/api/stream/cover/{t.album.cover_file_id}"
     return {
         "id": t.id, "title": t.title, "artist_id": t.artist_id,
         "artist": t.artist, "album_id": t.album_id, "album": t.album,
         "file_id": t.file_id, "duration": t.duration, "genre": t.genre,
         "track_number": t.track_number, "play_count": t.play_count,
         "like_count": t.like_count, "created_at": t.created_at,
-        "stream_url": f"/api/stream/{t.file_id}", "cover_url": None,
+        "stream_url": f"/api/stream/{t.file_id}", "cover_url": cover_url,
         "is_liked": is_liked, "media_type": t.media_type,
     }
 
@@ -157,7 +160,7 @@ async def search(request: Request = None, q: str = Query(..., min_length=1), db:
 # Playlists
 @router.post("/playlists", response_model=PlaylistResponse)
 @limiter.limit("10/minute")
-async def create_playlist(payload: Dict[str, Any], db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> PlaylistResponse:
+async def create_playlist(request: Request = None, payload: Dict[str, Any] = None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> PlaylistResponse:
     p = Playlist(user_id=current_user.id, title=sanitize_text(payload.get("title","New Playlist")), is_public=payload.get("is_public", False))
     db.add(p); await db.commit(); await db.refresh(p)
     return PlaylistResponse(id=p.id, user_id=p.user_id, title=p.title, is_public=p.is_public, created_at=p.created_at, tracks=[])
@@ -191,7 +194,7 @@ async def remove_from_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_
 # Likes
 @router.post("/likes/{track_id}")
 @limiter.limit("30/minute")
-async def like_track(track_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, bool]:
+async def like_track(request: Request = None, track_id: int = None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, bool]:
     exists = (await db.execute(select(Like).where(Like.user_id==current_user.id, Like.track_id==track_id))).scalar_one_or_none()
     if not exists:
         db.add(Like(user_id=current_user.id, track_id=track_id))
@@ -238,7 +241,7 @@ async def list_downloads(db: AsyncSession=Depends(get_db), current_user: User=De
 
 @router.post("/downloads")
 @limiter.limit("10/minute")
-async def add_download(payload: Dict[str, Any], db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
+async def add_download(request: Request = None, payload: Dict[str, Any] = None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     from ..models import DownloadQueue
     track_id = payload.get("track_id")
     if not track_id: raise HTTPException(400, "track_id required")

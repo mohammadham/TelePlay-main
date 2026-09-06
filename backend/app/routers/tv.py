@@ -197,8 +197,6 @@ async def tv_search(
     current_user: User = Depends(get_current_user),
 ):
     """Search files for TV client."""
-    from sqlalchemy import or_ as sql_or
-
     # Search files by name
     files_query = (
         select(File)

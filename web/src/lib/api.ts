@@ -511,6 +511,26 @@ export const getFileIcon = (fileType: string): string => {
     }
 };
 
+export interface MusicTrack {
+    id: number;
+    title: string;
+    artist_id: number;
+    artist?: any;
+    album_id?: number | null;
+    album?: any;
+    file_id: number;
+    duration?: number | null;
+    genre?: string | null;
+    track_number?: number | null;
+    play_count: number;
+    like_count: number;
+    created_at: string;
+    stream_url?: string | null;
+    cover_url?: string | null;
+    is_liked: boolean;
+    media_type: 'audio' | 'music_video' | 'reel';
+}
+
 export interface SetupStatus {
     configured: boolean;
     telegram_bot_token_set: boolean;
@@ -531,7 +551,12 @@ export const useSetupStatus = () => {
     });
 };
 
-export const getVideoBrowse = async () => {
-    const { data } = await api.get('/v1/video/browse');
+export const getMusicTracks = async (params?: { q?: string; media_type?: string; genre?: string; page?: number; per_page?: number }) => {
+    const { data } = await api.get<MusicTrack[]>('/v1/music/tracks', { params });
+    return data;
+};
+
+export const getMusicArtists = async () => {
+    const { data } = await api.get<any[]>('/v1/music/artists');
     return data;
 };

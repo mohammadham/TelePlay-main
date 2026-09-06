@@ -49,7 +49,6 @@ sealed class BottomNavItem(
     object Search : BottomNavItem("search", "Search", Icons.Filled.Search, Icons.Outlined.Search)
     object Downloads : BottomNavItem("downloads", "Downloads", Icons.Filled.Download, Icons.Outlined.Download)
     object Music : BottomNavItem("music", "Music", Icons.Filled.MusicNote, Icons.Outlined.MusicNote)
-    object Video : BottomNavItem("video", "Video", Icons.Filled.Movie, Icons.Outlined.Movie)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -174,9 +173,6 @@ fun MainAppScreen(
             composable(BottomNavItem.Music.route) {
                 com.telegramtv.ui.mobile.music.MusicHomeScreen(onPlayTrack = onNavigateToPlayer)
             }
-            composable(BottomNavItem.Video.route) {
-                com.telegramtv.ui.mobile.video.MobileVideoHomeScreen(onPlayMovie = onNavigateToPlayer)
-            }
         }
     }
 }
@@ -191,7 +187,7 @@ fun GlassmorphismBottomNavigation(
         tonalElevation = 0.dp,
         modifier = Modifier
     ) {
-        val displayItems = listOf(BottomNavItem.Home, BottomNavItem.Video, BottomNavItem.Music, BottomNavItem.Search, BottomNavItem.Downloads)
+        val displayItems = listOf(BottomNavItem.Home, BottomNavItem.Music, BottomNavItem.Search, BottomNavItem.Downloads)
         displayItems.forEach { item ->
             val isSelected = currentRoute?.startsWith(item.route) == true
             NavigationBarItem(

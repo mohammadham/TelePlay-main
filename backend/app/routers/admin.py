@@ -113,14 +113,16 @@ _start_time = time.time()
 @router.get("/stats")
 async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
     from sqlalchemy import func
-    from ..models import User as U, File, Track, Movie, Ad, CacheConfig
+    from ..models import User as U, File, Track, Ad, CacheConfig
     # counts
     users = (await db.execute(select(func.count()).select_from(U))).scalar() or 0
     files = (await db.execute(select(func.count()).select_from(File))).scalar() or 0
     files_audio = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))).scalar() or 0
     files_video = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))).scalar() or 0
     tracks = (await db.execute(select(func.count()).select_from(Track))).scalar() or 0
-    movies = (await db.execute(select(func.count()).select_from(Movie))).scalar() or 0
+    tracks_audio = (await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="audio"))).scalar() or 0
+    tracks_mv = (await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="music_video"))).scalar() or 0
+    tracks_reel = (await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="reel"))).scalar() or 0
     ads = (await db.execute(select(func.count()).select_from(Ad))).scalar() or 0
     cache = await cache_manager.get_stats()
     # storage sum
@@ -128,8 +130,9 @@ async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(requ
     uptime = int(time.time() - _start_time)
     return {
         "users": users, "files": files, "files_audio": files_audio, "files_video": files_video,
-        "tracks": tracks, "movies": movies, "ads": ads, "storage_bytes": storage,
-        "cache": cache, "uptime_seconds": uptime, "python": platform.python_version(), "platform": platform.platform()
+        "tracks": tracks, "tracks_audio": tracks_audio, "tracks_music_video": tracks_mv, "tracks_reel": tracks_reel,
+        "ads": ads, "storage_bytes": storage, "cache": cache,
+        "uptime_seconds": uptime, "python": platform.python_version(), "platform": platform.platform()
     }
 
 @router.get("/users")

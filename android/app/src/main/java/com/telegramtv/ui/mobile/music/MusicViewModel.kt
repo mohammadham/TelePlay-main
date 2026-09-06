@@ -19,9 +19,16 @@ class MusicViewModel @Inject constructor(private val repo: MusicRepository) : Vi
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists
 
-    fun load() = viewModelScope.launch {
-        repo.getTracks().onSuccess { _tracks.value = it }
-        repo.getArtists().onSuccess { _artists.value = it }
+    fun load(tab: MusicTab) = viewModelScope.launch {
+        val mediaType = when (tab) {
+            MusicTab.MUSIC_VIDEO -> "music_video"
+            MusicTab.REEL -> "reel"
+            else -> null
+        }
+        repo.getTracks(mediaType = mediaType).onSuccess { _tracks.value = it }
+        if (tab == MusicTab.ALL) {
+            repo.getArtists().onSuccess { _artists.value = it }
+        }
         repo.getPlaylists().onSuccess { _playlists.value = it }
     }
     fun like(id: Int) = viewModelScope.launch { repo.likeTrack(id) }

@@ -29,19 +29,21 @@ def _track_to_resp(t: Track, is_liked: bool = False) -> Dict[str, Any]:
         "track_number": t.track_number, "play_count": t.play_count,
         "like_count": t.like_count, "created_at": t.created_at,
         "stream_url": f"/api/stream/{t.file_id}", "cover_url": None,
-        "is_liked": is_liked,
+        "is_liked": is_liked, "media_type": t.media_type,
     }
 
 @router.get("/tracks", response_model=list[TrackResponse])
 async def list_tracks(
     q: Optional[str] = None, artist_id: Optional[int] = None, album_id: Optional[int] = None,
-    genre: Optional[str] = None, page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=50),
+    genre: Optional[str] = None, media_type: Optional[str] = None,
+    page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     query = select(Track).options(selectinload(Track.artist), selectinload(Track.album))
     if q: query = query.where(or_(Track.title.ilike(f"%{q}%"), Track.genre.ilike(f"%{q}%")))
     if artist_id: query = query.where(Track.artist_id == artist_id)
     if album_id: query = query.where(Track.album_id == album_id)
     if genre: query = query.where(Track.genre == genre)
+    if media_type: query = query.where(Track.media_type == media_type)
     query = query.order_by(Track.created_at.desc()).offset((page-1)*per_page).limit(per_page)
     result = await db.execute(query)
     tracks = result.scalars().all()
@@ -88,7 +90,7 @@ async def create_track(payload: Dict[str, Any], db: AsyncSession = Depends(get_d
     if not artist_id: raise HTTPException(400, "artist_id or artist_name required")
     file_id = payload.get("file_id")
     if not file_id: raise HTTPException(400, "file_id required")
-    t = Track(title=payload.get("title","Untitled"), artist_id=artist_id, album_id=payload.get("album_id"), file_id=file_id, duration=payload.get("duration"), genre=payload.get("genre"), track_number=payload.get("track_number"))
+    t = Track(title=payload.get("title","Untitled"), artist_id=artist_id, album_id=payload.get("album_id"), file_id=file_id, duration=payload.get("duration"), genre=payload.get("genre"), track_number=payload.get("track_number"), media_type=payload.get("media_type", "audio"))
     db.add(t); await db.commit()
     await db.refresh(t)
     # reload with artist

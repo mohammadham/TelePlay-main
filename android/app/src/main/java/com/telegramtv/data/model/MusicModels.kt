@@ -33,7 +33,8 @@ data class Track(
     @SerializedName("like_count") val likeCount: Int = 0,
     @SerializedName("stream_url") val streamUrl: String? = null,
     @SerializedName("cover_url") val coverUrl: String? = null,
-    @SerializedName("is_liked") val isLiked: Boolean = false
+    @SerializedName("is_liked") val isLiked: Boolean = false,
+    @SerializedName("media_type") val mediaType: String = "audio"
 )
 
 data class Playlist(

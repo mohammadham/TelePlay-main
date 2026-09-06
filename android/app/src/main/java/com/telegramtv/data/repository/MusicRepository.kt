@@ -7,8 +7,8 @@ import javax.inject.Singleton
 
 @Singleton
 class MusicRepository @Inject constructor(private val api: TelePlayApi) {
-    suspend fun getTracks(q: String? = null, artistId: Int? = null): Result<List<Track>> = try {
-        val r = api.getTracks(q, artistId)
+    suspend fun getTracks(q: String? = null, artistId: Int? = null, mediaType: String? = null): Result<List<Track>> = try {
+        val r = api.getTracks(q, artistId, mediaType)
         if (r.isSuccessful) Result.success(r.body()!!) else Result.failure(Exception("tracks ${r.code()}"))
     } catch (e: Exception) { Result.failure(e) }
 

@@ -3,7 +3,6 @@ package com.telegramtv.di
 import android.content.Context
 import com.telegramtv.data.repository.AuthRepository
 import com.telegramtv.data.repository.SettingsRepository
-import com.telegramtv.data.repository.VideoRepository
 import com.telegramtv.data.api.TelePlayApi
 import dagger.Module
 import dagger.Provides
@@ -18,8 +17,5 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-
     // Repositories are provided by @Inject constructors
-    @Provides @Singleton
-    fun provideVideoRepository(api: TelePlayApi) = VideoRepository(api)
 }

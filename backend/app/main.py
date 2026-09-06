@@ -4,6 +4,7 @@ FastAPI main application with Telegram MTProto client lifecycle.
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler

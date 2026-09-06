@@ -144,7 +144,7 @@ async def search(q: str = Query(..., min_length=1), db: AsyncSession=Depends(get
 # Playlists
 @router.post("/playlists", response_model=PlaylistResponse)
 @limiter.limit("10/minute")
-async def create_playlist(payload: dict, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def create_playlist(payload: Dict[str, Any], db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> PlaylistResponse:
     p = Playlist(user_id=current_user.id, title=payload.get("title","New Playlist"), is_public=payload.get("is_public", False))
     db.add(p); await db.commit(); await db.refresh(p)
     return PlaylistResponse(id=p.id, user_id=p.user_id, title=p.title, is_public=p.is_public, created_at=p.created_at, tracks=[])
@@ -237,7 +237,7 @@ async def add_download(payload: Dict[str, Any], db: AsyncSession=Depends(get_db)
     return {"id": dq.id, "status": dq.status}
 
 @router.delete("/downloads/{dq_id}")
-async def delete_download(dq_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+async def delete_download(dq_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     from ..models import DownloadQueue
     from sqlalchemy import delete as sql_del
     await db.execute(sql_del(DownloadQueue).where(DownloadQueue.id==dq_id, DownloadQueue.user_id==current_user.id))

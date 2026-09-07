@@ -92,7 +92,7 @@ export default function TrackCard({
             <button
               onClick={onLike}
               className={`p-1 rounded ${isLiked ? 'text-[#1DB954]' : 'hover:text-white'}`}
-              title="Like"
+              title={isLiked ? 'Unlike' : 'Like'}
             >
               <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
             </button>

@@ -1,4 +1,5 @@
-import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Music, Settings2, Home, Search, List, Download } from 'lucide-react';
+import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Settings2, Home, Search, List, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
 import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '../lib/api';
@@ -11,6 +12,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const { activeSection, setActiveSection } = useAppStore();
+    const navigate = useNavigate();
     const { data: storage } = useStorageStats();
     const { data: user } = useCurrentUser();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -36,9 +38,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         }
     };
 
-    const handleNavClick = (section: 'home' | 'files' | 'recent' | 'continue_watching' | 'search' | 'playlists' | 'downloads') => {
-        setActiveSection(section);
+    const musicRoutes: Record<string, string> = {
+        home: '/music',
+        search: '/music/search',
+        playlists: '/music/playlists',
+        downloads: '/music/downloads',
+        history: '/music/history',
+    };
+
+    const handleNavClick = (section: string) => {
         onClose();
+        const route = musicRoutes[section];
+        if (route) {
+            navigate(route);
+        } else {
+            setActiveSection(section as 'files' | 'recent' | 'continue_watching');
+        }
     };
 
     const NavItem = ({ section, icon: Icon, label }: { section: string; icon: any; label: string }) => (
@@ -100,6 +115,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <NavItem section="search" icon={Search} label="Search" />
                     <NavItem section="playlists" icon={List} label="Playlists" />
                     <NavItem section="downloads" icon={Download} label="Downloads" />
+                    <NavItem section="history" icon={Clock} label="Recently Played" />
 
                     <p className="px-3 py-2 mt-4 text-xs font-semibold text-white/40 uppercase tracking-wider">
                         Library

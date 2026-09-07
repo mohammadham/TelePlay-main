@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 
 export default function PlaylistView() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['playlists'],
@@ -66,7 +68,7 @@ export default function PlaylistView() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up">
             {(data || []).map((p: any) => (
-              <div key={p.id} className="card-spotify p-4 group cursor-pointer">
+              <div key={p.id} className="card-spotify p-4 group cursor-pointer" onClick={() => navigate(`/music/playlists/${p.id}`)}>
                 <div className="aspect-square rounded-md bg-[#282828] flex items-center justify-center text-4xl mb-3 group-hover:scale-105 transition-transform">
                   🎵
                 </div>

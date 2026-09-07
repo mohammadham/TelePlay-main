@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode, useSetupStatus } from './lib/api';
-import FileBrowser from './components/FileBrowser';
 import GlobalContextMenu from './components/GlobalContextMenu';
 import SetupPage from './components/SetupPage';
 import NotFound from './components/NotFound';
@@ -258,7 +257,7 @@ function BotLink({ code }: { code?: string }) {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-    const { data: user, isLoading, error } = useCurrentUser();
+    const { isLoading, error } = useCurrentUser();
     const token = localStorage.getItem('access_token');
 
     if (!token) {
@@ -307,6 +306,8 @@ import NowPlayingBar from './components/music/NowPlayingBar';
 import PlaylistView from './components/music/PlaylistView';
 import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
+import HistoryView from './components/music/HistoryView';
+import PlaylistDetail from './components/music/PlaylistDetail';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
 
@@ -324,6 +325,8 @@ function MusicLayout({ children }: { children: React.ReactNode }) {
 function MusicSearchLayout(){ return <MusicLayout><SearchView /></MusicLayout> }
 function MusicPlaylistsLayout(){ return <MusicLayout><PlaylistView /></MusicLayout> }
 function MusicDownloadsLayout(){ return <MusicLayout><Downloads /></MusicLayout> }
+function MusicHistoryLayout(){ return <MusicLayout><HistoryView /></MusicLayout> }
+function MusicPlaylistDetailLayout(){ return <PlaylistDetail /> }
 
 function AdminLayout() {
     return <AdminDashboard />;
@@ -336,7 +339,7 @@ const PUBLIC_ROUTES = ['/setup', '/login', '/auth'];
 // All valid app routes (pre-setup → redirect to /setup; post-setup → show 404)
 const KNOWN_ROUTES = [
     '/', '/admin', '/admin/cache', '/admin/settings',
-    '/music', '/music/search', '/music/playlists', '/music/downloads',
+    '/music', '/music/search', '/music/playlists', '/music/playlists/:id', '/music/downloads', '/music/history',
 ];
 
 function RouteGuard() {
@@ -417,6 +420,8 @@ function App() {
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists" element={<ProtectedRoute><MusicPlaylistsLayout /></ProtectedRoute>} />
                 <Route path="/music/downloads" element={<ProtectedRoute><MusicDownloadsLayout /></ProtectedRoute>} />
+                <Route path="/music/history" element={<ProtectedRoute><MusicHistoryLayout /></ProtectedRoute>} />
+                <Route path="/music/playlists/:id" element={<ProtectedRoute><MusicPlaylistDetailLayout /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />

@@ -71,21 +71,6 @@ export interface StorageStats {
     limit: number;
 }
 
-export interface StorageStats {
-    total_size: number;
-    limit: number;
-}
-
-export interface StorageStats {
-    total_size: number;
-    limit: number;
-}
-
-export interface StorageStats {
-    total_size: number;
-    limit: number;
-}
-
 export interface AuthResponse {
     access_token: string;
     refresh_token: string;
@@ -527,7 +512,9 @@ export interface MusicTrack {
     created_at: string;
     stream_url?: string | null;
     cover_url?: string | null;
+    thumbnail_url?: string | null;
     is_liked: boolean;
+    explicit?: boolean;
     media_type: 'audio' | 'music_video' | 'reel';
 }
 
@@ -596,5 +583,36 @@ export const useAdminUserDetail = (telegramId: number) => {
             return data;
         },
         enabled: !!telegramId,
+    });
+};
+
+// ============== Music Hooks ==============
+export interface MusicHistoryItem {
+    id: number;
+    track_id: number;
+    track_title: string;
+    played_at: string;
+}
+
+export const useMusicHistory = (limit = 20) => {
+    return useQuery<MusicHistoryItem[]>({
+        queryKey: ['music-history', limit],
+        queryFn: async () => {
+            const { data } = await api.get<MusicHistoryItem[]>('/v1/music/history', { params: { limit } });
+            return data;
+        },
+        staleTime: 30_000,
+    });
+};
+
+export const useToggleLike = () => {
+    return useMutation({
+        mutationFn: async ({ trackId, liked }: { trackId: number; liked: boolean }) => {
+            if (liked) {
+                await api.delete(`/v1/music/likes/${trackId}`);
+            } else {
+                await api.post(`/v1/music/likes/${trackId}`);
+            }
+        },
     });
 };

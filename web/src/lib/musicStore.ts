@@ -29,8 +29,15 @@ export const useMusicStore = create<MusicState>((set, get) => ({
   setQueue: (tracks, index) => set({ queue: tracks, queueIndex: index, currentTrack: tracks[index], isPlaying: true }),
   setPlaying: (p) => set({ isPlaying: p }),
   playNext: () => {
-    const { queue, queueIndex } = get()
-    if (queueIndex + 1 < queue.length) set({ queueIndex: queueIndex+1, currentTrack: queue[queueIndex+1], isPlaying: true })
+    const { queue, queueIndex, shuffle } = get()
+    let nextIndex: number
+    if (shuffle) {
+      nextIndex = Math.floor(Math.random() * queue.length)
+    } else {
+      nextIndex = queueIndex + 1
+      if (nextIndex >= queue.length) nextIndex = 0 // loop
+    }
+    set({ queueIndex: nextIndex, currentTrack: queue[nextIndex], isPlaying: true })
   },
   playPrev: () => {
     const { queue, queueIndex } = get()

@@ -4,7 +4,7 @@ import { useMusicStore } from '../../lib/musicStore'
 import { api } from '../../lib/api'
 
 export default function NowPlayingBar() {
-  const { currentTrack, isPlaying, queue, queueIndex, shuffle, repeat, setShuffle, setRepeat, setPlaying, playNext, playPrev, setQueue } = useMusicStore()
+  const { currentTrack, isPlaying, queueIndex, shuffle, repeat, setShuffle, setRepeat, setPlaying, playNext, playPrev } = useMusicStore()
   const mediaRef = useRef<HTMLAudioElement | HTMLVideoElement>(null)
   const progressRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState(0)
@@ -15,7 +15,6 @@ export default function NowPlayingBar() {
   })
   const [isMuted, setIsMuted] = useState(false)
   const [isMini, setIsMini] = useState(false)
-  const [isHovering, setIsHovering] = useState(false)
 
   // Persist volume
   useEffect(() => {
@@ -44,8 +43,11 @@ export default function NowPlayingBar() {
   // Auto-advance on end
   const handleEnded = () => {
     if (repeat === 'one') {
-      if (mediaRef.current) (mediaRef.current as any).currentTime = 0
-      (mediaRef.current as any).play().catch(() => {})
+      const el = mediaRef.current
+      if (el) {
+        ;(el as any).currentTime = 0
+        ;(el as any).play().catch(() => {})
+      }
     } else {
       playNext()
     }
@@ -78,7 +80,7 @@ export default function NowPlayingBar() {
   const nextTrack = () => playNext()
 
   const setShuffleToggle = () => setShuffle(!shuffle)
-  const toggleRepeat = () => setRepeat(repeat === 'off' ? 'all' : 'off')
+  const toggleRepeat = () => setRepeat(repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off')
 
   const volumeDisplay = isMuted ? 0 : volume
   const toggleMute = () => {
@@ -141,8 +143,8 @@ export default function NowPlayingBar() {
       {!compact && (
         <div
           className="flex items-center gap-2 w-full"
-          onMouseEnter={() => setIsHovering(true)}
-          onMouseLeave={() => setIsHovering(false)}
+          onMouseEnter={() => {}}
+          onMouseLeave={() => {}}
         >
           <span className="text-xs text-white/60 w-10 text-right tabular-nums">{formatTime(progress)}</span>
           <div className="relative flex-1 group">

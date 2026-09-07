@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { api, getMusicTracks, MusicTrack } from '../../lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { api, MusicTrack, useToggleLike } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
@@ -32,12 +32,17 @@ export default function MusicHome() {
   })
   const { setQueue } = useMusicStore()
   const { setPreviewFile } = useAppStore()
+  const qc = useQueryClient()
   const [downloading, setDownloading] = useState<number | null>(null)
+  const toggleLike = useToggleLike()
 
   const list: MusicTrack[] = Array.isArray(tracks) ? tracks : []
 
-  const like = async (id: number) => {
-    try { await api.post(`/v1/music/likes/${id}`) } catch {}
+  const handleLike = async (track: MusicTrack) => {
+    try {
+      await toggleLike.mutateAsync({ trackId: track.id, liked: track.is_liked })
+      await qc.invalidateQueries({ queryKey: ['music-tracks', mediaType] })
+    } catch {}
   }
 
   const download = async (id: number) => {
@@ -164,7 +169,7 @@ export default function MusicHome() {
                   track={t}
                   isVideo={t.media_type === 'music_video' || t.media_type === 'reel'}
                   onPlay={() => playTrack(t)}
-                  onLike={() => like(t.id)}
+                  onLike={() => handleLike(t)}
                   downloading={downloading === t.id}
                   onDownload={() => download(t.id)}
                 />

@@ -175,6 +175,13 @@ async def list_playlists(db: AsyncSession=Depends(get_db), current_user: User=De
         out.append(PlaylistResponse(id=p.id, user_id=p.user_id, title=p.title, is_public=p.is_public, created_at=p.created_at, tracks=[TrackResponse(**_track_to_resp(t)) for t in rows]))
     return out
 
+@router.get("/playlists/{pid}")
+async def get_playlist(pid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+    p = (await db.execute(select(Playlist).where(Playlist.id==pid, Playlist.user_id==current_user.id))).scalar_one_or_none()
+    if not p: raise HTTPException(404, "Playlist not found")
+    rows = (await db.execute(select(Track).join(PlaylistTrack, Track.id==PlaylistTrack.track_id).where(PlaylistTrack.playlist_id==p.id).options(selectinload(Track.artist)).order_by(PlaylistTrack.position))).scalars().all()
+    return PlaylistResponse(id=p.id, user_id=p.user_id, title=p.title, is_public=p.is_public, created_at=p.created_at, tracks=[TrackResponse(**_track_to_resp(t, t.id in (await db.execute(select(Like.track_id).where(Like.user_id==current_user.id))).scalars().all())) for t in rows])
+
 @router.post("/playlists/{pid}/tracks/{tid}")
 async def add_to_playlist(pid: int, tid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     p = (await db.execute(select(Playlist).where(Playlist.id==pid, Playlist.user_id==current_user.id))).scalar_one_or_none()

@@ -103,9 +103,32 @@ async def lifespan(app: FastAPI):
                     logger.error("All %d Telegram startup attempts failed. Bot will remain unavailable until restart or manual /api/telegram/start.", max_retries)
         logger.info("Telegram client started")
 
-    # Load user accounts into pool
+    # Load user accounts into pool — auto-reset on decryption failure
     from .pool_manager import load_user_accounts
     await load_user_accounts()
+
+    # Check if DB data is readable; log clear warning if decryption fails
+    from .encryption import decrypt as _dec
+    from sqlalchemy import select as _sel
+    from .database import get_sessionmaker as _get_sm
+    async with _get_sm() as _db:
+        from .models import UserAccount, BotConfig
+        acc_rows = (await _db.execute(_sel(UserAccount))).scalars().all()
+        bot_rows = (await _db.execute(_sel(BotConfig))).scalars().all()
+        dec_errors = 0
+        for a in acc_rows:
+            if not _dec(a.session_string_encrypted):
+                dec_errors += 1
+        for b in bot_rows:
+            if not _dec(b.token_encrypted):
+                dec_errors += 1
+        if dec_errors > 0:
+            logger.error(
+                "Decryption key mismatch — %d credential(s) unreadable. "
+                "This usually means JWT_SECRET changed. "
+                "Either restore the original JWT_SECRET or run setup wizard again.",
+                dec_errors
+            )
 
     # Background task: periodically verify Telegram bot health and auto-restart on disconnect
     from .telegram import start_telegram_client as _bg_start, stop_all_clients as _bg_stop, clients as _bg_clients

@@ -51,7 +51,7 @@ async def get_telegram_status(
 ):
     """Get current Telegram bot status — connection, configured state, client pool."""
     settings = get_settings()
-    configured = is_configured(settings)
+    configured = await is_configured(settings)
 
     bot_token_set = bool(settings.telegram_bot_token and
                         settings.telegram_bot_token != "your_bot_token")

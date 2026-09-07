@@ -25,7 +25,7 @@ def _build_engine():
     elif url.drivername == "sqlite":
         url = url.set(drivername="sqlite+aiosqlite")
     eng = create_async_engine(
-        url, echo=False, pool_pre_ping=True, pool_recycle=1800, pool_size=40, max_overflow=20
+        url, echo=False, pool_pre_ping=True, pool_recycle=1800, pool_size=10, max_overflow=10
     )
     return eng, async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
 

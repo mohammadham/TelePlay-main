@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import CachePanel from './CachePanel'
@@ -14,6 +15,7 @@ function StatCard({ label, value }: { label: string; value: any }) {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'>('overview')
   const { data: stats } = useQuery({ queryKey: ['admin-stats'], queryFn: async()=>(await api.get('/admin/stats')).data, enabled: tab==='overview' })
   const { data: users } = useQuery({ queryKey: ['admin-users'], queryFn: async()=>(await api.get('/admin/users')).data, enabled: tab==='users' })
@@ -25,7 +27,9 @@ export default function AdminDashboard() {
       <div className="border-b border-white/[0.06] bg-dark-900/50 backdrop-blur sticky top-0 z-10">
         <div className="px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">Admin Panel</h1>
-          <span className="text-xs text-dark-400">/admin — admin-only (ADMIN_TELEGRAM_IDS)</span>
+          <button onClick={() => navigate('/music')} className="btn-primary btn-sm gap-2">
+            🏠 داشبورد اصلی
+          </button>
         </div>
         <div className="flex gap-1 px-6 pb-3 overflow-x-auto">
           {(['overview','users','user-detail','files','bots','accounts','admins','cache','ads','system','settings'] as const).map(t=>(

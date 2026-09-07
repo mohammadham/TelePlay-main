@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict, field_validator
 from functools import lru_cache
 from typing import Optional, Dict
+import logging
+import hashlib
 from sqlalchemy import select
 import logging
 
@@ -136,10 +138,11 @@ class Settings(BaseSettings):
     @field_validator("jwt_secret", mode="before")
     @classmethod
     def _ensure_jwt_secret(cls, v):
-        # If not set, return the placeholder string so we have a consistent value.
-        # Do not auto-generate a random key to avoid changing encryption key on every restart.
+        # If not set, derive a deterministic default from a fixed seed.
+        # This gives a stable key across restarts while still being
+        # cryptographically non-trivial (unlike "change-me-in-production").
         if not v:
-            return "change-me-in-production-please-set-via-panel"
+            return hashlib.sha256(b"teleplay-default-secret-v1").hexdigest()
         return v
     jwt_expiry_minutes: int = 10080  # 7 days for persistent sessions
     

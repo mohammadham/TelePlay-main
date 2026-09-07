@@ -118,27 +118,27 @@ async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(requ
     import asyncio
 
     async def _load_counts():
-        users = await db.execute(select(func.count()).select_from(U))
-        files = await db.execute(select(func.count()).select_from(File))
-        files_audio = await db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))
-        files_video = await db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))
-        tracks = await db.execute(select(func.count()).select_from(Track))
-        tracks_audio = await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="audio"))
-        tracks_mv = await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="music_video"))
-        tracks_reel = await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="reel"))
-        ads = await db.execute(select(func.count()).select_from(Ad))
-        storage = await db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))
+        users = db.execute(select(func.count()).select_from(U))
+        files = db.execute(select(func.count()).select_from(File))
+        files_audio = db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))
+        files_video = db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))
+        tracks = db.execute(select(func.count()).select_from(Track))
+        tracks_audio = db.execute(select(func.count()).select_from(Track).where(Track.media_type=="audio"))
+        tracks_mv = db.execute(select(func.count()).select_from(Track).where(Track.media_type=="music_video"))
+        tracks_reel = db.execute(select(func.count()).select_from(Track).where(Track.media_type=="reel"))
+        ads = db.execute(select(func.count()).select_from(Ad))
+        storage = db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))
         return {
-            "users": (await users).scalar() or 0,
-            "files": (await files).scalar() or 0,
-            "files_audio": (await files_audio).scalar() or 0,
-            "files_video": (await files_video).scalar() or 0,
-            "tracks": (await tracks).scalar() or 0,
-            "tracks_audio": (await tracks_audio).scalar() or 0,
-            "tracks_music_video": (await tracks_mv).scalar() or 0,
-            "tracks_reel": (await tracks_reel).scalar() or 0,
-            "ads": (await ads).scalar() or 0,
-            "storage_bytes": (await storage).scalar() or 0,
+            "users": users.scalar() or 0,
+            "files": files.scalar() or 0,
+            "files_audio": files_audio.scalar() or 0,
+            "files_video": files_video.scalar() or 0,
+            "tracks": tracks.scalar() or 0,
+            "tracks_audio": tracks_audio.scalar() or 0,
+            "tracks_music_video": tracks_mv.scalar() or 0,
+            "tracks_reel": tracks_reel.scalar() or 0,
+            "ads": ads.scalar() or 0,
+            "storage_bytes": storage.scalar() or 0,
         }
 
     results, cache = await asyncio.gather(_load_counts(), cache_manager.get_stats())

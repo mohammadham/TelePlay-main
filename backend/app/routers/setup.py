@@ -438,12 +438,12 @@ async def system_status():
 
     Temporary for debugging — no auth required.
     """
-    from ..config import get_settings, is_configured, validate_startup_config, check_decryption_health
+    from ..config import get_settings, is_configured, validate_startup_config, check_decryption_health, _setup_complete
     from ..database import get_engine
     from sqlalchemy import select
 
     s = get_settings()
-    configured = await is_configured(s)
+    configured = await is_configured(s) or _setup_complete
 
     # Check DB contents
     has_bots = False
@@ -512,10 +512,10 @@ async def system_status():
 @router.get("/status")
 async def setup_status():
     """Check if setup is already complete."""
-    from ..config import get_settings, is_configured
+    from ..config import get_settings, is_configured, _setup_complete
 
     s = get_settings()
-    configured = await is_configured(s)
+    configured = await is_configured(s) or _setup_complete
 
     has_bots = False
     has_accounts = False

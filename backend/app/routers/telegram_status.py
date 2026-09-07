@@ -6,8 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
-from ..auth import require_admin
-from ..models import AdminUser
 from ..database import get_db
 from ..config import get_settings, is_configured
 from ..telegram import tg_client, build_clients, start_all_clients, stop_all_clients, clients as client_pool
@@ -50,7 +48,6 @@ class TelegramStartResponse(BaseModel):
 @router.get("/status", response_model=TelegramStatusResponse)
 async def get_telegram_status(
     db: AsyncSession = Depends(get_db),
-    admin: AdminUser = Depends(require_admin),
 ):
     """Get current Telegram bot status — connection, configured state, client pool."""
     settings = get_settings()
@@ -119,7 +116,6 @@ async def get_telegram_status(
 async def start_telegram(
     payload: TelegramStartRequest = None,
     db: AsyncSession = Depends(get_db),
-    admin: AdminUser = Depends(require_admin),
 ):
     """Start/restart the Telegram client pool."""
     from ..telegram import start_telegram_client
@@ -154,7 +150,6 @@ async def start_telegram(
 @router.post("/stop", response_model=TelegramStartResponse)
 async def stop_telegram(
     db: AsyncSession = Depends(get_db),
-    admin: AdminUser = Depends(require_admin),
 ):
     """Stop all Telegram clients."""
     from ..telegram import stop_all_clients

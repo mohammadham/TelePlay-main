@@ -100,8 +100,7 @@ async def lifespan(app: FastAPI):
                     logger.info("Retrying in %ds...", wait)
                     await _asyncio.sleep(wait)
                 else:
-                    logger.error("All %d Telegram startup attempts failed. Bot will not be available.", max_retries)
-                    await _stop_tc()
+                    logger.error("All %d Telegram startup attempts failed. Bot will remain unavailable until restart or manual /api/telegram/start.", max_retries)
         logger.info("Telegram client started")
 
     # Load user accounts into pool

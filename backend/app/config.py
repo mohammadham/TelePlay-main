@@ -324,9 +324,18 @@ async def validate_startup_config(s: Settings) -> tuple[bool, list[str]]:
         missing.append("telegram_bot_token")
 
     # Check Storage Channel ID: from settings OR DB
+    # NOT required for basic system readiness — only needed for file forwarding features.
+    # Mark as missing only if we have partial config (other fields set) but storage_id is zero.
     storage_id = s.telegram_storage_channel_id or db_values.get('TELEGRAM_STORAGE_CHANNEL_ID', '0')
     if not storage_id or int(storage_id) == 0:
-        missing.append("telegram_storage_channel_id")
+        # Only flag as missing if we're otherwise fully configured
+        other_ok = (
+            (s.telegram_api_id or db_values.get('TELEGRAM_API_ID', '0')) and
+            (s.telegram_api_hash or db_values.get('TELEGRAM_API_HASH', '')) and
+            (s.telegram_bot_token or db_values.get('TELEGRAM_BOT_TOKEN', ''))
+        )
+        if other_ok:
+            missing.append("telegram_storage_channel_id")
 
     # Check JWT Secret: from settings OR DB
     jwt_secret = s.jwt_secret or db_values.get('JWT_SECRET', '')
@@ -393,12 +402,11 @@ async def is_configured(settings: Settings) -> bool:
       2. In-memory flag set by complete_setup (survives across requests)
       3. DB state: main bot + storage account + super admin exist AND credentials can be read
     """
-    # Primary: real env vars are set
+    # Primary: real env vars are set (storage_channel_id is optional — not sent by setup wizard)
     if (
         settings.telegram_api_id
         and settings.telegram_api_hash
         and settings.telegram_bot_token
-        and settings.telegram_storage_channel_id
         and settings.jwt_secret != "change-me-in-production-please-set-via-panel"
     ):
         return True
@@ -429,9 +437,9 @@ async def is_configured(settings: Settings) -> bool:
                 has_api_id = db_values.get('TELEGRAM_API_ID') and int(db_values.get('TELEGRAM_API_ID', '0')) > 0
                 has_api_hash = db_values.get('TELEGRAM_API_HASH') and db_values.get('TELEGRAM_API_HASH') != 'your_api_hash'
                 has_bot_token = db_values.get('TELEGRAM_BOT_TOKEN') and db_values.get('TELEGRAM_BOT_TOKEN') != 'your_bot_token'
-                has_storage_id = db_values.get('TELEGRAM_STORAGE_CHANNEL_ID') and int(db_values.get('TELEGRAM_STORAGE_CHANNEL_ID', '0')) > 0
+                # NOTE: TELEGRAM_STORAGE_CHANNEL_ID is optional — not required for system readiness
 
-                if has_api_id and has_api_hash and has_bot_token and has_storage_id:
+                if has_api_id and has_api_hash and has_bot_token:
                     return True
 
             return bool(main_bot and storage_acc and super_admin)

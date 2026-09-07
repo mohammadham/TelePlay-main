@@ -383,7 +383,8 @@ function RouteGuard() {
 function App() {
     const { data: setupData, isLoading: setupLoading } = useSetupStatus();
     const needsSetup = !setupLoading && setupData && (
-        !setupData.configured || setupData.show_setup_wizard
+        !setupData.configured || 
+        (setupData.configured && !setupData.validation?.decryption_ok)
     );
 
     return (

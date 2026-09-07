@@ -156,19 +156,37 @@ That's it! Your services are now running:
 
 ### ⚠️ Railway Deployment Notes
 
-**Important: JWT_SECRET persistence across deploys**
+**JWT_SECRET Auto-Persistence (Recommended: No Manual Setup Required)**
 
-When deploying to Railway, each deploy generates a **new** `JWT_SECRET` by default. This breaks decryption of stored credentials (Telegram sessions, bot tokens) because they were encrypted with a different key.
+TelePlay now features **automatic JWT_SECRET persistence** across deploys:
 
-**Fix:** In your Railway dashboard:
+1. **First Deploy**: During build, if `JWT_SECRET` is not set, the system auto-generates a cryptographically secure 48-character key
+2. **Runtime**: On first startup, this key is automatically persisted to the database (`AppSetting` table)
+3. **Subsequent Deploys**: The persisted key is loaded from the database, ensuring decryption continuity
+
+**Benefits:**
+- ✅ No manual `JWT_SECRET` configuration needed in Railway
+- ✅ Credentials remain decryptable across all deploys
+- ✅ Fully automated — deploy once, run forever
+
+**Manual Override (Optional):**
+If you prefer to set `JWT_SECRET` explicitly:
 1. Go to **Variables** → `JWT_SECRET`
-2. Set it to a **static value** (e.g., generate a 32+ character random string and paste it)
-3. **Do NOT use `generateValue: true`** for this variable — it causes the problem
+2. Set a **static 32+ character value** (e.g., `openssl rand -base64 32`)
+3. **Do NOT use `generateValue: true`** — it regenerates the key on every deploy
 
-Or, after each deploy that resets your JWT_SECRET:
-1. Open the app in your browser
-2. The setup wizard will automatically detect the decryption failure
-3. Complete the setup wizard again to re-encrypt credentials with the new key
+### ⚠️ JWT_SECRET Change Detection
+
+**What happens if `JWT_SECRET` changes after deploy?**
+The system detects the mismatch via `is_configured()` (which now verifies decryption health) and automatically redirects to the setup wizard, where you re-encrypt credentials with the new key.
+
+**How the routing works:**
+1. If `configured: false` → redirect to `/setup`
+2. If `configured: true` but `decryption_ok: false` → redirect to `/setup`
+3. If `configured: true` and `decryption_ok: true` → redirect to `/admin` or `/login` based on auth state
+
+**What happens if `JWT_SECRET` changes:**
+The system detects the mismatch via `is_configured()` (which now verifies decryption health) and automatically redirects to the setup wizard, where you re-encrypt credentials with the new key.
 
 ### 3. Start Using
 

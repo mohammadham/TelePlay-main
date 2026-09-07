@@ -8,7 +8,7 @@ from functools import lru_cache
 from typing import Optional, Dict
 import logging
 import hashlib
-from sqlalchemy import select
+from sqlalchemy import select, insert
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +189,22 @@ async def mark_db_ready(s: Settings) -> bool:
             result = await conn.execute(select(AppSetting))
             rows = result.scalars().all()
             db_map = {r.key: r.value for r in rows if r.value}
+
+            # Auto-persist JWT_SECRET to DB on first run so it survives redeploys.
+            # On subsequent runs, this is a no-op (DB has the persisted key).
+            if 'JWT_SECRET' not in db_map:
+                jwt_val = s.jwt_secret or ""
+                if jwt_val and jwt_val != "change-me-in-production-please-set-via-panel":
+                    logger.info("Auto-persisting JWT_SECRET to DB (first run)")
+                    await conn.execute(
+                        insert(AppSetting).values(
+                            key='JWT_SECRET',
+                            value=jwt_val,
+                            description="JWT signing secret (auto-generated at build)",
+                        )
+                    )
+                    await conn.commit()
+                    db_map['JWT_SECRET'] = jwt_val
 
             if not db_map:
                 logger.info("No DB settings found — first run or empty database")

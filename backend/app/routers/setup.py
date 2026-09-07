@@ -369,29 +369,29 @@ async def complete_setup(
 
                 # Persist Telegram config — use payload values (real values from setup form),
                 # NOT settings (which contain env/template values that get overwritten on restart).
-                def upsert(key: str, value: str, desc: str) -> None:
+                async def upsert(key: str, value: str, desc: str) -> None:
                     if not value or value in ("", "0", "your_api_id", "your_api_hash",
                                                "your_bot_token", "change-me-in-production-please-set-via-panel"):
                         return
-                    row = conn.execute(
+                    row = await conn.execute(
                         sqlalchemy.select(AppSetting).where(AppSetting.key == key).limit(1)
                     )
                     existing = row.scalar_one_or_none()
                     if existing is None:
-                        conn.execute(
+                        await conn.execute(
                             sqlalchemy.insert(AppSetting).values(key=key, value=value, description=desc)
                         )
                     else:
                         existing.value = value
 
-                upsert('TELEGRAM_API_ID',      str(payload.user_api_id),      "Telegram API ID")
-                upsert('TELEGRAM_API_HASH',    payload.user_api_hash,         "Telegram API hash")
-                upsert('TELEGRAM_BOT_TOKEN',   payload.bot_token,             "Telegram bot token")
+                await upsert('TELEGRAM_API_ID',      str(payload.user_api_id),      "Telegram API ID")
+                await upsert('TELEGRAM_API_HASH',    payload.user_api_hash,         "Telegram API hash")
+                await upsert('TELEGRAM_BOT_TOKEN',   payload.bot_token,             "Telegram bot token")
                 if payload.storage_channel_id:
-                    upsert('TELEGRAM_STORAGE_CHANNEL_ID', str(payload.storage_channel_id),
+                    await upsert('TELEGRAM_STORAGE_CHANNEL_ID', str(payload.storage_channel_id),
                            "Telegram storage channel ID")
                 if payload.user_proxy:
-                    upsert('TELEGRAM_PROXY', payload.user_proxy,
+                    await upsert('TELEGRAM_PROXY', payload.user_proxy,
                            "Telegram MTProto proxy")
                 await conn.commit()
 

@@ -68,10 +68,14 @@ async def lifespan(app: FastAPI):
         mark_db_ready,
         is_configured,
         _startup_attempts,
-        _startup_first_attempt,
-        _startup_lock_until
     )
     import time
+
+    # Container for mutable startup state — avoids closure/global issues
+    _startup_state = {
+        "first_attempt": None,
+        "lock_until": None,
+    }
 
     # Load DB settings FIRST (including JWT_SECRET) so encryption key can be derived
     db_ready = await mark_db_ready(settings)
@@ -100,16 +104,17 @@ async def lifespan(app: FastAPI):
     # Handle startup attempt rate limiting
     current_time = time.time()
     startup_key = "telegram_startup"
+    _state = _startup_state
 
     # Initialize attempt tracking if needed
     if startup_key not in _startup_attempts:
         _startup_attempts[startup_key] = 0
-        _startup_first_attempt = current_time
-        _startup_lock_until = None
+        _state["first_attempt"] = current_time
+        _state["lock_until"] = None
 
     # Check if we're in a lockout period
-    if _startup_lock_until and current_time < _startup_lock_until:
-        remaining = int(_startup_lock_until - current_time)
+    if _state["lock_until"] and current_time < _state["lock_until"]:
+        remaining = int(_state["lock_until"] - current_time)
         logger.info(f"Telegram startup locked out for {remaining}s due to previous failures")
         # Skip startup but keep health check running
         pass
@@ -117,8 +122,8 @@ async def lifespan(app: FastAPI):
         # Reset lockout if we've had a successful attempt recently
         if is_valid and decryption_ok:
             _startup_attempts[startup_key] = 0
-            _startup_first_attempt = None
-            _startup_lock_until = None
+            _state["first_attempt"] = None
+            _state["lock_until"] = None
             logger.info("Startup validation passed - resetting attempt counter")
 
     # Start Telegram client if configured and healthy
@@ -152,7 +157,7 @@ async def lifespan(app: FastAPI):
                         if attempt_count >= 3:
                             # Lock out for 30 minutes after 3 failures
                             lockout_duration = 30 * 60  # 30 minutes in seconds
-                            _startup_lock_until = current_time + lockout_duration
+                            _state["lock_until"] = current_time + lockout_duration
                             logger.warning(f"Telegram startup locked out for {lockout_duration}s after {attempt_count} consecutive failures")
                         else:
                             logger.info(f"Telegram startup attempt {attempt_count}/3 failed")
@@ -168,7 +173,7 @@ async def lifespan(app: FastAPI):
             if attempt_count >= 3:
                 # Lock out for 30 minutes after 3 failures
                 lockout_duration = 30 * 60  # 30 minutes in seconds
-                _startup_lock_until = current_time + lockout_duration
+                _state["lock_until"] = current_time + lockout_duration
                 logger.warning(f"Telegram startup locked out for {lockout_duration}s after {attempt_count} consecutive failures")
             else:
                 logger.info(f"Telegram startup attempt {attempt_count}/3 failed due to validation/decryption issues")
@@ -206,7 +211,6 @@ async def lifespan(app: FastAPI):
 
     async def _telegram_health_loop():
         import asyncio
-        global _startup_first_attempt, _startup_lock_until
         while True:
             await asyncio.sleep(300)  # check every 5 minutes
             try:
@@ -214,12 +218,12 @@ async def lifespan(app: FastAPI):
                 if not configured:
                     # If not configured, reset attempt counter to allow setup
                     _startup_attempts[startup_key] = 0
-                    _startup_first_attempt = None
-                    _startup_lock_until = None
+                    _state["first_attempt"] = None
+                    _state["lock_until"] = None
                     continue
 
                 # Check if we're locked out
-                if _startup_lock_until and current_time < _startup_lock_until:
+                if _state["lock_until"] and current_time < _state["lock_until"]:
                     # Still in lockout, skip health check actions
                     await asyncio.sleep(60)  # Check lock status more frequently during lockout
                     continue

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, MusicTrack, useToggleLike } from '../../lib/api'
+import { api, MusicTrack, useToggleLike, useMusicHistory } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
-import { Play } from 'lucide-react'
+import { Play, Shuffle, Clock } from 'lucide-react'
 
 type MediaType = 'all' | 'music_video' | 'reel'
 
@@ -30,11 +30,12 @@ export default function MusicHome() {
     queryFn: async () => (await api.get<any[]>('/v1/music/artists')).data,
     staleTime: 120000,
   })
-  const { setQueue } = useMusicStore()
+  const { setQueue, playNext, setShuffle } = useMusicStore()
   const { setPreviewFile } = useAppStore()
   const qc = useQueryClient()
   const [downloading, setDownloading] = useState<number | null>(null)
   const toggleLike = useToggleLike()
+  const { data: history, isLoading: historyLoading } = useMusicHistory(50)
 
   const list: MusicTrack[] = Array.isArray(tracks) ? tracks : []
 
@@ -62,6 +63,11 @@ export default function MusicHome() {
     }
   }
 
+  const handleShuffle = () => {
+    setShuffle(true)
+    setQueue(list, Math.floor(Math.random() * list.length))
+  }
+
   return (
     <div className="min-h-screen bg-[#121212] text-white pb-28">
       {/* Hero section */}
@@ -74,6 +80,9 @@ export default function MusicHome() {
           <div className="flex items-center gap-4">
             <button className="w-14 h-14 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 hover:bg-[#1ed760] transition-all shadow-xl">
               <Play className="w-7 h-7 fill-black text-black ml-1" />
+            </button>
+            <button className="w-14 h-14 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 hover:bg-[#1ed760] transition-all shadow-xl" onClick={handleShuffle}>
+              <Shuffle className="w-7 h-7 fill-black text-black" />
             </button>
             <button className="border border-white/30 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-white/10 transition-all">
               Explore More
@@ -174,6 +183,42 @@ export default function MusicHome() {
                   onDownload={() => download(t.id)}
                 />
               ))}
+            </div>
+          )}
+        </section>
+
+        {/* Continue Listening */}
+        <section className="animate-fade-in-up">
+          <h2 className="text-xl font-bold mb-5 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-[#1DB954]" />
+            Continue Listening
+          </h2>
+          {historyLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="space-y-2.5">
+                  <div className="skeleton-spotify aspect-square rounded-md" />
+                  <div className="skeleton-spotify h-3.5 w-3/4 rounded" />
+                  <div className="skeleton-spotify h-3 w-1/2 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : Array.isArray(history) && history.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {history.slice(0, 8).map((item: any) => (
+                <TrackCard
+                  key={item.track_id ?? item.id}
+                  track={item}
+                  isVideo={item.media_type === 'music_video' || item.media_type === 'reel'}
+                  onPlay={() => playTrack(item)}
+                  onLike={() => item.is_liked && handleLike(item)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-white/30">
+              <p className="text-lg font-medium text-white/50">Nothing played yet</p>
+              <p className="text-sm mt-2">Start listening to see your history</p>
             </div>
           )}
         </section>

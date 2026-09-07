@@ -162,53 +162,6 @@ _db_overrides_applied = False
 _db_settings_store: Optional[Settings] = None  # populated by apply_db_overrides() after init_db()
 
 
-async def _load_db_overrides(s: Settings):
-    """Load and apply DB-stored settings overrides."""
-    from .models import AppSetting
-    from .database import get_engine
-    eng = get_engine()
-    if eng is None:
-        return
-    from sqlalchemy import select as _sel
-    async with eng.begin() as conn:
-        result = await conn.execute(_sel(AppSetting))
-        rows = result.scalars().all()
-        db_map = {r.key: r.value for r in rows if r.value}
-        if not db_map:
-            return
-        for key, val in db_map.items():
-            alias_key = key.upper()
-            if alias_key == "TELEGRAM_API_ID":
-                if hasattr(s, "telegram_api_id"):
-                    setattr(s, "telegram_api_id", int(val) if val else 0)
-            elif alias_key == "TELEGRAM_API_HASH":
-                if hasattr(s, "telegram_api_hash"):
-                    setattr(s, "telegram_api_hash", val)
-            elif alias_key == "TELEGRAM_BOT_TOKEN":
-                if hasattr(s, "telegram_bot_token"):
-                    setattr(s, "telegram_bot_token", val)
-            elif alias_key == "TELEGRAM_STORAGE_CHANNEL_ID":
-                if hasattr(s, "telegram_storage_channel_id"):
-                    setattr(s, "telegram_storage_channel_id", int(val) if val else 0)
-            elif alias_key == "DATABASE_URL":
-                if hasattr(s, "database_url"):
-                    setattr(s, "database_url", val)
-            elif alias_key == "JWT_SECRET":
-                if hasattr(s, "jwt_secret"):
-                    setattr(s, "jwt_secret", val)
-            elif alias_key == "WEB_BASE_URL":
-                if hasattr(s, "web_base_url"):
-                    setattr(s, "web_base_url", val)
-            elif alias_key == "ADMIN_TELEGRAM_IDS":
-                if hasattr(s, "admin_ids_str"):
-                    setattr(s, "admin_ids_str", val)
-            elif alias_key == "CACHE_ENABLED":
-                if hasattr(s, "cache_enabled"):
-                    setattr(s, "cache_enabled", val.lower() in ("true", "1", "yes"))
-            elif alias_key == "ADS_ENABLED":
-                if hasattr(s, "ads_enabled"):
-                    setattr(s, "ads_enabled", val.lower() in ("true", "1", "yes"))
-
 async def mark_db_ready(s: Settings):
     """Call this once from main.py lifespan AFTER init_db() completes.
     Loads DB-stored settings and patches s in-place."""
@@ -217,20 +170,52 @@ async def mark_db_ready(s: Settings):
         return
     try:
         from .models import AppSetting
-        from .database import get_engine
-        eng = get_engine()
-        if eng is None:
-            _db_overrides_applied = True
-            return
-        import asyncio
-        await _load_db_overrides(s)
+        from .database import async_session
+        async with async_session() as conn:
+            result = await conn.execute(select(AppSetting))
+            rows = result.scalars().all()
+            db_map = {r.key: r.value for r in rows if r.value}
+            if not db_map:
+                _db_overrides_applied = True
+                return
+            for key, val in db_map.items():
+                alias_key = key.upper()
+                if alias_key == "TELEGRAM_API_ID":
+                    if hasattr(s, "telegram_api_id"):
+                        setattr(s, "telegram_api_id", int(val) if val else 0)
+                elif alias_key == "TELEGRAM_API_HASH":
+                    if hasattr(s, "telegram_api_hash"):
+                        setattr(s, "telegram_api_hash", val)
+                elif alias_key == "TELEGRAM_BOT_TOKEN":
+                    if hasattr(s, "telegram_bot_token"):
+                        setattr(s, "telegram_bot_token", val)
+                elif alias_key == "TELEGRAM_STORAGE_CHANNEL_ID":
+                    if hasattr(s, "telegram_storage_channel_id"):
+                        setattr(s, "telegram_storage_channel_id", int(val) if val else 0)
+                elif alias_key == "DATABASE_URL":
+                    if hasattr(s, "database_url"):
+                        setattr(s, "database_url", val)
+                elif alias_key == "JWT_SECRET":
+                    if hasattr(s, "jwt_secret"):
+                        setattr(s, "jwt_secret", val)
+                elif alias_key == "WEB_BASE_URL":
+                    if hasattr(s, "web_base_url"):
+                        setattr(s, "web_base_url", val)
+                elif alias_key == "ADMIN_TELEGRAM_IDS":
+                    if hasattr(s, "admin_ids_str"):
+                        setattr(s, "admin_ids_str", val)
+                elif alias_key == "CACHE_ENABLED":
+                    if hasattr(s, "cache_enabled"):
+                        setattr(s, "cache_enabled", val.lower() in ("true", "1", "yes"))
+                elif alias_key == "ADS_ENABLED":
+                    if hasattr(s, "ads_enabled"):
+                        setattr(s, "ads_enabled", val.lower() in ("true", "1", "yes"))
+        _db_overrides_applied = True
     except ImportError:
         _db_overrides_applied = True
     except Exception as _e:
         import logging
         logging.getLogger(__name__).warning(f"DB overrides could not be applied: {_e}")
-    else:
-        _db_overrides_applied = True
 
 # Local flag: set True once complete_setup succeeds — survives across requests
 _setup_complete = False
@@ -242,7 +227,7 @@ def mark_setup_complete():
     _setup_complete = True
 
 
-def is_configured(settings: Settings) -> bool:
+async def is_configured(settings: Settings) -> bool:
     """True if real credentials are set (not template defaults).
 
     Checks in this order:
@@ -264,19 +249,16 @@ def is_configured(settings: Settings) -> bool:
     if _setup_complete:
         return True
 
-    # Fallback: check DB state directly — run_sync avoids event-loop conflicts
+    # Fallback: check DB state via async_session
     try:
         from .models import BotConfig, UserAccount, AdminUser
-        from .database import get_engine
-        eng = get_engine()
-        if eng is None:
-            return False
-        def _check(conn) -> bool:
-            main_bot = conn.execute(select(BotConfig).where(BotConfig.name == "main").limit(1)).scalar_one_or_none()
-            storage_acc = conn.execute(select(UserAccount).where(UserAccount.name == "storage_1").limit(1)).scalar_one_or_none()
-            super_admin = conn.execute(select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1)).scalar_one_or_none()
+        from .database import async_session
+        import sqlalchemy as _sa
+
+        async with async_session() as conn:
+            main_bot = (await conn.execute(_sa.select(BotConfig).where(BotConfig.name == "main").limit(1))).scalar_one_or_none()
+            storage_acc = (await conn.execute(_sa.select(UserAccount).where(UserAccount.name == "storage_1").limit(1))).scalar_one_or_none()
+            super_admin = (await conn.execute(_sa.select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1))).scalar_one_or_none()
             return bool(main_bot and storage_acc and super_admin)
-        result = eng.run_sync(_check)
-        return bool(result)
     except Exception:
         return False

@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
     # Skip telegram client startup if credentials are not yet configured
     # (setup wizard has not run yet, or env vars are template values)
     from .config import is_configured
-    if not is_configured(settings):
+    if not await is_configured(settings):
         logger.info("Not configured yet — skipping Telegram client startup (setup wizard pending)")
     else:
         await start_telegram_client()

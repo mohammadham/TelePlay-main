@@ -325,22 +325,22 @@ async def complete_setup(
     await db.refresh(super_admin)
 
     # Persist encryption key and JWT secret to DB (so they survive restarts)
-    ensure_encryption_key()
+    await ensure_encryption_key()
     settings = get_settings()
     if settings.jwt_secret and settings.jwt_secret != "change-me-in-production-please-set-via-panel":
         try:
             from ..models import AppSetting
-            from ..database import get_engine
+            from ..database import async_session
             import sqlalchemy
-            eng = get_engine()
-            if eng is not None:
-                def _set_jwt(conn) -> None:
-                    row = conn.execute(
+            async def _set_jwt_async() -> None:
+                async with async_session() as conn:
+                    row = await conn.execute(
                         sqlalchemy.select(AppSetting)
                         .where(AppSetting.key == 'JWT_SECRET').limit(1)
-                    ).scalar_one_or_none()
-                    if row is None:
-                        conn.execute(
+                    )
+                    existing = row.scalar_one_or_none()
+                    if existing is None:
+                        await conn.execute(
                             sqlalchemy.insert(AppSetting).values(
                                 key='JWT_SECRET',
                                 value=settings.jwt_secret,
@@ -348,8 +348,10 @@ async def complete_setup(
                             )
                         )
                     else:
-                        row.value = settings.jwt_secret
-                eng.run_sync(_set_jwt)
+                        existing.value = settings.jwt_secret
+                    await conn.commit()
+
+            await _set_jwt_async()
         except Exception as e:
             logger.warning(f"Could not persist JWT_SECRET to DB: {e}")
 
@@ -389,7 +391,7 @@ async def setup_status():
     from ..config import get_settings, is_configured
 
     s = get_settings()
-    configured = is_configured(s)
+    configured = await is_configured(s)
 
     has_bots = False
     has_accounts = False

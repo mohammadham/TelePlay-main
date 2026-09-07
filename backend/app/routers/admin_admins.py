@@ -65,13 +65,23 @@ def require_super_admin(current_user: AdminUser = Depends(require_admin)):
 
 @router.get("", response_model=List[AdminResponse])
 async def list_admins(
+    page: int = 1,
+    per_page: int = 50,
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(require_super_admin),
 ):
     """List all admin users (SUPER_ADMIN only)."""
-    result = await db.execute(select(AdminUser).order_by(AdminUser.created_at.desc()))
+    offset = (page - 1) * per_page
+    result = await db.execute(
+        select(AdminUser).order_by(AdminUser.created_at.desc()).offset(offset).limit(per_page)
+    )
     admins = result.scalars().all()
-    return admins
+
+    # Mark the current super_admin as "owner" in the response
+    owner_id = admin.id if hasattr(admin, 'id') else None
+    return [
+        {**a.__dict__, "is_owner": a.id == owner_id} for a in admins
+    ]
 
 @router.post("", response_model=AdminResponse, status_code=status.HTTP_201_CREATED)
 async def create_admin(

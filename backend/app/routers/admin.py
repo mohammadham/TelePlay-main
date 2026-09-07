@@ -115,25 +115,40 @@ _start_time = time.time()
 async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
     from sqlalchemy import func
     from ..models import User as U, File, Track, Ad, CacheConfig
-    # counts
-    users = (await db.execute(select(func.count()).select_from(U))).scalar() or 0
-    files = (await db.execute(select(func.count()).select_from(File))).scalar() or 0
-    files_audio = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))).scalar() or 0
-    files_video = (await db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))).scalar() or 0
-    tracks = (await db.execute(select(func.count()).select_from(Track))).scalar() or 0
-    tracks_audio = (await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="audio"))).scalar() or 0
-    tracks_mv = (await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="music_video"))).scalar() or 0
-    tracks_reel = (await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="reel"))).scalar() or 0
-    ads = (await db.execute(select(func.count()).select_from(Ad))).scalar() or 0
-    cache = await cache_manager.get_stats()
-    # storage sum
-    storage = (await db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))).scalar() or 0
+    import asyncio
+
+    async def _load_counts():
+        users = await db.execute(select(func.count()).select_from(U))
+        files = await db.execute(select(func.count()).select_from(File))
+        files_audio = await db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))
+        files_video = await db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))
+        tracks = await db.execute(select(func.count()).select_from(Track))
+        tracks_audio = await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="audio"))
+        tracks_mv = await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="music_video"))
+        tracks_reel = await db.execute(select(func.count()).select_from(Track).where(Track.media_type=="reel"))
+        ads = await db.execute(select(func.count()).select_from(Ad))
+        storage = await db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))
+        return {
+            "users": (await users).scalar() or 0,
+            "files": (await files).scalar() or 0,
+            "files_audio": (await files_audio).scalar() or 0,
+            "files_video": (await files_video).scalar() or 0,
+            "tracks": (await tracks).scalar() or 0,
+            "tracks_audio": (await tracks_audio).scalar() or 0,
+            "tracks_music_video": (await tracks_mv).scalar() or 0,
+            "tracks_reel": (await tracks_reel).scalar() or 0,
+            "ads": (await ads).scalar() or 0,
+            "storage_bytes": (await storage).scalar() or 0,
+        }
+
+    results, cache = await asyncio.gather(_load_counts(), cache_manager.get_stats())
     uptime = int(time.time() - _start_time)
     return {
-        "users": users, "files": files, "files_audio": files_audio, "files_video": files_video,
-        "tracks": tracks, "tracks_audio": tracks_audio, "tracks_music_video": tracks_mv, "tracks_reel": tracks_reel,
-        "ads": ads, "storage_bytes": storage, "cache": cache,
-        "uptime_seconds": uptime, "python": platform.python_version(), "platform": platform.platform()
+        **results,
+        "cache": cache,
+        "uptime_seconds": uptime,
+        "python": platform.python_version(),
+        "platform": platform.platform(),
     }
 
 @router.get("/users")

@@ -35,7 +35,14 @@ export default function AdminDashboard() {
 
       <div className="p-6">
         {tab==='overview' && (
-          !stats ? <div>Loading...</div> : <div className="space-y-4">
+          !stats ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {Array.from({length: 8}).map((_, i) => <div key={i} className="skeleton h-16 rounded" />)}
+              </div>
+              <div className="skeleton h-16 rounded" />
+            </div>
+          ) : <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard label="Users" value={stats.users} />
               <StatCard label="Files" value={stats.files} />
@@ -68,7 +75,11 @@ export default function AdminDashboard() {
         {tab==='cache' && <CachePanel />}
         {tab==='ads' && <AdsPanel />}
         {tab==='system' && (
-          !system ? <div>Loading...</div> : <div className="glass-card p-4 text-sm space-y-1 font-mono">
+          !system ? (
+            <div className="space-y-2">
+              {Array.from({length: 5}).map((_, i) => <div key={i} className="skeleton h-5 w-full rounded" />)}
+            </div>
+          ) : <div className="glass-card p-4 text-sm space-y-1 font-mono">
             <div>Disk total: {(system.disk_total/1024/1024/1024).toFixed(1)} GB</div>
             <div>Disk used: {(system.disk_used/1024/1024/1024).toFixed(1)} GB</div>
             <div>Disk free: {(system.disk_free/1024/1024/1024).toFixed(1)} GB</div>

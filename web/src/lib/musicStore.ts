@@ -42,5 +42,15 @@ export const useMusicStore = create<MusicState>((set, get) => ({
   playPrev: () => {
     const { queue, queueIndex } = get()
     if (queueIndex > 0) set({ queueIndex: queueIndex-1, currentTrack: queue[queueIndex-1], isPlaying: true })
-  }
+  },
+  removeTrack: (index: number) => {
+    const { queue, queueIndex } = get()
+    const newQueue = queue.filter((_: any, i: number) => i !== index)
+    const newIndex = index >= newQueue.length ? newQueue.length - 1 : index
+    set({
+      queue: newQueue,
+      queueIndex: newIndex >= 0 ? newIndex : 0,
+      currentTrack: newQueue[newIndex >= 0 ? newIndex : 0] || null,
+    })
+  },
 }))

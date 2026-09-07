@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Maximize2, Minimize2, Mic2, Disc } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Maximize2, Minimize2, Mic2, Disc, List } from 'lucide-react'
 import { useMusicStore } from '../../lib/musicStore'
 import { api } from '../../lib/api'
+import QueuePanel from './QueuePanel'
 
 export default function NowPlayingBar() {
   const { currentTrack, isPlaying, queueIndex, shuffle, repeat, setShuffle, setRepeat, setPlaying, playNext, playPrev } = useMusicStore()
@@ -15,6 +16,7 @@ export default function NowPlayingBar() {
   })
   const [isMuted, setIsMuted] = useState(false)
   const [isMini, setIsMini] = useState(false)
+  const [showQueue, setShowQueue] = useState(false)
 
   // Persist volume
   useEffect(() => {
@@ -225,6 +227,13 @@ export default function NowPlayingBar() {
         <div className="flex items-center px-4 gap-4 h-[90px]">
           <LeftSection />
           <CenterSection />
+          <button
+            onClick={() => setShowQueue(true)}
+            className="text-white/50 hover:text-white transition-colors hidden md:block"
+            title="Queue"
+          >
+            <List className="w-5 h-5" />
+          </button>
           <RightSection />
         </div>
       </div>
@@ -252,6 +261,11 @@ export default function NowPlayingBar() {
             <Maximize2 className="w-4 h-4" />
           </button>
         </div>
+      )}
+
+      {/* Queue Panel */}
+      {showQueue && (
+        <QueuePanel onClose={() => setShowQueue(false)} />
       )}
     </>
   )

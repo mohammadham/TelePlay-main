@@ -33,7 +33,23 @@ export default function BotManager() {
     onSuccess: (res) => alert(res.message || 'Test sent!')
   })
 
-  if (isLoading) return <div className="p-6">Loading bots...</div>
+  const SkeletonRow = () => (
+    <div className="glass-card p-4 animate-pulse space-y-3">
+      <div className="flex items-center gap-4">
+        <div className="flex-1 min-w-[200px] space-y-2">
+          <div className="skeleton h-5 w-32" />
+          <div className="flex gap-2"><div className="skeleton h-5 w-16 rounded-full" /><div className="skeleton h-5 w-16 rounded-full" /></div>
+        </div>
+        <div className="flex gap-2"><div className="skeleton h-8 w-14 rounded" /><div className="skeleton h-8 w-14 rounded" /><div className="skeleton h-8 w-14 rounded" /></div>
+      </div>
+    </div>
+  )
+
+  if (isLoading) return (
+    <div className="space-y-3">
+      {[1, 2].map(i => <SkeletonRow key={i} />)}
+    </div>
+  )
 
   const purposes = ['MAIN', 'HELPER', 'ADS', 'STORAGE']
 

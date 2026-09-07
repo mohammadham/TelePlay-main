@@ -549,15 +549,16 @@ async def emergency_reset():
     """Emergency endpoint to reset broken encryption key state.
 
     This endpoint:
-    1. Regenerates the JWT_SECRET if it's still the placeholder
-    2. Deletes all encrypted credentials (BotConfig, UserAccount)
-    3. Persists the new JWT_SECRET to AppSetting
+    1. Deletes all encrypted credentials (BotConfig, UserAccount)
+    2. Persists a new JWT_SECRET to AppSetting
+    3. Reloads encryption key
 
     WARNING: This destroys all encrypted data. Use only when setup is broken.
     """
+    import sqlalchemy
     from ..database import get_engine
     from sqlalchemy import delete
-    from ..encryption import ensure_encryption_key, _ENCRYPTION_KEY
+    from ..encryption import ensure_encryption_key
     import secrets
 
     try:
@@ -571,7 +572,7 @@ async def emergency_reset():
             await conn.execute(delete(UserAccount))
             await conn.execute(delete(AppSetting).where(AppSetting.key == 'JWT_SECRET'))
 
-            # Generate new deterministic JWT_SECRET
+            # Generate new JWT_SECRET
             new_jwt_secret = secrets.token_urlsafe(32)
             await conn.execute(
                 sqlalchemy.insert(AppSetting).values(

@@ -202,18 +202,12 @@ async def _load_db_overrides(s: Settings):
             elif alias_key == "ADMIN_TELEGRAM_IDS":
                 if hasattr(s, "admin_ids_str"):
                     setattr(s, "admin_ids_str", val)
-            elif alias_key == "JWT_SECRET":
-                if hasattr(s, "jwt_secret"):
-                    setattr(s, "jwt_secret", val)
             elif alias_key == "CACHE_ENABLED":
                 if hasattr(s, "cache_enabled"):
                     setattr(s, "cache_enabled", val.lower() in ("true", "1", "yes"))
             elif alias_key == "ADS_ENABLED":
                 if hasattr(s, "ads_enabled"):
                     setattr(s, "ads_enabled", val.lower() in ("true", "1", "yes"))
-            elif alias_key == "VIDEO_CACHE_ENABLED":
-                if hasattr(s, "_video_cache_enabled"):
-                    setattr(s, "_video_cache_enabled", val.lower() in ("true", "1", "yes"))
 
 async def mark_db_ready(s: Settings):
     """Call this once from main.py lifespan AFTER init_db() completes.

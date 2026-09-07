@@ -57,9 +57,16 @@ async def refresh_token(
 ):
     """Refresh access token using refresh token."""
     payload = verify_token_payload(request.refresh_token, token_type="refresh")
-    telegram_id = int(payload.get("sub")) if payload and payload.get("sub") else None
-    token_version = payload.get("ver") if payload else None
-    
+    telegram_id: int | None = None
+    token_version: int | None = None
+    if payload:
+        sub = payload.get("sub")
+        try:
+            telegram_id = int(sub) if sub else None
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        token_version = payload.get("ver")
+
     if not telegram_id:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     

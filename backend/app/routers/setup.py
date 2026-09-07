@@ -82,6 +82,7 @@ class SetupCompleteRequest(BaseModel):
     user_session_string: str
     user_2fa_password: Optional[str] = None
     user_proxy: Optional[str] = None  # Optional proxy for user account
+    storage_channel_id: int = Field(0, alias="telegram_storage_channel_id")  # Storage channel ID
     # Super admin
     super_admin_id: int
     # Optional additional admins
@@ -366,55 +367,32 @@ async def complete_setup(
                         existing.value = settings.jwt_secret
                     # Note: we commit after all values are set
 
-                # Persist Telegram API ID
-                if hasattr(settings, 'telegram_api_id') and settings.telegram_api_id:
-                    await conn.execute(
-                        sqlalchemy.insert(AppSetting).values(
-                            key='TELEGRAM_API_ID',
-                            value=str(settings.telegram_api_id) if settings.telegram_api_id else '',
-                            description="Telegram API ID",
-                        )
+                # Persist Telegram config — use payload values (real values from setup form),
+                # NOT settings (which contain env/template values that get overwritten on restart).
+                def upsert(key: str, value: str, desc: str) -> None:
+                    if not value or value in ("", "0", "your_api_id", "your_api_hash",
+                                               "your_bot_token", "change-me-in-production-please-set-via-panel"):
+                        return
+                    row = conn.execute(
+                        sqlalchemy.select(AppSetting).where(AppSetting.key == key).limit(1)
                     )
+                    existing = row.scalar_one_or_none()
+                    if existing is None:
+                        conn.execute(
+                            sqlalchemy.insert(AppSetting).values(key=key, value=value, description=desc)
+                        )
+                    else:
+                        existing.value = value
 
-                # Persist Telegram API Hash
-                if hasattr(settings, 'telegram_api_hash') and settings.telegram_api_hash:
-                    await conn.execute(
-                        sqlalchemy.insert(AppSetting).values(
-                            key='TELEGRAM_API_HASH',
-                            value=settings.telegram_api_hash if settings.telegram_api_hash else '',
-                            description="Telegram API hash",
-                        )
-                    )
-
-                # Persist Telegram Bot Token
-                if hasattr(settings, 'telegram_bot_token') and settings.telegram_bot_token:
-                    await conn.execute(
-                        sqlalchemy.insert(AppSetting).values(
-                            key='TELEGRAM_BOT_TOKEN',
-                            value=settings.telegram_bot_token if settings.telegram_bot_token else '',
-                            description="Telegram bot token",
-                        )
-                    )
-
-                # Persist Telegram Storage Channel ID
-                if hasattr(settings, 'telegram_storage_channel_id') and settings.telegram_storage_channel_id:
-                    await conn.execute(
-                        sqlalchemy.insert(AppSetting).values(
-                            key='TELEGRAM_STORAGE_CHANNEL_ID',
-                            value=str(settings.telegram_storage_channel_id) if settings.telegram_storage_channel_id else '',
-                            description="Telegram storage channel ID",
-                        )
-                    )
-
-                # Persist Telegram Proxy
-                if hasattr(settings, 'telegram_proxy') and settings.telegram_proxy:
-                    await conn.execute(
-                        sqlalchemy.insert(AppSetting).values(
-                            key='TELEGRAM_PROXY',
-                            value=settings.telegram_proxy,
-                            description="Telegram MTProto proxy",
-                        )
-                    )
+                upsert('TELEGRAM_API_ID',      str(payload.user_api_id),      "Telegram API ID")
+                upsert('TELEGRAM_API_HASH',    payload.user_api_hash,         "Telegram API hash")
+                upsert('TELEGRAM_BOT_TOKEN',   payload.bot_token,             "Telegram bot token")
+                if payload.storage_channel_id:
+                    upsert('TELEGRAM_STORAGE_CHANNEL_ID', str(payload.storage_channel_id),
+                           "Telegram storage channel ID")
+                if payload.user_proxy:
+                    upsert('TELEGRAM_PROXY', payload.user_proxy,
+                           "Telegram MTProto proxy")
                 await conn.commit()
 
         await _persist_config_async()

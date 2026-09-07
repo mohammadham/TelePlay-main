@@ -136,11 +136,11 @@ class Settings(BaseSettings):
     @field_validator("jwt_secret", mode="before")
     @classmethod
     def _ensure_jwt_secret(cls, v):
-        if v and v != "change-me-in-production-please-set-via-panel":
-            return v
-        # Auto-generate a secure secret at startup
-        import secrets
-        return secrets.token_urlsafe(32)
+        # If not set, return the placeholder string so we have a consistent value.
+        # Do not auto-generate a random key to avoid changing encryption key on every restart.
+        if not v:
+            return "change-me-in-production-please-set-via-panel"
+        return v
     jwt_expiry_minutes: int = 10080  # 7 days for persistent sessions
     
     # Server

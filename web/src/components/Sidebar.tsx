@@ -18,7 +18,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     // Sync activeSection from current route so the highlight matches the URL
     useEffect(() => {
         const entry = Object.entries(musicRoutes).find(([, r]) => location.pathname === r || location.pathname.startsWith(r + '/'));
-        if (entry) setActiveSection(entry[0]);
+        if (entry) setActiveSection(entry[0] as any);
     }, [location.pathname, setActiveSection]);
     const { data: storage } = useStorageStats();
     const { data: user } = useCurrentUser();

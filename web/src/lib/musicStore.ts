@@ -14,6 +14,7 @@ interface MusicState {
   setPlaying: (p: boolean) => void
   playNext: () => void
   playPrev: () => void
+  removeTrack: (index: number) => void
 }
 
 export const useMusicStore = create<MusicState>((set, get) => ({
@@ -44,13 +45,12 @@ export const useMusicStore = create<MusicState>((set, get) => ({
     if (queueIndex > 0) set({ queueIndex: queueIndex-1, currentTrack: queue[queueIndex-1], isPlaying: true })
   },
   removeTrack: (index: number) => {
-    const { queue, queueIndex } = get()
+    const { queue } = get()
     const newQueue = queue.filter((_: any, i: number) => i !== index)
-    const newIndex = index >= newQueue.length ? newQueue.length - 1 : index
     set({
       queue: newQueue,
-      queueIndex: newIndex >= 0 ? newIndex : 0,
-      currentTrack: newQueue[newIndex >= 0 ? newIndex : 0] || null,
+      queueIndex: newQueue.length - 1,
+      currentTrack: newQueue[newQueue.length - 1] || null,
     })
   },
 }))

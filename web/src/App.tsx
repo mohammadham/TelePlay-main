@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode, useSetupStatus } from './lib/api';
 import GlobalContextMenu from './components/GlobalContextMenu';
 import SetupPage from './components/SetupPage';
@@ -314,7 +314,6 @@ import Sidebar from './components/Sidebar';
 
 function MusicLayout({ children }: { children: React.ReactNode }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const handleNavChange = useCallback(() => setSidebarOpen(false), []);
     return (
         <div className="flex min-h-screen bg-[#121212] text-white">
             <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

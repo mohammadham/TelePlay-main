@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function QueuePanel({ onClose }: Props) {
-  const { queue, queueIndex, currentTrack, setQueue, playNext, setCurrent, removeTrack } = useMusicStore()
+  const { queue, queueIndex, currentTrack, setQueue, removeTrack } = useMusicStore()
 
   const trackCount = useMemo(() => queue.length, [queue])
   const currentIndex = queueIndex >= 0 ? queueIndex : -1

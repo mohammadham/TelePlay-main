@@ -17,6 +17,7 @@ const MEDIA_TABS: { key: MediaType; label: string }[] = [
 
 export default function MusicHome() {
   const [mediaType, setMediaType] = useState<MediaType>('all')
+  const [genre, setGenre] = useState<string>('')
   const navigate = useNavigate()
   const { data: tracks, isLoading } = useQuery({
     queryKey: ['music-tracks', mediaType, genre],
@@ -33,13 +34,12 @@ export default function MusicHome() {
     queryFn: async () => (await api.get<any[]>('/v1/music/artists')).data,
     staleTime: 120000,
   })
-  const { setQueue, playNext, setShuffle } = useMusicStore()
+  const { setQueue, setShuffle } = useMusicStore()
   const { setPreviewFile } = useAppStore()
   const qc = useQueryClient()
   const [downloading, setDownloading] = useState<number | null>(null)
   const toggleLike = useToggleLike()
   const { data: history, isLoading: historyLoading } = useMusicHistory(50)
-  const [genre, setGenre] = useState<string>('')
 
   const list: MusicTrack[] = Array.isArray(tracks) ? tracks : []
 

@@ -324,9 +324,19 @@ async def complete_setup(
     await db.refresh(user_acc)
     await db.refresh(super_admin)
 
-    # Persist encryption key and JWT secret to DB (so they survive restarts)
-    await ensure_encryption_key()
+    # 6. Apply DB overrides to settings FIRST so JWT_SECRET is loaded from DB
+    # (or use the in-memory one if first-time setup). This MUST happen before
+    # ensure_encryption_key() so the key is derived from the persisted secret,
+    # not from a random value generated on this process startup.
     settings = get_settings()
+    await mark_db_ready(settings)
+
+    # Now derive encryption key from the (possibly DB-loaded) JWT_SECRET
+    await ensure_encryption_key()
+
+    # Persist the JWT_SECRET to DB so it survives restarts.
+    # On first run, settings.jwt_secret was auto-generated; on subsequent runs
+    # it was just loaded from DB above and is a no-op write of the same value.
     if settings.jwt_secret and settings.jwt_secret != "change-me-in-production-please-set-via-panel":
         try:
             from ..models import AppSetting
@@ -355,9 +365,6 @@ async def complete_setup(
         except Exception as e:
             logger.warning(f"Could not persist JWT_SECRET to DB: {e}")
 
-    # 6. Apply DB overrides to settings (must await — it's an async function)
-    settings = get_settings()
-    await mark_db_ready(settings)
     # Set in-memory flag so is_configured() returns True immediately
     mark_setup_complete()
 
@@ -383,6 +390,86 @@ async def complete_setup(
         access_token=access_token,
         refresh_token=refresh_token,
     )
+
+
+@router.get("/system-status")
+async def system_status():
+    """
+    Comprehensive system status check.
+
+    This endpoint provides detailed information about:
+    - Setup configuration status
+    - Database contents (bot config, user accounts, admins)
+    - Encryption key health (can we decrypt stored credentials?)
+    - Whether system is ready for bot operation
+    - If not ready, what's missing and should show setup wizard
+
+    Temporary for debugging — no auth required.
+    """
+    from ..config import get_settings, is_configured, validate_startup_config, check_decryption_health
+    from ..database import get_engine
+    from sqlalchemy import select
+
+    s = get_settings()
+    configured = await is_configured(s)
+
+    # Check DB contents
+    has_bots = False
+    has_accounts = False
+    has_admin = False
+    db_error = None
+
+    try:
+        eng = get_engine()
+        if eng:
+            async with eng.begin() as conn:
+                has_bots = (await conn.execute(select(BotConfig).limit(1))).scalar_one_or_none() is not None
+                has_accounts = (await conn.execute(select(UserAccount).limit(1))).scalar_one_or_none() is not None
+                has_admin = (await conn.execute(select(AdminUser).limit(1))).scalar_one_or_none() is not None
+    except Exception as e:
+        db_error = str(e)
+        logger.error(f"Database status check failed: {e}")
+
+    # Run validation
+    is_valid, missing_fields = await validate_startup_config(s)
+    decryption_ok, dec_error_count = await check_decryption_health()
+
+    # Determine if we should show setup wizard
+    should_show_setup = not is_valid or not decryption_ok or not configured
+
+    # Calculate readiness
+    ready_for_bot = configured and has_bots and has_accounts and has_admin and is_valid and decryption_ok
+
+    # Get DB info summary
+    db_summary = {
+        "has_bots": has_bots,
+        "has_accounts": has_accounts,
+        "has_admin": has_admin,
+        "db_error": db_error,
+    }
+
+    # Get validation details
+    validation = {
+        "is_valid": is_valid,
+        "missing_fields": missing_fields,
+        "decryption_ok": decryption_ok,
+        "decryption_errors": dec_error_count,
+    }
+
+    return {
+        "system_ready": ready_for_bot,
+        "configured": configured,
+        "has_bots_in_db": has_bots,
+        "has_accounts_in_db": has_accounts,
+        "has_admin_in_db": has_admin,
+        "show_setup_wizard": should_show_setup,
+        "database_summary": db_summary,
+        "validation": validation,
+        "telegram_bot_token_set": bool(s.telegram_bot_token),
+        "telegram_api_id_set": bool(s.telegram_api_id),
+        "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
+        "jwt_secret_status": "set" if s.jwt_secret and s.jwt_secret != "change-me-in-production-please-set-via-panel" else "not_set",
+    }
 
 
 @router.get("/status")

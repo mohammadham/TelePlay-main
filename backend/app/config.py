@@ -5,8 +5,11 @@ with database-backed overrides applied after first DB sync.
 from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict, field_validator
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Dict
 from sqlalchemy import select
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -161,13 +164,22 @@ def get_settings() -> Settings:
 _db_overrides_applied = False
 _db_settings_store: Optional[Settings] = None  # populated by apply_db_overrides() after init_db()
 
+# Track startup attempt state for rate limiting
+_startup_attempts: Dict[str, int] = {}
+_startup_first_attempt: Optional[float] = None
+_startup_lock_until: Optional[float] = None  # timestamp until which checks are suppressed
 
-async def mark_db_ready(s: Settings):
-    """Call this once from main.py lifespan AFTER init_db() completes.
-    Loads DB-stored settings and patches s in-place."""
+
+async def mark_db_ready(s: Settings) -> bool:
+    """
+    Call this once from main.py lifespan AFTER init_db() completes.
+    Loads DB-stored settings and patches s in-place.
+    Returns True if DB had valid configuration, False otherwise.
+    """
     global _db_overrides_applied, _db_settings_store
     if _db_overrides_applied:
-        return
+        return True  # already applied
+
     try:
         from .models import AppSetting
         from .database import async_session
@@ -175,9 +187,13 @@ async def mark_db_ready(s: Settings):
             result = await conn.execute(select(AppSetting))
             rows = result.scalars().all()
             db_map = {r.key: r.value for r in rows if r.value}
+
             if not db_map:
+                logger.info("No DB settings found — first run or empty database")
                 _db_overrides_applied = True
-                return
+                return False
+
+            # Apply all DB settings
             for key, val in db_map.items():
                 alias_key = key.upper()
                 if alias_key == "TELEGRAM_API_ID":
@@ -210,12 +226,91 @@ async def mark_db_ready(s: Settings):
                 elif alias_key == "ADS_ENABLED":
                     if hasattr(s, "ads_enabled"):
                         setattr(s, "ads_enabled", val.lower() in ("true", "1", "yes"))
-        _db_overrides_applied = True
+
+            _db_overrides_applied = True
+            _db_settings_store = s
+            logger.info("DB settings applied successfully")
+            return True
+
     except ImportError:
         _db_overrides_applied = True
+        return False
     except Exception as _e:
         import logging
-        logging.getLogger(__name__).warning(f"DB overrides could not be applied: {_e}")
+        logging.getLogger(__name__).error(f"Failed to load DB settings: {_e}")
+        # On failure, mark as applied to avoid retry loops
+        _db_overrides_applied = True
+        return False
+
+
+async def validate_startup_config(s: Settings) -> tuple[bool, list[str]]:
+    """
+    Validate that all required configuration is present and decryptable.
+    Returns (is_valid, list_of_missing_fields).
+    If validation fails, the system should show setup wizard.
+    """
+    missing = []
+
+    # Check all required fields are present and non-template
+    if not s.telegram_api_id or s.telegram_api_id == 0:
+        missing.append("telegram_api_id")
+    if not s.telegram_api_hash or s.telegram_api_hash == "your_api_hash":
+        missing.append("telegram_api_hash")
+    if not s.telegram_bot_token or s.telegram_bot_token == "your_bot_token":
+        missing.append("telegram_bot_token")
+    if not s.telegram_storage_channel_id or s.telegram_storage_channel_id == 0:
+        missing.append("telegram_storage_channel_id")
+    if not s.jwt_secret or s.jwt_secret == "change-me-in-production-please-set-via-panel":
+        missing.append("jwt_secret")
+
+    # Check DB has required records
+    try:
+        from .models import BotConfig, UserAccount, AdminUser
+        from .database import async_session
+        import sqlalchemy as _sa
+
+        async with async_session() as conn:
+            main_bot = (await conn.execute(_sa.select(BotConfig).where(BotConfig.name == "main").limit(1))).scalar_one_or_none()
+            storage_acc = (await conn.execute(_sa.select(UserAccount).where(UserAccount.name == "storage_1").limit(1))).scalar_one_or_none()
+            super_admin = (await conn.execute(_sa.select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1))).scalar_one_or_none()
+
+            if not main_bot:
+                missing.append("db:main_bot")
+            if not storage_acc:
+                missing.append("db:storage_account")
+            if not super_admin:
+                missing.append("db:super_admin")
+    except Exception:
+        # If DB check fails, we'll rely on env vars
+        pass
+
+    return (len(missing) == 0, missing)
+
+
+async def check_decryption_health() -> tuple[bool, int]:
+    """
+    Check if encrypted credentials in DB can be decrypted with current key.
+    Returns (all_ok, error_count).
+    """
+    from .encryption import decrypt as _dec
+    from sqlalchemy import select as _sel
+    from .database import async_session
+    from .models import UserAccount, BotConfig
+
+    try:
+        async with async_session() as _db:
+            acc_rows = (await _db.execute(_sel(UserAccount))).scalars().all()
+            bot_rows = (await _db.execute(_sel(BotConfig))).scalars().all()
+            dec_errors = 0
+            for a in acc_rows:
+                if not _dec(a.session_string_encrypted):
+                    dec_errors += 1
+            for b in bot_rows:
+                if not _dec(b.token_encrypted):
+                    dec_errors += 1
+            return (dec_errors == 0, dec_errors)
+    except Exception:
+        return (False, -1)  # -1 means check failed
 
 # Local flag: set True once complete_setup succeeds — survives across requests
 _setup_complete = False

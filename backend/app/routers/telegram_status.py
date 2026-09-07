@@ -1,14 +1,14 @@
 """
 Telegram Bot Status API — Check and control bot connection.
+No auth required temporarily for debugging.
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 from pydantic import BaseModel
+from typing import Optional
 
-from ..database import get_db
-from ..config import get_settings, is_configured
-from ..telegram import tg_client, build_clients, start_all_clients, stop_all_clients, clients as client_pool
+from ..config import get_settings, is_configured, validate_startup_config, check_decryption_health
+from ..telegram import tg_client, build_clients, start_telegram_client, stop_all_clients, clients as client_pool
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/telegram", tags=["Telegram Status"])
@@ -18,9 +18,9 @@ class ClientStatus(BaseModel):
     index: int
     name: str
     is_connected: bool
-    username: str | None = None
-    bot_user_id: int | None = None
-    error: str | None = None
+    username: Optional[str] = None
+    bot_user_id: Optional[int] = None
+    error: Optional[str] = None
 
 
 class TelegramStatusResponse(BaseModel):
@@ -30,9 +30,10 @@ class TelegramStatusResponse(BaseModel):
     api_hash_set: bool
     storage_channel_set: bool
     is_configured: bool
-    tg_client: ClientStatus | None = None
+    tg_client: Optional[ClientStatus] = None
     all_clients: list[ClientStatus] = []
-    startup_error: str | None = None
+    startup_error: Optional[str] = None
+    validation: dict = {}
 
 
 class TelegramStartRequest(BaseModel):
@@ -46,10 +47,11 @@ class TelegramStartResponse(BaseModel):
 
 
 @router.get("/status", response_model=TelegramStatusResponse)
-async def get_telegram_status(
-    db: AsyncSession = Depends(get_db),
-):
-    """Get current Telegram bot status — connection, configured state, client pool."""
+async def get_telegram_status():
+    """Get current Telegram bot status — connection, configured state, validation info.
+
+    No auth required — temporary for debugging during Railway deployment.
+    """
     settings = get_settings()
     configured = await is_configured(settings)
 
@@ -60,6 +62,17 @@ async def get_telegram_status(
                         settings.telegram_api_hash != "your_api_hash")
     storage_set = bool(settings.telegram_storage_channel_id and
                        settings.telegram_storage_channel_id != 0)
+
+    # Run full validation
+    is_valid, missing_fields = await validate_startup_config(settings)
+    decryption_ok, dec_error_count = await check_decryption_health()
+
+    validation = {
+        "is_valid": is_valid,
+        "missing_fields": missing_fields,
+        "decryption_ok": decryption_ok,
+        "decryption_errors": dec_error_count,
+    }
 
     # Gather client info
     all_clients = []
@@ -109,16 +122,17 @@ async def get_telegram_status(
         is_configured=configured,
         tg_client=tg_info,
         all_clients=all_clients,
+        startup_error=None if is_valid and decryption_ok else "Validation failed - setup required",
+        validation=validation,
     )
 
 
 @router.post("/start", response_model=TelegramStartResponse)
-async def start_telegram(
-    payload: TelegramStartRequest = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """Start/restart the Telegram client pool."""
-    from ..telegram import start_telegram_client
+async def start_telegram(payload: TelegramStartRequest = None):
+    """Start/restart the Telegram client pool.
+
+    No auth required — temporary for debugging during Railway deployment.
+    """
     from ..encryption import ensure_encryption_key
 
     try:
@@ -148,11 +162,11 @@ async def start_telegram(
 
 
 @router.post("/stop", response_model=TelegramStartResponse)
-async def stop_telegram(
-    db: AsyncSession = Depends(get_db),
-):
-    """Stop all Telegram clients."""
-    from ..telegram import stop_all_clients
+async def stop_telegram():
+    """Stop all Telegram clients.
+
+    No auth required — temporary for debugging during Railway deployment.
+    """
     try:
         if tg_client and tg_client.is_connected:
             await stop_all_clients()

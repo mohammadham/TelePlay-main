@@ -61,9 +61,24 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Import config functions we need
+    from .config import (
+        validate_startup_config,
+        check_decryption_health,
+        mark_db_ready,
+        is_configured,
+        _startup_attempts,
+        _startup_first_attempt,
+        _startup_lock_until
+    )
+    import time
+
     # Load DB settings FIRST (including JWT_SECRET) so encryption key can be derived
-    await mark_db_ready(settings)
-    logger.info("DB settings applied")
+    db_ready = await mark_db_ready(settings)
+    if db_ready:
+        logger.info("DB settings applied")
+    else:
+        logger.info("No valid DB configuration found")
 
     # Now derive encryption key from the (possibly DB-loaded) JWT_SECRET
     await ensure_encryption_key()
@@ -76,31 +91,88 @@ async def lifespan(app: FastAPI):
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
 
-    # Skip telegram client startup if credentials are not yet configured
-    # (setup wizard has not run yet, or env vars are template values)
-    from .config import is_configured
-    if not await is_configured(settings):
-        logger.info("Not configured yet — skipping Telegram client startup (setup wizard pending)")
+    # Validate startup configuration
+    is_valid, missing_fields = await validate_startup_config(settings)
+    decryption_ok, dec_error_count = await check_decryption_health()
+
+    logger.info(f"Startup validation - Valid: {is_valid}, Missing: {missing_fields}, Decryption OK: {decryption_ok} (errors: {dec_error_count})")
+
+    # Handle startup attempt rate limiting
+    current_time = time.time()
+    startup_key = "telegram_startup"
+
+    # Initialize attempt tracking if needed
+    if startup_key not in _startup_attempts:
+        _startup_attempts[startup_key] = 0
+        _startup_first_attempt = current_time
+        _startup_lock_until = None
+
+    # Check if we're in a lockout period
+    if _startup_lock_until and current_time < _startup_lock_until:
+        remaining = int(_startup_lock_until - current_time)
+        logger.info(f"Telegram startup locked out for {remaining}s due to previous failures")
+        # Skip startup but keep health check running
+        pass
     else:
-        # Retry Telegram client startup with delays — Telegram servers may be slow to respond
-        from .telegram import start_telegram_client as _start_tc, clients as _clients
-        import asyncio as _asyncio
-        max_retries = 3
-        for attempt in range(1, max_retries + 1):
-            try:
-                await _start_tc()
-                connected = any(c.is_connected for c in _clients) if _clients else False
-                logger.info("Telegram client started (attempt %d/%d, connected=%s)", attempt, max_retries, connected)
-                break
-            except Exception as e:
-                logger.warning("Telegram client startup attempt %d/%d failed: %s", attempt, max_retries, e)
-                if attempt < max_retries:
-                    wait = 2 ** (attempt - 1)  # 1s, 2s, 4s
-                    logger.info("Retrying in %ds...", wait)
-                    await _asyncio.sleep(wait)
-                else:
-                    logger.error("All %d Telegram startup attempts failed. Bot will remain unavailable until restart or manual /api/telegram/start.", max_retries)
-        logger.info("Telegram client started")
+        # Reset lockout if we've had a successful attempt recently
+        if is_valid and decryption_ok:
+            _startup_attempts[startup_key] = 0
+            _startup_first_attempt = None
+            _startup_lock_until = None
+            logger.info("Startup validation passed - resetting attempt counter")
+
+    # Start Telegram client if configured and healthy
+    if is_valid and decryption_ok:
+        # Skip telegram client startup if credentials are not yet configured
+        # (setup wizard has not run yet, or env vars are template values)
+        if not await is_configured(settings):
+            logger.info("Not configured yet — skipping Telegram client startup (setup wizard pending)")
+        else:
+            # Retry Telegram client startup with delays — Telegram servers may be slow to respond
+            from .telegram import start_telegram_client as _start_tc, clients as _clients
+            import asyncio as _asyncio
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                try:
+                    await _start_tc()
+                    connected = any(c.is_connected for c in _clients) if _clients else False
+                    logger.info("Telegram client started (attempt %d/%d, connected=%s)", attempt, max_retries, connected)
+                    break
+                except Exception as e:
+                    logger.warning("Telegram client startup attempt %d/%d failed: %s", attempt, max_retries, e)
+                    if attempt < max_retries:
+                        wait = 2 ** (attempt - 1)  # 1s, 2s, 4s
+                        logger.info("Retrying in %ds...", wait)
+                        await _asyncio.sleep(wait)
+                    else:
+                        logger.error("All %d Telegram startup attempts failed. Bot will remain unavailable until restart or manual /api/telegram/start.", max_retries)
+                        # Increment failure counter for lockout
+                        _startup_attempts[startup_key] += 1
+                        attempt_count = _startup_attempts[startup_key]
+                        if attempt_count >= 3:
+                            # Lock out for 30 minutes after 3 failures
+                            lockout_duration = 30 * 60  # 30 minutes in seconds
+                            _startup_lock_until = current_time + lockout_duration
+                            logger.warning(f"Telegram startup locked out for {lockout_duration}s after {attempt_count} consecutive failures")
+                        else:
+                            logger.info(f"Telegram startup attempt {attempt_count}/3 failed")
+            logger.info("Telegram client started")
+    else:
+        logger.warning("Startup validation failed or decryption issues detected")
+        logger.info(f"Missing fields: {missing_fields}")
+        logger.info(f"Decryption errors: {dec_error_count}")
+        if not is_valid or not decryption_ok:
+            # Increment failure counter for lockout
+            _startup_attempts[startup_key] += 1
+            attempt_count = _startup_attempts[startup_key]
+            if attempt_count >= 3:
+                # Lock out for 30 minutes after 3 failures
+                lockout_duration = 30 * 60  # 30 minutes in seconds
+                _startup_lock_until = current_time + lockout_duration
+                logger.warning(f"Telegram startup locked out for {lockout_duration}s after {attempt_count} consecutive failures")
+            else:
+                logger.info(f"Telegram startup attempt {attempt_count}/3 failed due to validation/decryption issues")
+        logger.info("Skipping Telegram client startup due to validation failure")
 
     # Load user accounts into pool — auto-reset on decryption failure
     from .pool_manager import load_user_accounts
@@ -139,7 +211,18 @@ async def lifespan(app: FastAPI):
             try:
                 configured = await is_configured(settings)
                 if not configured:
+                    # If not configured, reset attempt counter to allow setup
+                    _startup_attempts[startup_key] = 0
+                    _startup_first_attempt = None
+                    _startup_lock_until = None
                     continue
+
+                # Check if we're locked out
+                if _startup_lock_until and current_time < _startup_lock_until:
+                    # Still in lockout, skip health check actions
+                    await asyncio.sleep(60)  # Check lock status more frequently during lockout
+                    continue
+
                 disconnected = any(
                     not c.is_connected for c in _bg_clients
                 ) if _bg_clients else False
@@ -154,6 +237,9 @@ async def lifespan(app: FastAPI):
                     logger.info(
                         "Auto-restart complete — connected: %s", connected_after
                     )
+
+                    # Reset failure counter on successful restart
+                    _startup_attempts[startup_key] = 0
             except Exception as e:
                 logger.warning("Telegram health check error (non-fatal): %s", e)
 

@@ -71,9 +71,8 @@ async def lifespan(app: FastAPI):
 
     # Run migration from legacy settings
     from .migration import migrate_existing_settings, ensure_default_bot_config
-    from .database import get_sessionmaker
-    session_maker = get_sessionmaker()
-    async with session_maker() as db:
+    from .database import async_session
+    async with async_session() as db:
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
 

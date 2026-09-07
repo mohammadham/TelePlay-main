@@ -10,7 +10,7 @@ from typing import Optional, List
 
 from ..database import get_db
 from ..models import BotConfig, UserAccount, AdminUser
-from ..config import get_settings, mark_db_ready, mark_setup_complete
+from ..config import get_settings, mark_db_ready
 from ..auth import create_access_token, create_refresh_token
 from ..encryption import encrypt, decrypt
 from ..services import telegram_auth_service, session_manager
@@ -324,6 +324,10 @@ async def complete_setup(
     await db.refresh(user_acc)
     await db.refresh(super_admin)
 
+    # Set in-memory flag so is_configured() returns True immediately
+    from ..config import mark_setup_complete as _mark_setup_complete
+    _mark_setup_complete()
+
     # 6. Apply DB overrides to settings FIRST so JWT_SECRET is loaded from DB
     # (or use the in-memory one if first-time setup). This MUST happen before
     # ensure_encryption_key() so the key is derived from the persisted secret,
@@ -334,16 +338,17 @@ async def complete_setup(
     # Now derive encryption key from the (possibly DB-loaded) JWT_SECRET
     await ensure_encryption_key()
 
-    # Persist the JWT_SECRET to DB so it survives restarts.
-    # On first run, settings.jwt_secret was auto-generated; on subsequent runs
-    # it was just loaded from DB above and is a no-op write of the same value.
-    if settings.jwt_secret and settings.jwt_secret != "change-me-in-production-please-set-via-panel":
-        try:
-            from ..models import AppSetting
-            from ..database import async_session
-            import sqlalchemy
-            async def _set_jwt_async() -> None:
-                async with async_session() as conn:
+    # 7. Persist ALL config values to DB so they survive restarts
+    # This is critical: on next startup, mark_db_ready() will load these values
+    # and all Telegram credentials will be available without manual re-config
+    try:
+        from ..models import AppSetting
+        from ..database import async_session
+        import sqlalchemy
+        async def _persist_config_async() -> None:
+            async with async_session() as conn:
+                # Persist JWT_SECRET
+                if settings.jwt_secret and settings.jwt_secret != "change-me-in-production-please-set-via-panel":
                     row = await conn.execute(
                         sqlalchemy.select(AppSetting)
                         .where(AppSetting.key == 'JWT_SECRET').limit(1)
@@ -359,14 +364,63 @@ async def complete_setup(
                         )
                     else:
                         existing.value = settings.jwt_secret
-                    await conn.commit()
+                    # Note: we commit after all values are set
 
-            await _set_jwt_async()
-        except Exception as e:
-            logger.warning(f"Could not persist JWT_SECRET to DB: {e}")
+                # Persist Telegram API ID
+                if hasattr(settings, 'telegram_api_id') and settings.telegram_api_id:
+                    await conn.execute(
+                        sqlalchemy.insert(AppSetting).values(
+                            key='TELEGRAM_API_ID',
+                            value=str(settings.telegram_api_id) if settings.telegram_api_id else '',
+                            description="Telegram API ID",
+                        )
+                    )
 
-    # Set in-memory flag so is_configured() returns True immediately
-    mark_setup_complete()
+                # Persist Telegram API Hash
+                if hasattr(settings, 'telegram_api_hash') and settings.telegram_api_hash:
+                    await conn.execute(
+                        sqlalchemy.insert(AppSetting).values(
+                            key='TELEGRAM_API_HASH',
+                            value=settings.telegram_api_hash if settings.telegram_api_hash else '',
+                            description="Telegram API hash",
+                        )
+                    )
+
+                # Persist Telegram Bot Token
+                if hasattr(settings, 'telegram_bot_token') and settings.telegram_bot_token:
+                    await conn.execute(
+                        sqlalchemy.insert(AppSetting).values(
+                            key='TELEGRAM_BOT_TOKEN',
+                            value=settings.telegram_bot_token if settings.telegram_bot_token else '',
+                            description="Telegram bot token",
+                        )
+                    )
+
+                # Persist Telegram Storage Channel ID
+                if hasattr(settings, 'telegram_storage_channel_id') and settings.telegram_storage_channel_id:
+                    await conn.execute(
+                        sqlalchemy.insert(AppSetting).values(
+                            key='TELEGRAM_STORAGE_CHANNEL_ID',
+                            value=str(settings.telegram_storage_channel_id) if settings.telegram_storage_channel_id else '',
+                            description="Telegram storage channel ID",
+                        )
+                    )
+
+                # Persist Telegram Proxy
+                if hasattr(settings, 'telegram_proxy') and settings.telegram_proxy:
+                    await conn.execute(
+                        sqlalchemy.insert(AppSetting).values(
+                            key='TELEGRAM_PROXY',
+                            value=settings.telegram_proxy,
+                            description="Telegram MTProto proxy",
+                        )
+                    )
+                await conn.commit()
+
+        await _persist_config_async()
+        logger.info("All config values persisted to DB")
+    except Exception as e:
+        logger.warning(f"Could not persist all config to DB: {e}")
 
     # 7. Load user account into pool
     await session_manager.load_account_to_pool(user_acc)
@@ -456,6 +510,10 @@ async def system_status():
         "decryption_errors": dec_error_count,
     }
 
+    # Additional info for debugging
+    # If decryption fails but data exists in DB, we need to show setup wizard
+    # This happens when JWT_SECRET changed between runs
+
     return {
         "system_ready": ready_for_bot,
         "configured": configured,
@@ -469,6 +527,7 @@ async def system_status():
         "telegram_api_id_set": bool(s.telegram_api_id),
         "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
         "jwt_secret_status": "set" if s.jwt_secret and s.jwt_secret != "change-me-in-production-please-set-via-panel" else "not_set",
+        "notes": "If show_setup_wizard=true and decryption_ok=false, JWT_SECRET may have changed. Run setup again to regenerate credentials."
     }
 
 

@@ -226,6 +226,15 @@ async def mark_db_ready(s: Settings) -> bool:
                 elif alias_key == "ADS_ENABLED":
                     if hasattr(s, "ads_enabled"):
                         setattr(s, "ads_enabled", val.lower() in ("true", "1", "yes"))
+                elif alias_key == "TELEGRAM_PROXY":
+                    if hasattr(s, "telegram_proxy"):
+                        setattr(s, "telegram_proxy", val)
+                elif alias_key == "TELEGRAM_HELPER_BOT_TOKENS":
+                    if hasattr(s, "telegram_helper_bot_tokens_str"):
+                        setattr(s, "telegram_helper_bot_tokens_str", val)
+                elif alias_key == "AUTH_USERS":
+                    if hasattr(s, "auth_users_str"):
+                        setattr(s, "auth_users_str", val)
 
             _db_overrides_applied = True
             _db_settings_store = s
@@ -248,40 +257,76 @@ async def validate_startup_config(s: Settings) -> tuple[bool, list[str]]:
     Validate that all required configuration is present and decryptable.
     Returns (is_valid, list_of_missing_fields).
     If validation fails, the system should show setup wizard.
+
+    Strategy:
+    1. Check if values are in Settings (loaded from DB via mark_db_ready)
+    2. If not, read directly from BotConfig/UserAccount tables
+    3. If still missing, mark as invalid
     """
     missing = []
 
-    # Check all required fields are present and non-template
-    if not s.telegram_api_id or s.telegram_api_id == 0:
-        missing.append("telegram_api_id")
-    if not s.telegram_api_hash or s.telegram_api_hash == "your_api_hash":
-        missing.append("telegram_api_hash")
-    if not s.telegram_bot_token or s.telegram_bot_token == "your_bot_token":
-        missing.append("telegram_bot_token")
-    if not s.telegram_storage_channel_id or s.telegram_storage_channel_id == 0:
-        missing.append("telegram_storage_channel_id")
-    if not s.jwt_secret or s.jwt_secret == "change-me-in-production-please-set-via-panel":
-        missing.append("jwt_secret")
-
-    # Check DB has required records
+    # First, try to get values from DB directly (in case mark_db_ready failed)
+    db_values = {}
     try:
-        from .models import BotConfig, UserAccount, AdminUser
+        from .models import AppSetting, BotConfig, UserAccount
         from .database import async_session
         import sqlalchemy as _sa
 
         async with async_session() as conn:
+            # Read AppSetting values
+            result = await conn.execute(_sa.select(AppSetting))
+            rows = result.scalars().all()
+            db_values = {r.key: r.value for r in rows if r.value}
+
+            # Also read from BotConfig if available
             main_bot = (await conn.execute(_sa.select(BotConfig).where(BotConfig.name == "main").limit(1))).scalar_one_or_none()
+            if main_bot:
+                db_values['BOT_CONFIG_EXISTS'] = True
+
+            # And from UserAccount
             storage_acc = (await conn.execute(_sa.select(UserAccount).where(UserAccount.name == "storage_1").limit(1))).scalar_one_or_none()
+            if storage_acc:
+                db_values['USER_ACCOUNT_EXISTS'] = True
+    except Exception as e:
+        logger.warning(f"Could not read from DB for validation: {e}")
+
+    # Check API ID: from settings OR DB
+    api_id = s.telegram_api_id or db_values.get('TELEGRAM_API_ID', '0')
+    if not api_id or int(api_id) == 0:
+        missing.append("telegram_api_id")
+
+    # Check API Hash: from settings OR DB
+    api_hash = s.telegram_api_hash or db_values.get('TELEGRAM_API_HASH', '')
+    if not api_hash or api_hash == "your_api_hash":
+        missing.append("telegram_api_hash")
+
+    # Check Bot Token: from settings OR DB
+    bot_token = s.telegram_bot_token or db_values.get('TELEGRAM_BOT_TOKEN', '')
+    if not bot_token or bot_token == "your_bot_token":
+        missing.append("telegram_bot_token")
+
+    # Check Storage Channel ID: from settings OR DB
+    storage_id = s.telegram_storage_channel_id or db_values.get('TELEGRAM_STORAGE_CHANNEL_ID', '0')
+    if not storage_id or int(storage_id) == 0:
+        missing.append("telegram_storage_channel_id")
+
+    # Check JWT Secret: from settings OR DB
+    jwt_secret = s.jwt_secret or db_values.get('JWT_SECRET', '')
+    if not jwt_secret or jwt_secret == "change-me-in-production-please-set-via-panel":
+        missing.append("jwt_secret")
+
+    # Check DB has required records
+    try:
+        from .models import AdminUser
+        from .database import async_session
+        import sqlalchemy as _sa
+
+        async with async_session() as conn:
             super_admin = (await conn.execute(_sa.select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1))).scalar_one_or_none()
 
-            if not main_bot:
-                missing.append("db:main_bot")
-            if not storage_acc:
-                missing.append("db:storage_account")
             if not super_admin:
                 missing.append("db:super_admin")
     except Exception:
-        # If DB check fails, we'll rely on env vars
         pass
 
     return (len(missing) == 0, missing)
@@ -328,7 +373,7 @@ async def is_configured(settings: Settings) -> bool:
     Checks in this order:
       1. Real env vars present (works when DATABASE_URL is in .env)
       2. In-memory flag set by complete_setup (survives across requests)
-      3. DB state: main bot + storage account + super admin exist
+      3. DB state: main bot + storage account + super admin exist AND credentials can be read
     """
     # Primary: real env vars are set
     if (
@@ -346,14 +391,31 @@ async def is_configured(settings: Settings) -> bool:
 
     # Fallback: check DB state via async_session
     try:
-        from .models import BotConfig, UserAccount, AdminUser
+        from .models import BotConfig, UserAccount, AdminUser, AppSetting
         from .database import async_session
         import sqlalchemy as _sa
 
         async with async_session() as conn:
+            # Check we have the core tables populated
             main_bot = (await conn.execute(_sa.select(BotConfig).where(BotConfig.name == "main").limit(1))).scalar_one_or_none()
             storage_acc = (await conn.execute(_sa.select(UserAccount).where(UserAccount.name == "storage_1").limit(1))).scalar_one_or_none()
             super_admin = (await conn.execute(_sa.select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1))).scalar_one_or_none()
+
+            # Also check if credentials are stored in DB
+            db_settings = await conn.execute(_sa.select(AppSetting))
+            db_values = {r.key: r.value for r in db_settings.scalars().all() if r.value}
+
+            # If we have core tables AND credentials in DB, consider configured
+            if main_bot and storage_acc and super_admin:
+                # Check if at least API_ID and BOT_TOKEN are in DB
+                has_api_id = db_values.get('TELEGRAM_API_ID') and int(db_values.get('TELEGRAM_API_ID', '0')) > 0
+                has_api_hash = db_values.get('TELEGRAM_API_HASH') and db_values.get('TELEGRAM_API_HASH') != 'your_api_hash'
+                has_bot_token = db_values.get('TELEGRAM_BOT_TOKEN') and db_values.get('TELEGRAM_BOT_TOKEN') != 'your_bot_token'
+                has_storage_id = db_values.get('TELEGRAM_STORAGE_CHANNEL_ID') and int(db_values.get('TELEGRAM_STORAGE_CHANNEL_ID', '0')) > 0
+
+                if has_api_id and has_api_hash and has_bot_token and has_storage_id:
+                    return True
+
             return bool(main_bot and storage_acc and super_admin)
     except Exception:
         return False

@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
         logger.info("Not configured yet — skipping Telegram client startup (setup wizard pending)")
     else:
         # Retry Telegram client startup with delays — Telegram servers may be slow to respond
-        from .telegram import start_telegram_client as _start_tc, stop_all_clients as _stop_tc, clients as _clients
+        from .telegram import start_telegram_client as _start_tc, clients as _clients
         import asyncio as _asyncio
         max_retries = 3
         for attempt in range(1, max_retries + 1):

@@ -117,31 +117,32 @@ async def admin_stats(db: AsyncSession=Depends(get_db), admin: User=Depends(requ
     from ..models import User as U, File, Track, Ad, CacheConfig
     import asyncio
 
-    async def _load_counts():
-        users = db.execute(select(func.count()).select_from(U))
-        files = db.execute(select(func.count()).select_from(File))
-        files_audio = db.execute(select(func.count()).select_from(File).where(File.file_type=="audio"))
-        files_video = db.execute(select(func.count()).select_from(File).where(File.file_type=="video"))
-        tracks = db.execute(select(func.count()).select_from(Track))
-        tracks_audio = db.execute(select(func.count()).select_from(Track).where(Track.media_type=="audio"))
-        tracks_mv = db.execute(select(func.count()).select_from(Track).where(Track.media_type=="music_video"))
-        tracks_reel = db.execute(select(func.count()).select_from(Track).where(Track.media_type=="reel"))
-        ads = db.execute(select(func.count()).select_from(Ad))
-        storage = db.execute(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File))
-        return {
-            "users": users.scalar() or 0,
-            "files": files.scalar() or 0,
-            "files_audio": files_audio.scalar() or 0,
-            "files_video": files_video.scalar() or 0,
-            "tracks": tracks.scalar() or 0,
-            "tracks_audio": tracks_audio.scalar() or 0,
-            "tracks_music_video": tracks_mv.scalar() or 0,
-            "tracks_reel": tracks_reel.scalar() or 0,
-            "ads": ads.scalar() or 0,
-            "storage_bytes": storage.scalar() or 0,
-        }
+    async def _count(query):
+        return (await db.execute(query)).scalar() or 0
 
-    results, cache = await asyncio.gather(_load_counts(), cache_manager.get_stats())
+    results, cache = await asyncio.gather(
+        asyncio.gather(
+            _count(select(func.count()).select_from(U)),
+            _count(select(func.count()).select_from(File)),
+            _count(select(func.count()).select_from(File).where(File.file_type == "audio")),
+            _count(select(func.count()).select_from(File).where(File.file_type == "video")),
+            _count(select(func.count()).select_from(Track)),
+            _count(select(func.count()).select_from(Track).where(Track.media_type == "audio")),
+            _count(select(func.count()).select_from(Track).where(Track.media_type == "music_video")),
+            _count(select(func.count()).select_from(Track).where(Track.media_type == "reel")),
+            _count(select(func.count()).select_from(Ad)),
+            _count(select(func.coalesce(func.sum(File.file_size), 0)).select_from(File)),
+        ),
+        cache_manager.get_stats(),
+    )
+    users, files, fa, fv, tracks, ta, tmv, treel, ads, storage_bytes = results
+    results = {
+        "users": users, "files": files,
+        "files_audio": fa, "files_video": fv,
+        "tracks": tracks, "tracks_audio": ta,
+        "tracks_music_video": tmv, "tracks_reel": treel,
+        "ads": ads, "storage_bytes": storage_bytes,
+    }
     uptime = int(time.time() - _start_time)
     return {
         **results,

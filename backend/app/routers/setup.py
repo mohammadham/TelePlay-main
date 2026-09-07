@@ -542,3 +542,55 @@ async def setup_status():
         "telegram_storage_channel_id_set": bool(s.telegram_storage_channel_id),
         "database_url": s.database_url,
     }
+
+
+@router.post("/emergency-reset")
+async def emergency_reset():
+    """Emergency endpoint to reset broken encryption key state.
+
+    This endpoint:
+    1. Regenerates the JWT_SECRET if it's still the placeholder
+    2. Deletes all encrypted credentials (BotConfig, UserAccount)
+    3. Persists the new JWT_SECRET to AppSetting
+
+    WARNING: This destroys all encrypted data. Use only when setup is broken.
+    """
+    from ..database import get_engine
+    from sqlalchemy import delete
+    from ..encryption import ensure_encryption_key, _ENCRYPTION_KEY
+    import secrets
+
+    try:
+        eng = get_engine()
+        if not eng:
+            return {"error": "Database not initialized"}
+
+        async with eng.begin() as conn:
+            # Delete all encrypted credentials
+            await conn.execute(delete(BotConfig))
+            await conn.execute(delete(UserAccount))
+            await conn.execute(delete(AppSetting).where(AppSetting.key == 'JWT_SECRET'))
+
+            # Generate new deterministic JWT_SECRET
+            new_jwt_secret = secrets.token_urlsafe(32)
+            await conn.execute(
+                sqlalchemy.insert(AppSetting).values(
+                    key='JWT_SECRET',
+                    value=new_jwt_secret,
+                    description="JWT signing secret (emergency reset)"
+                )
+            )
+            await conn.commit()
+
+        # Ensure new encryption key is loaded
+        await ensure_encryption_key()
+
+        logger.info("Emergency reset completed. All encrypted data deleted.")
+        return {
+            "success": True,
+            "message": "Emergency reset completed. All encrypted credentials have been deleted.",
+            "jwt_secret_status": "regenerated"
+        }
+    except Exception as e:
+        logger.error(f"Emergency reset failed: {e}")
+        return {"error": str(e)}

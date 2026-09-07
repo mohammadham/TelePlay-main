@@ -276,7 +276,7 @@ def is_configured(settings: Settings) -> bool:
             storage_acc = conn.execute(select(UserAccount).where(UserAccount.name == "storage_1").limit(1)).scalar_one_or_none()
             super_admin = conn.execute(select(AdminUser).where(AdminUser.role == "SUPER_ADMIN").limit(1)).scalar_one_or_none()
             return bool(main_bot and storage_acc and super_admin)
-        result = eng.sync_engine.run_sync(_check)
+        result = eng.run_sync(_check)
         return bool(result)
     except Exception:
         return False

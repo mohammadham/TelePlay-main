@@ -14,6 +14,12 @@ _ENCRYPTION_KEY: bytes | None = None
 _fernet: Fernet | None = None
 
 
+def _set_fernet(key: bytes) -> None:
+    """Set the global _fernet instance. Must be called from top-level (not nested)."""
+    global _fernet
+    _fernet = Fernet(key)
+
+
 def _resolve_key() -> bytes:
     """
     Resolve encryption key from env var or DB.
@@ -28,7 +34,7 @@ def _resolve_key() -> bytes:
     if env_key:
         try:
             _ENCRYPTION_KEY = env_key.encode()
-            _fernet = Fernet(_ENCRYPTION_KEY)
+            _set_fernet(_ENCRYPTION_KEY)
             logger.info("Encryption key loaded from ENCRYPTION_KEY env var")
             return _ENCRYPTION_KEY
         except Exception:
@@ -47,10 +53,11 @@ def _resolve_key() -> bytes:
                     .where(AppSetting.key == 'ENCRYPTION_KEY').limit(1)
                 ).scalar_one_or_none()
                 return row.value if row else None
-            db_key = eng.sync_engine.run_sync(_get_key)
+
+            db_key = eng.run_sync(_get_key)
             if db_key:
                 _ENCRYPTION_KEY = db_key.encode()
-                _fernet = Fernet(_ENCRYPTION_KEY)
+                _set_fernet(_ENCRYPTION_KEY)
                 logger.info("Encryption key loaded from database")
                 return _ENCRYPTION_KEY
     except Exception as _e:
@@ -62,7 +69,7 @@ def _resolve_key() -> bytes:
         "Auto-generated key will be lost on restart — all encrypted data will become UNREADABLE."
     )
     _ENCRYPTION_KEY = Fernet.generate_key()
-    _fernet = Fernet(_ENCRYPTION_KEY)
+    _set_fernet(_ENCRYPTION_KEY)
     return _ENCRYPTION_KEY
 
 
@@ -99,11 +106,12 @@ def ensure_encryption_key() -> bytes:
                     )
                     conn.commit()
                     logger.info("Encryption key persisted to database")
-            eng.sync_engine.run_sync(_insert_key)
+
+            eng.run_sync(_insert_key)
     except Exception as _e:
         logger.warning(f"Could not persist encryption key to DB: {_e}")
 
-    _fernet = Fernet(key)
+    _set_fernet(key)
     return key
 
 
@@ -113,7 +121,7 @@ def encrypt(plaintext: str) -> str:
         return ""
     key = _resolve_key()
     if _fernet is None:
-        _fernet = Fernet(key)
+        _set_fernet(key)
     try:
         return _fernet.encrypt(plaintext.encode()).decode()
     except Exception as e:
@@ -127,7 +135,7 @@ def decrypt(ciphertext: str) -> str:
         return ""
     key = _resolve_key()
     if _fernet is None:
-        _fernet = Fernet(key)
+        _set_fernet(key)
     try:
         return _fernet.decrypt(ciphertext.encode()).decode()
     except InvalidToken:

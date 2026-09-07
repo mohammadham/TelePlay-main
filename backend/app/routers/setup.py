@@ -349,7 +349,7 @@ async def complete_setup(
                         )
                     else:
                         row.value = settings.jwt_secret
-                eng.sync_engine.run_sync(_set_jwt)
+                eng.run_sync(_set_jwt)
         except Exception as e:
             logger.warning(f"Could not persist JWT_SECRET to DB: {e}")
 

@@ -9,7 +9,6 @@ from typing import Optional, Dict
 import logging
 import hashlib
 from sqlalchemy import select
-import logging
 
 logger = logging.getLogger(__name__)
 

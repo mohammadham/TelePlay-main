@@ -127,7 +127,7 @@ async def get_current_user(
 
 async def _get_admin_ids_from_db(db: AsyncSession) -> list[int]:
     """Fetch active admin telegram IDs from the database."""
-    from ..models import AdminUser
+    from .models import AdminUser
     result = await db.execute(
         select(AdminUser).where(AdminUser.is_active == True)
     )

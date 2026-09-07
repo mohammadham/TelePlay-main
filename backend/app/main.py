@@ -59,6 +59,12 @@ async def lifespan(app: FastAPI):
         raise
     await init_db()
     logger.info("Database initialized")
+
+    # Load DB settings FIRST (including JWT_SECRET) so encryption key can be derived
+    await mark_db_ready(settings)
+    logger.info("DB settings applied")
+
+    # Now derive encryption key from the (possibly DB-loaded) JWT_SECRET
     await ensure_encryption_key()
     logger.info("Encryption key ensured")
 
@@ -69,9 +75,6 @@ async def lifespan(app: FastAPI):
     async with session_maker() as db:
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
-
-    await mark_db_ready(settings)
-    logger.info("DB settings applied")
 
     # Skip telegram client startup if credentials are not yet configured
     # (setup wizard has not run yet, or env vars are template values)

@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
-import { Download, CheckCircle, Clock, Loader } from 'lucide-react'
+import { Download, CheckCircle, Clock, Loader, X } from 'lucide-react'
 
 interface DownloadItem {
   id: number
@@ -18,10 +18,16 @@ const STATUS_CONFIG = {
 }
 
 export default function Downloads() {
+  const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['downloads'],
-    queryFn: async () => (await api.get('/v1/music/downloads')).data.catch(() => []),
+    queryFn: async () => (await api.get('/v1/music/downloads')).data,
     staleTime: 60000,
+  })
+
+  const cancel = useMutation({
+    mutationFn: (dq_id: number) => api.delete(`/v1/music/downloads/${dq_id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
   })
   const list: DownloadItem[] = Array.isArray(data) ? data : []
 
@@ -85,6 +91,15 @@ export default function Downloads() {
                     </div>
                     {d.status === 'done' && (
                       <span className="text-xs text-white/40">{d.progress || 100}%</span>
+                    )}
+                    {(d.status === 'queued' || d.status === 'downloading') && (
+                      <button
+                        onClick={() => cancel.mutate(d.id)}
+                        disabled={cancel.isPending}
+                        className="ml-2 w-8 h-8 rounded-full flex items-center justify-center text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                 </div>

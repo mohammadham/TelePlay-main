@@ -102,3 +102,22 @@ export default function TrackCard({
     </div>
   )
 }
+
+export function TrackCardSkeleton() {
+  return (
+    <div className="p-3 flex flex-col gap-3">
+      <div className="relative aspect-square rounded-md overflow-hidden bg-[#282828] animate-pulse" />
+      <div className="min-w-0 space-y-2">
+        <div className="h-4 bg-[#282828] rounded animate-pulse w-3/4" />
+        <div className="h-3 bg-[#282828] rounded animate-pulse w-1/2" />
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="h-3 bg-[#282828] rounded animate-pulse w-12" />
+        <div className="flex gap-1">
+          <div className="w-6 h-6 bg-[#282828] rounded animate-pulse" />
+          <div className="w-6 h-6 bg-[#282828] rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  )
+}

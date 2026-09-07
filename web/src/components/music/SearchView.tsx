@@ -31,9 +31,9 @@ export default function SearchView() {
 
   return (
     <div className="min-h-screen bg-[#121212] text-white pb-28">
-      {/* Search header */}
+      {/* Sticky search header */}
       <div className="sticky top-0 z-10 bg-[#121212]/95 backdrop-blur-sm px-6 py-4 border-b border-white/10">
-        <div className="max-w-2xl mx-auto relative">
+        <div className="max-w-xl mx-auto relative">
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
@@ -41,7 +41,7 @@ export default function SearchView() {
             className="w-full bg-white/10 border-none rounded-full px-6 py-3 pl-12 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
             dir="auto"
           />
-          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
@@ -49,9 +49,7 @@ export default function SearchView() {
 
       <div className="p-6">
         {q && (
-          <h2 className="text-2xl font-bold mb-4 animate-fade-in-up">
-            {isLoading ? 'Searching...' : `Results for "${q}"`}
-          </h2>
+          <h2 className="text-2xl font-bold mb-4">Search Results</h2>
         )}
 
         {isLoading ? (
@@ -78,7 +76,7 @@ export default function SearchView() {
         ) : q ? (
           <div className="text-center py-12 text-white/40 animate-fade-in-up">
             <p className="text-4xl mb-4">🔍</p>
-            <p className="text-lg">No results found for "{q}"</p>
+            <p className="text-lg">No results found</p>
             <p className="text-sm mt-2">Try different keywords</p>
           </div>
         ) : null}

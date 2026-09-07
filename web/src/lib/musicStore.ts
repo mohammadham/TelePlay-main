@@ -5,6 +5,10 @@ interface MusicState {
   queue: any[]
   queueIndex: number
   isPlaying: boolean
+  shuffle: boolean
+  repeat: 'off' | 'all' | 'one'
+  setShuffle: (s: boolean) => void
+  setRepeat: (r: 'off' | 'all' | 'one') => void
   setCurrent: (track: any) => void
   setQueue: (tracks: any[], index: number) => void
   setPlaying: (p: boolean) => void
@@ -17,6 +21,10 @@ export const useMusicStore = create<MusicState>((set, get) => ({
   queue: [],
   queueIndex: -1,
   isPlaying: false,
+  shuffle: false,
+  repeat: 'off',
+  setShuffle: (s) => set({ shuffle: s }),
+  setRepeat: (r) => set({ repeat: r === 'off' ? 'all' : r === 'all' ? 'one' : 'off' }),
   setCurrent: (track) => set({ currentTrack: track, isPlaying: true }),
   setQueue: (tracks, index) => set({ queue: tracks, queueIndex: index, currentTrack: tracks[index], isPlaying: true }),
   setPlaying: (p) => set({ isPlaying: p }),

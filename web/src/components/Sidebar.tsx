@@ -1,7 +1,7 @@
-import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Music, Settings2, Home, Search, List } from 'lucide-react';
+import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Music, Settings2, Home, Search, List, Download } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
-import { useStorageStats, formatFileSize, useLogoutAll } from '../lib/api';
+import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '../lib/api';
 import { useState } from 'react';
 
 interface SidebarProps {
@@ -12,9 +12,12 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const { activeSection, setActiveSection } = useAppStore();
     const { data: storage } = useStorageStats();
+    const { data: user } = useCurrentUser();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [showLogoutAllConfirm, setShowLogoutAllConfirm] = useState(false);
     const logoutAllMutation = useLogoutAll();
+
+    const isAdmin = (user as any)?.role === 'ADMIN' || (user as any)?.role === 'SUPER_ADMIN';
 
     const handleLogout = () => {
         localStorage.removeItem('access_token');
@@ -43,8 +46,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             onClick={() => handleNavClick(section as any)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 activeSection === section
-                    ? 'bg-white/10 text-white font-medium'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'text-[#1DB954]'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
             }`}
         >
             <Icon className="w-5 h-5 shrink-0" />
@@ -93,10 +96,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <p className="px-3 py-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
                         Menu
                     </p>
-                    <NavItem section="home" icon={Home} label="Home" />
+                    <NavItem section="home" icon={Home} label="Music" />
                     <NavItem section="search" icon={Search} label="Search" />
                     <NavItem section="playlists" icon={List} label="Playlists" />
-                    <NavItem section="downloads" icon={Downloads} label="Downloads" />
+                    <NavItem section="downloads" icon={Download} label="Downloads" />
 
                     <p className="px-3 py-2 mt-4 text-xs font-semibold text-white/40 uppercase tracking-wider">
                         Library
@@ -127,12 +130,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </div>
 
                 {/* Admin Link */}
-                <div className="px-3 pb-2">
-                    <a href="/admin" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors">
-                        <Settings2 className="w-5 h-5" />
-                        <span>Admin Panel</span>
-                    </a>
-                </div>
+                {isAdmin && (
+                    <div className="px-3 pb-2">
+                        <a href="/admin" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+                            <Settings2 className="w-5 h-5" />
+                            <span>Admin Panel</span>
+                        </a>
+                    </div>
+                )}
 
                 {/* Logout */}
                 <div className="p-4 border-t border-white/10">

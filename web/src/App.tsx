@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode, useSetupStatus } from './lib/api';
 import GlobalContextMenu from './components/GlobalContextMenu';
 import SetupPage from './components/SetupPage';
@@ -313,10 +313,22 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
 
 function MusicLayout({ children }: { children: React.ReactNode }) {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const handleNavChange = useCallback(() => setSidebarOpen(false), []);
     return (
         <div className="flex min-h-screen bg-[#121212] text-white">
-            <Sidebar isOpen={true} onClose={() => {}} />
-            <main className="flex-1 ml-64">
+            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            {/* Mobile hamburger */}
+            <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden fixed top-3 left-3 z-50 w-9 h-9 rounded-lg bg-[#181818] border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                title="Menu"
+            >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            <main className="flex-1 ml-0 md:ml-64 pt-12 md:pt-0">
                 <ErrorBoundary>{children}</ErrorBoundary>
             </main>
             <NowPlayingBar />

@@ -206,6 +206,7 @@ async def lifespan(app: FastAPI):
 
     async def _telegram_health_loop():
         import asyncio
+        global _startup_first_attempt, _startup_lock_until
         while True:
             await asyncio.sleep(300)  # check every 5 minutes
             try:

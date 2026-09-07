@@ -40,7 +40,15 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def get_bot_info_endpoint():
     """Get bot username and name for the login screen."""
     try:
-        me = await telegram.tg_client.get_me()
+        from ..telegram import tg_client
+        if not tg_client or not getattr(tg_client, 'is_connected', False):
+            return BotInfoResponse(
+                username=None,
+                name=None,
+                server_version="1.0.0",
+                error="Telegram client not connected"
+            )
+        me = await tg_client.get_me()
         return BotInfoResponse(
             username=me.username,
             name=f"{me.first_name} {me.last_name or ''}".strip(),

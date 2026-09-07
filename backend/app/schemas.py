@@ -166,9 +166,10 @@ class AuthResponse(Token):
 
 
 class BotInfoResponse(BaseModel):
-    username: str
+    username: Optional[str] = None
     name: Optional[str] = None
     server_version: str = "1.0.0"
+    error: Optional[str] = None
 
 
 # ============== Music Schemas ==============

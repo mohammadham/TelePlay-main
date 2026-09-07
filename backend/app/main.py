@@ -20,7 +20,7 @@ logging.getLogger("pyrogram").setLevel(logging.INFO)
 
 from .config import get_settings, mark_db_ready
 from .database import init_db, get_db
-from .telegram import start_telegram_client, stop_telegram_client
+from .telegram import stop_telegram_client
 from .encryption import ensure_encryption_key
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router
 from .routers.settings import router as settings_router
@@ -83,7 +83,25 @@ async def lifespan(app: FastAPI):
     if not await is_configured(settings):
         logger.info("Not configured yet — skipping Telegram client startup (setup wizard pending)")
     else:
-        await start_telegram_client()
+        # Retry Telegram client startup with delays — Telegram servers may be slow to respond
+        from .telegram import start_telegram_client as _start_tc, stop_all_clients as _stop_tc, client_pool as _clients
+        import asyncio as _asyncio
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                await _start_tc()
+                connected = any(c.is_connected for c in _clients) if _clients else False
+                logger.info("Telegram client started (attempt %d/%d, connected=%s)", attempt, max_retries, connected)
+                break
+            except Exception as e:
+                logger.warning("Telegram client startup attempt %d/%d failed: %s", attempt, max_retries, e)
+                if attempt < max_retries:
+                    wait = 2 ** (attempt - 1)  # 1s, 2s, 4s
+                    logger.info("Retrying in %ds...", wait)
+                    await _asyncio.sleep(wait)
+                else:
+                    logger.error("All %d Telegram startup attempts failed. Bot will not be available.", max_retries)
+                    await _stop_tc()
         logger.info("Telegram client started")
 
     # Load user accounts into pool

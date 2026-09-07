@@ -145,7 +145,7 @@ async def lifespan(app: FastAPI):
     health_task.cancel()
     try:
         await health_task
-    except asyncio.CancelledError:
+    except _asyncio.CancelledError:
         pass
     await stop_telegram_client()
     logger.info("Telegram client stopped")

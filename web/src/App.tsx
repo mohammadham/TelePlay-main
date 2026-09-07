@@ -308,6 +308,7 @@ import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
 import HistoryView from './components/music/HistoryView';
 import PlaylistDetail from './components/music/PlaylistDetail';
+import ArtistDetail from './components/music/ArtistDetail';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
 
@@ -316,7 +317,7 @@ function MusicLayout({ children }: { children: React.ReactNode }) {
         <div className="flex min-h-screen bg-[#121212] text-white">
             <Sidebar isOpen={true} onClose={() => {}} />
             <main className="flex-1 ml-64">
-                {children}
+                <ErrorBoundary>{children}</ErrorBoundary>
             </main>
             <NowPlayingBar />
         </div>
@@ -327,6 +328,7 @@ function MusicPlaylistsLayout(){ return <MusicLayout><PlaylistView /></MusicLayo
 function MusicDownloadsLayout(){ return <MusicLayout><Downloads /></MusicLayout> }
 function MusicHistoryLayout(){ return <MusicLayout><HistoryView /></MusicLayout> }
 function MusicPlaylistDetailLayout(){ return <PlaylistDetail /> }
+function MusicArtistDetailLayout(){ return <ArtistDetail /> }
 
 function AdminLayout() {
     return <AdminDashboard />;
@@ -339,7 +341,7 @@ const PUBLIC_ROUTES = ['/setup', '/login', '/auth'];
 // All valid app routes (pre-setup → redirect to /setup; post-setup → show 404)
 const KNOWN_ROUTES = [
     '/', '/admin', '/admin/cache', '/admin/settings',
-    '/music', '/music/search', '/music/playlists', '/music/playlists/:id', '/music/downloads', '/music/history',
+    '/music', '/music/search', '/music/playlists', '/music/playlists/:id', '/music/artists/:id', '/music/downloads', '/music/history',
 ];
 
 function RouteGuard() {
@@ -422,6 +424,7 @@ function App() {
                 <Route path="/music/downloads" element={<ProtectedRoute><MusicDownloadsLayout /></ProtectedRoute>} />
                 <Route path="/music/history" element={<ProtectedRoute><MusicHistoryLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists/:id" element={<ProtectedRoute><MusicPlaylistDetailLayout /></ProtectedRoute>} />
+                <Route path="/music/artists/:id" element={<ProtectedRoute><MusicArtistDetailLayout /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />

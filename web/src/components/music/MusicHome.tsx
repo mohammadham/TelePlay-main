@@ -4,7 +4,8 @@ import { api, MusicTrack, useToggleLike, useMusicHistory } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
-import { Play, Shuffle, Clock } from 'lucide-react'
+import { Play, Shuffle, Clock, Filter } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 type MediaType = 'all' | 'music_video' | 'reel'
 
@@ -16,11 +17,13 @@ const MEDIA_TABS: { key: MediaType; label: string }[] = [
 
 export default function MusicHome() {
   const [mediaType, setMediaType] = useState<MediaType>('all')
+  const navigate = useNavigate()
   const { data: tracks, isLoading } = useQuery({
-    queryKey: ['music-tracks', mediaType],
+    queryKey: ['music-tracks', mediaType, genre],
     queryFn: async () => {
       const params: Record<string, string | number> = { per_page: 60 }
       if (mediaType !== 'all') params.media_type = mediaType
+      if (genre) params.genre = genre
       return (await api.get<MusicTrack[]>('/v1/music/tracks', { params })).data
     },
     staleTime: 60000,
@@ -36,6 +39,7 @@ export default function MusicHome() {
   const [downloading, setDownloading] = useState<number | null>(null)
   const toggleLike = useToggleLike()
   const { data: history, isLoading: historyLoading } = useMusicHistory(50)
+  const [genre, setGenre] = useState<string>('')
 
   const list: MusicTrack[] = Array.isArray(tracks) ? tracks : []
 
@@ -91,8 +95,8 @@ export default function MusicHome() {
         </div>
       </div>
 
-      {/* Media type tabs — pill-shaped */}
-      <div className="px-6 py-4 flex gap-3">
+      {/* Media type tabs + genre filter */}
+      <div className="px-6 py-4 flex gap-3 flex-wrap items-center">
         {MEDIA_TABS.map(({ key, label }) => (
           <button
             key={key}
@@ -106,6 +110,24 @@ export default function MusicHome() {
             {label}
           </button>
         ))}
+        <div className="ml-auto relative">
+          <select
+            value={genre}
+            onChange={(e) => setGenre(e.target.value)}
+            className="appearance-none bg-white/10 text-white/70 px-4 py-2 rounded-full text-sm font-semibold pr-8 hover:bg-white/15 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1DB954]/50"
+          >
+            <option value="" className="bg-[#121212]">All Genres</option>
+            <option value="pop" className="bg-[#121212]">Pop</option>
+            <option value="rock" className="bg-[#121212]">Rock</option>
+            <option value="hip-hop" className="bg-[#121212]">Hip Hop</option>
+            <option value="jazz" className="bg-[#121212]">Jazz</option>
+            <option value="classical" className="bg-[#121212]">Classical</option>
+            <option value="electronic" className="bg-[#121212]">Electronic</option>
+            <option value="indie" className="bg-[#121212]">Indie</option>
+            <option value="rnb" className="bg-[#121212]">R&B</option>
+          </select>
+          <Filter className="w-4 h-4 text-white/40 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
       </div>
 
       <div className="px-6 space-y-10">
@@ -124,7 +146,7 @@ export default function MusicHome() {
           ) : (
             <div className="flex gap-5 overflow-x-auto no-scrollbar pb-2">
               {(artists || []).map((a: any) => (
-                <div key={a.id} className="min-w-[110px] text-center cursor-pointer group flex flex-col items-center">
+                <div key={a.id} onClick={() => navigate(`/music/artists/${a.id}`)} className="min-w-[110px] text-center cursor-pointer group flex flex-col items-center">
                   <div className="w-28 h-28 rounded-full overflow-hidden bg-[#282828] flex items-center justify-center group-hover:ring-2 ring-[#1DB954] transition-all duration-200">
                     {a.avatar_url ? (
                       <img

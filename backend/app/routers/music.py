@@ -126,6 +126,15 @@ async def list_artists(request: Request = None, q: Optional[str]=None, db: Async
         return Response(status_code=304, headers={"ETag": f'"{etag}"', "Cache-Control": "public, max-age=120"})
     return Response(content=data, media_type="application/json", headers={"Cache-Control": "public, max-age=120", "ETag": f'"{etag}"'})
 
+@router.get("/artists/{aid}")
+async def get_artist(aid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
+    from sqlalchemy import delete as sql_del
+    artist = (await db.execute(select(Artist).where(Artist.id==aid))).scalar_one_or_none()
+    if not artist: raise HTTPException(404, "Artist not found")
+    rows = (await db.execute(select(Track).where(Track.artist_id==aid).options(selectinload(Track.artist))).order_by(Track.created_at.desc()).limit(50)).scalars().all()
+    liked_ids = (await db.execute(select(Like.track_id).where(Like.user_id==current_user.id))).scalars().all()
+    return {"id": artist.id, "name": artist.name, "bio": artist.bio, "verified": artist.verified, "tracks": [TrackResponse(**_track_to_resp(t, t.id in liked_ids)).model_dump() for t in rows]}
+
 @router.get("/albums", response_model=list[AlbumResponse])
 async def list_albums(request: Request = None, artist_id: Optional[int]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     query = select(Album).options(selectinload(Album.artist))

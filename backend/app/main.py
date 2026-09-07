@@ -108,9 +108,45 @@ async def lifespan(app: FastAPI):
     from .pool_manager import load_user_accounts
     await load_user_accounts()
 
+    # Background task: periodically verify Telegram bot health and auto-restart on disconnect
+    from .telegram import start_telegram_client as _bg_start, stop_all_clients as _bg_stop, client_pool as _bg_clients
+
+    async def _telegram_health_loop():
+        import asyncio
+        while True:
+            await asyncio.sleep(300)  # check every 5 minutes
+            try:
+                configured = await is_configured(settings)
+                if not configured:
+                    continue
+                disconnected = any(
+                    not c.is_connected for c in _bg_clients
+                ) if _bg_clients else False
+                if disconnected:
+                    logger.warning("Telegram client(s) disconnected — auto-restarting...")
+                    await _bg_stop()
+                    await _asyncio.sleep(2)
+                    await _bg_start()
+                    connected_after = any(
+                        c.is_connected for c in _bg_clients
+                    ) if _bg_clients else False
+                    logger.info(
+                        "Auto-restart complete — connected: %s", connected_after
+                    )
+            except Exception as e:
+                logger.warning("Telegram health check error (non-fatal): %s", e)
+
+    import asyncio as _asyncio
+    health_task = _asyncio.create_task(_telegram_health_loop())
+
     yield
 
     logger.info("Shutting down...")
+    health_task.cancel()
+    try:
+        await health_task
+    except asyncio.CancelledError:
+        pass
     await stop_telegram_client()
     logger.info("Telegram client stopped")
 

@@ -1,4 +1,4 @@
-import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Music, Settings2 } from 'lucide-react';
+import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Music, Settings2, Home, Search, List } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
 import { useStorageStats, formatFileSize, useLogoutAll } from '../lib/api';
@@ -26,36 +26,36 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const handleLogoutAll = async () => {
         try {
             await logoutAllMutation.mutateAsync();
-            handleLogout(); // Clear local session too
+            handleLogout();
         } catch (error) {
             console.error('Failed to logout all', error);
-            handleLogout(); // Fallback to local logout
+            handleLogout();
         }
     };
 
-    const handleNavClick = (section: 'files' | 'recent' | 'continue_watching') => {
+    const handleNavClick = (section: 'home' | 'files' | 'recent' | 'continue_watching' | 'search' | 'playlists' | 'downloads') => {
         setActiveSection(section);
-        onClose(); // Close sidebar on mobile when item clicked
+        onClose();
     };
 
-    const NavItem = ({ section, icon: Icon, label }: { section: 'files' | 'recent' | 'continue_watching', icon: any, label: string }) => (
+    const NavItem = ({ section, icon: Icon, label }: { section: string; icon: any; label: string }) => (
         <button
-            onClick={() => handleNavClick(section)}
+            onClick={() => handleNavClick(section as any)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 activeSection === section
-                    ? 'bg-primary-600/10 text-primary-400 font-medium'
-                    : 'text-dark-400 hover:text-white hover:bg-white/[0.05]'
+                    ? 'bg-white/10 text-white font-medium'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
         >
-            <Icon className="w-5 h-5" />
-            {label}
+            <Icon className="w-5 h-5 shrink-0" />
+            <span className="truncate">{label}</span>
         </button>
     );
 
     return (
         <>
             {/* Mobile Overlay */}
-            <div 
+            <div
                 className={`fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity duration-300 ${
                     isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
@@ -63,48 +63,52 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             />
 
             <aside className={`
-                w-64 bg-dark-900 border-r border-white/[0.06] flex flex-col shrink-0
+                w-64 bg-black border-r border-white/10 flex flex-col shrink-0
                 fixed inset-y-0 left-0 z-40
                 transition-transform duration-300 ease-in-out shadow-2xl
                 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
                 {/* Logo Area */}
-                <div className="p-6 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <img 
-                            src={logo} 
-                            alt="TelePlay Logo" 
-                            className="w-8 h-8 rounded-lg shadow-lg shadow-primary-500/20 object-contain" 
+                <div className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <img
+                            src={logo}
+                            alt="TelePlay Logo"
+                            className="w-8 h-8 rounded shadow-lg"
                         />
-                        <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+                        <span className="text-lg font-bold text-white">
                             TelePlay
                         </span>
                     </div>
-                    {/* Close button for mobile */}
-                    <button 
+                    <button
                         onClick={onClose}
-                        className="md:hidden p-1 text-dark-400 hover:text-white"
+                        className="md:hidden p-1 text-white/60 hover:text-white"
                     >
                         <X className="w-6 h-6" />
                     </button>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-                    <a href="/music" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#1DB954]/15 text-[#1DB954] font-medium hover:bg-[#1DB954]/20 transition-colors">
-                        <Music className="w-5 h-5" /> Music
-                    </a>
+                <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
+                    <p className="px-3 py-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
+                        Menu
+                    </p>
+                    <NavItem section="home" icon={Home} label="Home" />
+                    <NavItem section="search" icon={Search} label="Search" />
+                    <NavItem section="playlists" icon={List} label="Playlists" />
+                    <NavItem section="downloads" icon={Downloads} label="Downloads" />
+
+                    <p className="px-3 py-2 mt-4 text-xs font-semibold text-white/40 uppercase tracking-wider">
+                        Library
+                    </p>
                     <NavItem section="files" icon={Files} label="My Files" />
                     <NavItem section="recent" icon={Clock} label="Recently Added" />
                     <NavItem section="continue_watching" icon={PlayCircle} label="Continue Watching" />
-                    <a href="/admin/cache" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.05] transition-colors">
-                        <Settings2 className="w-5 h-5" /> Admin
-                    </a>
                 </nav>
 
                 {/* Storage Info */}
-                <div className="p-4 m-3 rounded-xl bg-dark-800/50 border border-white/[0.04]">
-                    <div className="flex items-center gap-2 mb-2 text-sm text-dark-300">
+                <div className="p-4 m-3 rounded-xl bg-[#181818] border border-white/5">
+                    <div className="flex items-center gap-2 mb-2 text-sm text-white/60">
                         <HardDrive className="w-4 h-4" />
                         <span>Storage</span>
                     </div>
@@ -113,27 +117,35 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <div className="text-xl font-bold text-white mb-1">
                                 {formatFileSize(storage.total_size)}
                             </div>
-                            <div className="text-xs text-primary-400">
+                            <div className="text-xs text-[#1DB954]">
                                 Unlimited Storage 🚀
                             </div>
                         </>
                     ) : (
-                        <div className="h-4 w-20 bg-dark-700 rounded animate-pulse" />
+                        <div className="h-4 w-20 bg-[#282828] rounded animate-pulse" />
                     )}
                 </div>
 
+                {/* Admin Link */}
+                <div className="px-3 pb-2">
+                    <a href="/admin" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                        <Settings2 className="w-5 h-5" />
+                        <span>Admin Panel</span>
+                    </a>
+                </div>
+
                 {/* Logout */}
-                <div className="p-4 border-t border-white/[0.06]">
+                <div className="p-4 border-t border-white/10">
                     <button
                         onClick={() => setShowLogoutConfirm(true)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-white/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                     >
                         <LogOut className="w-5 h-5" />
                         <span className="font-medium">Logout</span>
                     </button>
                     <button
                         onClick={() => setShowLogoutAllConfirm(true)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-dark-400 hover:text-orange-400 hover:bg-orange-500/10 transition-colors mt-1"
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-white/60 hover:text-orange-400 hover:bg-orange-500/10 transition-colors mt-1"
                     >
                         <Users className="w-5 h-5" />
                         <span className="font-medium">Logout All</span>
@@ -144,20 +156,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {/* Logout Modal */}
             {showLogoutConfirm && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-dark-900 border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
+                    <div className="bg-[#181818] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
                         <div className="p-6 text-center">
                             <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <LogOut className="w-6 h-6 text-red-500" />
                             </div>
                             <h3 className="text-xl font-semibold text-white mb-2">Confirm Logout</h3>
-                            <p className="text-dark-400 text-sm">
+                            <p className="text-white/60 text-sm">
                                 Are you sure you want to end your session?
                             </p>
                         </div>
-                        <div className="p-4 border-t border-white/5 flex gap-3 bg-dark-800/50">
+                        <div className="p-4 border-t border-white/5 flex gap-3 bg-[#282828]">
                             <button
                                 onClick={() => setShowLogoutConfirm(false)}
-                                className="flex-1 px-4 py-2 rounded-lg text-dark-300 hover:bg-white/5 transition-colors font-medium"
+                                className="flex-1 px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium"
                             >
                                 Cancel
                             </button>
@@ -175,20 +187,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {/* Logout All Modal */}
             {showLogoutAllConfirm && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-dark-900 border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
+                    <div className="bg-[#181818] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
                         <div className="p-6 text-center">
                             <div className="w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Users className="w-6 h-6 text-orange-500" />
                             </div>
                             <h3 className="text-xl font-semibold text-white mb-2">Logout Everywhere</h3>
-                            <p className="text-dark-400 text-sm">
+                            <p className="text-white/60 text-sm">
                                 This will end your session on <strong>all devices</strong>. Are you sure?
                             </p>
                         </div>
-                        <div className="p-4 border-t border-white/5 flex gap-3 bg-dark-800/50">
+                        <div className="p-4 border-t border-white/5 flex gap-3 bg-[#282828]">
                             <button
                                 onClick={() => setShowLogoutAllConfirm(false)}
-                                className="flex-1 px-4 py-2 rounded-lg text-dark-300 hover:bg-white/5 transition-colors font-medium"
+                                className="flex-1 px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium"
                             >
                                 Cancel
                             </button>

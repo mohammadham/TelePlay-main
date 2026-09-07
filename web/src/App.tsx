@@ -308,18 +308,22 @@ import PlaylistView from './components/music/PlaylistView';
 import SearchView from './components/music/SearchView';
 import Downloads from './components/music/Downloads';
 import AdminDashboard from './components/admin/AdminDashboard';
+import Sidebar from './components/Sidebar';
 
-function MusicLayout() {
+function MusicLayout({ children }: { children: React.ReactNode }) {
     return (
-        <div className="min-h-screen bg-[#121212] text-white">
-            <MusicHome />
+        <div className="flex min-h-screen bg-[#121212] text-white">
+            <Sidebar isOpen={true} onClose={() => {}} />
+            <main className="flex-1 ml-64">
+                {children}
+            </main>
             <NowPlayingBar />
         </div>
     );
 }
-function MusicSearchLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><SearchView /><NowPlayingBar/></div> }
-function MusicPlaylistsLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><PlaylistView /><NowPlayingBar/></div> }
-function MusicDownloadsLayout(){ return <div className="min-h-screen bg-[#121212] text-white"><Downloads /><NowPlayingBar/></div> }
+function MusicSearchLayout(){ return <MusicLayout><SearchView /></MusicLayout> }
+function MusicPlaylistsLayout(){ return <MusicLayout><PlaylistView /></MusicLayout> }
+function MusicDownloadsLayout(){ return <MusicLayout><Downloads /></MusicLayout> }
 
 function AdminLayout() {
     return <AdminDashboard />;
@@ -409,7 +413,7 @@ function App() {
                 <Route path="/" element={<ProtectedRoute><Navigate to={needsSetup ? "/setup" : "/admin"} replace /></ProtectedRoute>} />
 
                 {/* Authenticated routes */}
-                <Route path="/music" element={<ProtectedRoute><MusicLayout /></ProtectedRoute>} />
+                <Route path="/music" element={<ProtectedRoute><MusicLayout><MusicHome /></MusicLayout></ProtectedRoute>} />
                 <Route path="/music/search" element={<ProtectedRoute><MusicSearchLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists" element={<ProtectedRoute><MusicPlaylistsLayout /></ProtectedRoute>} />
                 <Route path="/music/downloads" element={<ProtectedRoute><MusicDownloadsLayout /></ProtectedRoute>} />

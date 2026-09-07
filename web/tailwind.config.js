@@ -37,11 +37,18 @@ export default {
                     850: '#172032',
                     900: '#0f172a',
                     950: '#020617',
-                }
+                },
+                spotify: {
+                    50: '#e8f7e8', 100: '#c3eab8', 200: '#8ed67a',
+                    300: '#57c23c', 400: '#3cb82a',
+                    500: '#1db954', 600: '#1aa34a', 700: '#158a3e',
+                    800: '#107233', 900: '#0b5927', 950: '#06401c',
+                },
             },
             animation: {
                 'fade-in': 'fadeIn 0.2s ease-out',
                 'slide-up': 'slideUp 0.3s ease-out',
+                'fade-in-up': 'fadeInUp 0.3s ease-out',
                 'slide-in-right': 'slideInRight 0.3s ease-out',
                 'scale-in': 'scaleIn 0.2s ease-out',
                 'pulse-subtle': 'pulseSubtle 2s ease-in-out infinite',
@@ -76,6 +83,10 @@ export default {
                 shimmer: {
                     '0%': { backgroundPosition: '-200% 0' },
                     '100%': { backgroundPosition: '200% 0' },
+                },
+                fadeInUp: {
+                    '0%': { opacity: '0', transform: 'translateY(20px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
                 },
             },
             backdropBlur: {

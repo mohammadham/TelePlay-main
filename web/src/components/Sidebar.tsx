@@ -1,9 +1,9 @@
 import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Settings2, Home, Search, List, Download } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
 import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '../lib/api';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -13,6 +13,13 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const { activeSection, setActiveSection } = useAppStore();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Sync activeSection from current route so the highlight matches the URL
+    useEffect(() => {
+        const entry = Object.entries(musicRoutes).find(([, r]) => location.pathname === r || location.pathname.startsWith(r + '/'));
+        if (entry) setActiveSection(entry[0]);
+    }, [location.pathname, setActiveSection]);
     const { data: storage } = useStorageStats();
     const { data: user } = useCurrentUser();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);

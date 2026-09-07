@@ -1,19 +1,18 @@
 """
 Encryption utilities for sensitive Telegram credentials.
-Uses Fernet (AES-128-CBC + HMAC) with key from environment or DB.
-Handles decryption errors gracefully (e.g., corrupted data, wrong key).
-Must be initialized with ensure_encryption_key() during startup.
+Uses Fernet (AES-128-CBC + HMAC) with key derived from JWT_SECRET.
+The key is deterministic: same JWT_SECRET → same encryption key → survives restarts.
 """
-import os
+import base64
+import hashlib
 import logging
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
 
-# Global key — set once during startup via await ensure_encryption_key()
+# Global key and fernet instance
 _ENCRYPTION_KEY: bytes | None = None
 _fernet: Fernet | None = None
-_key_loaded_from: str | None = None  # 'env' | 'db' | 'generated'
 
 
 def _set_fernet(key: bytes) -> None:
@@ -22,103 +21,44 @@ def _set_fernet(key: bytes) -> None:
     _fernet = Fernet(key)
 
 
-async def _resolve_key_async() -> tuple[bytes, str]:
-    """
-    Resolve encryption key and return (key, source).
-    source is one of: 'env', 'db', 'generated'
-    """
-    global _ENCRYPTION_KEY, _fernet, _key_loaded_from
-    if _ENCRYPTION_KEY is not None and _key_loaded_from is not None:
-        return _ENCRYPTION_KEY, _key_loaded_from
-
-    # 1. Env var (highest priority, persistent across restarts)
-    env_key = os.getenv("ENCRYPTION_KEY")
-    if env_key:
-        try:
-            _ENCRYPTION_KEY = env_key.encode()
-            _set_fernet(_ENCRYPTION_KEY)
-            _key_loaded_from = "env"
-            logger.info("Encryption key loaded from ENCRYPTION_KEY env var")
-            return _ENCRYPTION_KEY, "env"
-        except Exception:
-            _ENCRYPTION_KEY = None
-
-    # 2. DB
-    try:
-        from .models import AppSetting
-        from .database import async_session
-        import sqlalchemy
-
-        async with async_session() as conn:
-            row = await conn.execute(
-                sqlalchemy.select(AppSetting)
-                .where(AppSetting.key == 'ENCRYPTION_KEY').limit(1)
-            )
-            db_key = row.scalar_one_or_none()
-            if db_key is not None and db_key.value:
-                _ENCRYPTION_KEY = db_key.value.encode()
-                _set_fernet(_ENCRYPTION_KEY)
-                _key_loaded_from = "db"
-                logger.info("Encryption key loaded from database")
-                return _ENCRYPTION_KEY, "db"
-    except Exception as _e:
-        logger.warning(f"Could not read ENCRYPTION_KEY from DB: {_e}")
-
-    # 3. Fallback — auto-generated (DESTRUCTIVE if not persisted)
-    logger.error(
-        "CRITICAL: ENCRYPTION_KEY not found in env or DB. "
-        "Auto-generated key will be lost on restart — all encrypted data will become UNREADABLE."
-    )
-    _ENCRYPTION_KEY = Fernet.generate_key()
-    _set_fernet(_ENCRYPTION_KEY)
-    _key_loaded_from = "generated"
-    return _ENCRYPTION_KEY, "generated"
-
-
 async def ensure_encryption_key() -> bytes:
-    """Ensure encryption key exists in DB so it survives restarts.
-    Must be awaited during startup (before any encrypt/decrypt calls)."""
-    global _ENCRYPTION_KEY, _fernet, _key_loaded_from
-    key, source = await _resolve_key_async()
+    """
+    Ensure encryption key is ready. Derives key from JWT_SECRET for persistence.
+    Must be awaited during startup (before any encrypt/decrypt calls).
+    """
+    global _ENCRYPTION_KEY, _fernet
+    if _ENCRYPTION_KEY is not None:
+        return _ENCRYPTION_KEY
 
-    # If already loaded from env var, no need to persist to DB
-    if source == "env":
-        return key
-
-    # If already persisted from a previous call in this process, skip
-    if _key_loaded_from == "db":
-        return key
-
-    # Persist key to DB (for 'generated' source, or if DB read failed)
+    # Try to get JWT_SECRET from settings to derive a stable encryption key
     try:
-        from .models import AppSetting
-        from .database import async_session
-        import sqlalchemy
+        from .config import get_settings
+        settings = get_settings()
+        jwt_secret = settings.jwt_secret or ""
 
-        async with async_session() as conn:
-            row = await conn.execute(
-                sqlalchemy.select(AppSetting)
-                .where(AppSetting.key == 'ENCRYPTION_KEY').limit(1)
-            )
-            existing = row.scalar_one_or_none()
-            if existing is None:
-                await conn.execute(
-                    sqlalchemy.insert(AppSetting).values(
-                        key='ENCRYPTION_KEY',
-                        value=key.decode(),
-                        description="Fernet encryption master key — DO NOT lose",
-                    )
-                )
-                await conn.commit()
-                _key_loaded_from = "db"
-                logger.info("Encryption key persisted to database")
-            else:
-                _key_loaded_from = "db"
-                logger.info("Encryption key already exists in database")
-    except Exception as _e:
-        logger.warning(f"Could not persist encryption key to DB: {_e}")
+        if jwt_secret and jwt_secret != "change-me-in-production-please-set-via-panel":
+            # Derive a stable 32-byte key from JWT_SECRET using SHA-256
+            key_hash = hashlib.sha256(jwt_secret.encode()).digest()
+            # Fernet requires base64-encoded 32-byte key
+            _ENCRYPTION_KEY = base64.urlsafe_b64encode(key_hash)
+            _set_fernet(_ENCRYPTION_KEY)
+            logger.info("Encryption key derived from JWT_SECRET (stable across restarts)")
+            return _ENCRYPTION_KEY
 
-    return key
+        # Fallback: generate random key (will change on restart — not ideal)
+        logger.warning(
+            "JWT_SECRET not set or is default — generating random encryption key. "
+            "All encrypted data will become unreadable on restart."
+        )
+        _ENCRYPTION_KEY = Fernet.generate_key()
+        _set_fernet(_ENCRYPTION_KEY)
+        return _ENCRYPTION_KEY
+    except Exception as e:
+        logger.warning(f"Could not derive encryption key from JWT_SECRET: {e}")
+        # Ultimate fallback
+        _ENCRYPTION_KEY = Fernet.generate_key()
+        _set_fernet(_ENCRYPTION_KEY)
+        return _ENCRYPTION_KEY
 
 
 def encrypt(plaintext: str) -> str:
@@ -144,7 +84,7 @@ def decrypt(ciphertext: str) -> str:
         return ""
     try:
         return _fernet.decrypt(ciphertext.encode()).decode()
-    except InvalidToken:
+    except Exception:
         logger.warning("Decryption failed: Invalid token (wrong key or corrupted data)")
         return ""
     except Exception as e:

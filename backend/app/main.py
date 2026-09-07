@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
         raise
     await init_db()
     logger.info("Database initialized")
-    ensure_encryption_key()
+    await ensure_encryption_key()
     logger.info("Encryption key ensured")
 
     # Run migration from legacy settings

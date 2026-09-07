@@ -531,22 +531,40 @@ export interface MusicTrack {
     media_type: 'audio' | 'music_video' | 'reel';
 }
 
-export interface SetupStatus {
+export interface SystemStatus {
+    system_ready: boolean;
     configured: boolean;
+    has_bots_in_db: boolean;
+    has_accounts_in_db: boolean;
+    has_admin_in_db: boolean;
+    show_setup_wizard: boolean;
+    database_summary: {
+        has_bots: boolean;
+        has_accounts: boolean;
+        has_admin: boolean;
+        db_error: string | null;
+    };
+    validation: {
+        is_valid: boolean;
+        missing_fields: string[];
+        decryption_ok: boolean;
+        decryption_errors: number;
+    };
     telegram_bot_token_set: boolean;
     telegram_api_id_set: boolean;
     telegram_storage_channel_id_set: boolean;
-    database_url: string;
+    jwt_secret_status: string;
+    notes: string;
 }
 
 export const useSetupStatus = () => {
-    return useQuery<SetupStatus>({
+    return useQuery<SystemStatus>({
         queryKey: ['setupStatus'],
         queryFn: async () => {
-            const { data } = await api.get<SetupStatus>('/setup/status');
+            const { data } = await api.get<SystemStatus>('/setup/system-status');
             return data;
         },
-        staleTime: 60_000,
+        staleTime: 30_000,
         retry: 1,
     });
 };

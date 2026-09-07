@@ -154,6 +154,22 @@ That's it! Your services are now running:
 | **Web App**     | http://localhost      |
 | **Backend API** | http://localhost:8000 |
 
+### ⚠️ Railway Deployment Notes
+
+**Important: JWT_SECRET persistence across deploys**
+
+When deploying to Railway, each deploy generates a **new** `JWT_SECRET` by default. This breaks decryption of stored credentials (Telegram sessions, bot tokens) because they were encrypted with a different key.
+
+**Fix:** In your Railway dashboard:
+1. Go to **Variables** → `JWT_SECRET`
+2. Set it to a **static value** (e.g., generate a 32+ character random string and paste it)
+3. **Do NOT use `generateValue: true`** for this variable — it causes the problem
+
+Or, after each deploy that resets your JWT_SECRET:
+1. Open the app in your browser
+2. The setup wizard will automatically detect the decryption failure
+3. Complete the setup wizard again to re-encrypt credentials with the new key
+
 ### 3. Start Using
 
 1. Open Telegram and send a video file to your bot.

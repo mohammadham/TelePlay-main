@@ -8,6 +8,7 @@ import NotFound from './components/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
 import Toasts from './components/Toasts';
 import logo from './assets/logo.png';
+import DecryptionErrorBanner from './components/DecryptionErrorBanner';
 
 function AuthCallback() {
     const [searchParams] = useSearchParams();
@@ -381,13 +382,16 @@ function RouteGuard() {
 
 function App() {
     const { data: setupData, isLoading: setupLoading } = useSetupStatus();
-    const needsSetup = !setupLoading && setupData && !setupData.configured;
+    const needsSetup = !setupLoading && setupData && (
+        !setupData.configured || setupData.show_setup_wizard
+    );
 
     return (
         <ErrorBoundary>
             <GlobalContextMenu />
             <MediaPlayer />
             <Toasts />
+            <DecryptionErrorBanner />
             <Routes>
                 {/* Public routes (order matters — more specific first) */}
                 <Route path="/setup" element={needsSetup ? <SetupPage /> : <Navigate to="/login" replace />} />

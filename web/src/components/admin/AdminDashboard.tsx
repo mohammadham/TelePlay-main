@@ -44,14 +44,14 @@ export default function AdminDashboard() {
             </div>
           ) : <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="Users" value={stats.users} />
-              <StatCard label="Files" value={stats.files} />
-              <StatCard label="Tracks" value={stats.tracks} />
-              <StatCard label="Movies" value={stats.movies} />
-              <StatCard label="Audio files" value={stats.files_audio} />
-              <StatCard label="Video files" value={stats.files_video} />
-              <StatCard label="Ads" value={stats.ads} />
-              <StatCard label="Uptime (s)" value={stats.uptime_seconds} />
+              <StatCard label="👤 کاربران" value={stats.users} />
+              <StatCard label="📁 فایل‌ها" value={stats.files} />
+              <StatCard label="🎵 موزیک‌ها" value={stats.tracks} />
+              <StatCard label="🎬 موزیک ویدیو" value={stats.tracks_music_video ?? 0} />
+              <StatCard label="📹 ریلز" value={stats.tracks_reel ?? 0} />
+              <StatCard label="🎧 آودیو فایل" value={stats.files_audio} />
+              <StatCard label="📁 ویدیو فایل" value={stats.files_video} />
+              <StatCard label="📢 آگهی‌ها" value={stats.ads} />
             </div>
             <div className="glass-card p-4 text-sm space-y-1">
               <div>Storage: {(stats.storage_bytes/1024/1024).toFixed(1)} MB</div>

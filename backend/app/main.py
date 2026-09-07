@@ -110,8 +110,8 @@ async def lifespan(app: FastAPI):
     # Check if DB data is readable; log clear warning if decryption fails
     from .encryption import decrypt as _dec
     from sqlalchemy import select as _sel
-    from .database import get_sessionmaker as _get_sm
-    async with _get_sm() as _db:
+    from .database import async_session
+    async with async_session() as _db:
         from .models import UserAccount, BotConfig
         acc_rows = (await _db.execute(_sel(UserAccount))).scalars().all()
         bot_rows = (await _db.execute(_sel(BotConfig))).scalars().all()

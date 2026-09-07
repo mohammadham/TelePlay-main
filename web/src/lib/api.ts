@@ -578,3 +578,23 @@ export const getMusicArtists = async () => {
     const { data } = await api.get<any[]>('/v1/music/artists');
     return data;
 };
+
+// ============== Admin User Detail ==============
+export interface AdminUserDetail {
+    user: { id: number; telegram_id: number; username: string | null; first_name: string | null; last_name: string | null; created_at: string; last_active: string };
+    stats: { files_count: number; folders_count: number; liked_tracks: number; history_count: number; downloads_count: number; playlists_count: number; watch_progress_count: number; storage_bytes: number; storage_mb: number };
+    recent_files: Array<{ id: number; file_name: string; file_type: string; file_size: number; created_at: string }>;
+    recent_plays: Array<{ track_title: string; played_at: string }>;
+    recent_downloads: Array<{ track_title: string; status: string; progress: number; created_at: string }>;
+}
+
+export const useAdminUserDetail = (telegramId: number) => {
+    return useQuery<AdminUserDetail>({
+        queryKey: ['admin-user-detail', telegramId],
+        queryFn: async () => {
+            const { data } = await api.get<AdminUserDetail>(`/admin/users/${telegramId}`);
+            return data;
+        },
+        enabled: !!telegramId,
+    });
+};

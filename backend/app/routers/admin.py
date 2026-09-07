@@ -184,3 +184,60 @@ async def system_info(admin: User=Depends(require_admin)):
         "uptime_seconds": int(time.time() - _start_time),
         "python": sys.version, "platform": platform.platform()
     }
+
+# ---- User Detail (admin test/view) ----
+@router.get("/users/{telegram_id}")
+async def get_user_detail(telegram_id: int, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
+    from sqlalchemy import func, select as sa_select
+    from ..models import File, Folder, Like, ListenHistory, DownloadQueue, Playlist, WatchProgress, Track
+    from fastapi import HTTPException
+
+    u = (await db.execute(sa_select(User).where(User.telegram_id == telegram_id))).scalar_one_or_none()
+    if not u:
+        raise HTTPException(404, "User not found")
+
+    files_cnt = (await db.execute(sa_select(func.count()).where(File.user_id == u.id))).scalar() or 0
+    folders_cnt = (await db.execute(sa_select(func.count()).where(Folder.user_id == u.id))).scalar() or 0
+    liked_cnt = (await db.execute(sa_select(func.count()).where(Like.user_id == u.id))).scalar() or 0
+    history_cnt = (await db.execute(sa_select(func.count()).where(ListenHistory.user_id == u.id))).scalar() or 0
+    dl_cnt = (await db.execute(sa_select(func.count()).where(DownloadQueue.user_id == u.id))).scalar() or 0
+    pl_cnt = (await db.execute(sa_select(func.count()).where(Playlist.user_id == u.id))).scalar() or 0
+    progress_cnt = (await db.execute(sa_select(func.count()).where(WatchProgress.user_id == u.id))).scalar() or 0
+    storage_bytes = (await db.execute(sa_select(func.sum(File.file_size)).where(File.user_id == u.id))).scalar() or 0
+
+    # Recent files
+    rf = (await db.execute(sa_select(File).where(File.user_id == u.id).order_by(File.created_at.desc()).limit(5))).scalars().all()
+    recent_files = [{"id": f.id, "file_name": f.file_name, "file_type": f.file_type, "file_size": f.file_size, "created_at": str(f.created_at)} for f in rf]
+
+    # Recent plays
+    rp = (await db.execute(
+        sa_select(ListenHistory, Track).join(Track, Track.id == ListenHistory.track_id)
+        .where(ListenHistory.user_id == u.id).order_by(ListenHistory.played_at.desc()).limit(10)
+    )).fetchall()
+    recent_plays = [{"track_title": r[1].title, "played_at": str(r[0].played_at)} for r in rp] if rp else []
+
+    # Recent downloads
+    rd = (await db.execute(
+        sa_select(DownloadQueue, Track).join(Track, Track.id == DownloadQueue.track_id)
+        .where(DownloadQueue.user_id == u.id).order_by(DownloadQueue.created_at.desc()).limit(5)
+    )).fetchall()
+    recent_downloads = [{"track_title": r[1].title, "status": r[0].status, "progress": r[0].progress, "created_at": str(r[0].created_at)} for r in rd] if rd else []
+
+    return {
+        "user": {
+            "id": u.id, "telegram_id": u.telegram_id,
+            "username": u.username, "first_name": u.first_name, "last_name": u.last_name,
+            "created_at": str(u.created_at), "last_active": str(u.last_active),
+        },
+        "stats": {
+            "files_count": files_cnt, "folders_count": folders_cnt,
+            "liked_tracks": liked_cnt, "history_count": history_cnt,
+            "downloads_count": dl_cnt, "playlists_count": pl_cnt,
+            "watch_progress_count": progress_cnt,
+            "storage_bytes": storage_bytes,
+            "storage_mb": round(storage_bytes / 1024 / 1024, 2),
+        },
+        "recent_files": recent_files,
+        "recent_plays": recent_plays,
+        "recent_downloads": recent_downloads,
+    }

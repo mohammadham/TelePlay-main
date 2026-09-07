@@ -7,13 +7,14 @@ import SettingsPanel from './SettingsPanel'
 import BotManager from './BotManager'
 import AccountManager from './AccountManager'
 import AdminManager from './AdminManager'
+import UserDetailPanel from './UserDetailPanel'
 
 function StatCard({ label, value }: { label: string; value: any }) {
   return <div className="glass-card p-4 text-center"><div className="text-2xl font-bold">{value}</div><div className="text-xs text-dark-400">{label}</div></div>
 }
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState<'overview'|'users'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'>('overview')
+  const [tab, setTab] = useState<'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'>('overview')
   const { data: stats } = useQuery({ queryKey: ['admin-stats'], queryFn: async()=>(await api.get('/admin/stats')).data, enabled: tab==='overview' })
   const { data: users } = useQuery({ queryKey: ['admin-users'], queryFn: async()=>(await api.get('/admin/users')).data, enabled: tab==='users' })
   const { data: files } = useQuery({ queryKey: ['admin-files'], queryFn: async()=>(await api.get('/admin/files')).data, enabled: tab==='files' })
@@ -27,7 +28,7 @@ export default function AdminDashboard() {
           <span className="text-xs text-dark-400">/admin — admin-only (ADMIN_TELEGRAM_IDS)</span>
         </div>
         <div className="flex gap-1 px-6 pb-3 overflow-x-auto">
-          {(['overview','users','files','bots','accounts','admins','cache','ads','system','settings'] as const).map(t=>(
+          {(['overview','users','user-detail','files','bots','accounts','admins','cache','ads','system','settings'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)} className={`px-3 py-1.5 rounded text-sm capitalize ${tab===t?'bg-primary-600 text-white':'bg-white/[0.06] hover:bg-white/[0.10]'}`}>{t}</button>
           ))}
         </div>
@@ -66,6 +67,7 @@ export default function AdminDashboard() {
             {(users?.users || []).map((u:any)=><div key={u.id} className="glass-card p-3 flex justify-between text-sm"><span>{u.first_name || ''} @{u.username || ''} ({u.telegram_id})</span><span className="text-dark-400">{new Date(u.created_at).toLocaleDateString()}</span></div>)}
           </div>
         )}
+        {tab==='user-detail' && <UserDetailPanel />}
         {tab==='files' && (
           <div className="space-y-2">
             <h2 className="font-bold">Files ({files?.total ?? 0})</h2>

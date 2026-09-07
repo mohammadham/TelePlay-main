@@ -149,7 +149,7 @@ async def list_users(q: str = None, page: int = 1, per_page: int = 20, db: Async
 
 @router.get("/files")
 async def list_files_admin(file_type: str = None, q: str = None, page: int = 1, per_page: int = 20, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
-    from sqlalchemy import or_
+    from sqlalchemy import or_, func
     from ..models import File
     query = select(File)
     if file_type: query = query.where(File.file_type==file_type)

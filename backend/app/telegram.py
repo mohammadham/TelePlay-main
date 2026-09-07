@@ -33,7 +33,7 @@ def build_clients() -> None:
         return
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
     for i, token in enumerate(settings.all_bot_tokens):
-        client = Client(
+        kwargs = dict(
             name=get_session_name(i),
             api_id=settings.telegram_api_id,
             api_hash=settings.telegram_api_hash,
@@ -42,6 +42,9 @@ def build_clients() -> None:
             max_concurrent_transmissions=settings.telegram_client_concurrency,
             no_updates=(i > 0),          # only main client receives updates
         )
+        if settings.telegram_proxy:
+            kwargs["proxy"] = settings.telegram_proxy
+        client = Client(**kwargs)
         client.pool_index = i            # custom attr for logging
         clients.append(client)
     tg_client = clients[0]

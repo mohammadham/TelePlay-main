@@ -21,6 +21,7 @@ logging.getLogger("pyrogram").setLevel(logging.INFO)
 from .config import get_settings, mark_db_ready
 from .database import init_db, get_db
 from .telegram import start_telegram_client, stop_telegram_client
+from .encryption import ensure_encryption_key
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router
 from .routers.settings import router as settings_router
 from .routers.setup import router as setup_router
@@ -58,6 +59,8 @@ async def lifespan(app: FastAPI):
         raise
     await init_db()
     logger.info("Database initialized")
+    ensure_encryption_key()
+    logger.info("Encryption key ensured")
 
     # Run migration from legacy settings
     from .migration import migrate_existing_settings, ensure_default_bot_config
@@ -69,8 +72,15 @@ async def lifespan(app: FastAPI):
 
     await mark_db_ready(settings)
     logger.info("DB settings applied")
-    await start_telegram_client()
-    logger.info("Telegram client started")
+
+    # Skip telegram client startup if credentials are not yet configured
+    # (setup wizard has not run yet, or env vars are template values)
+    from .config import is_configured
+    if not is_configured(settings):
+        logger.info("Not configured yet — skipping Telegram client startup (setup wizard pending)")
+    else:
+        await start_telegram_client()
+        logger.info("Telegram client started")
 
     # Load user accounts into pool
     from .pool_manager import load_user_accounts

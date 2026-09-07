@@ -136,11 +136,26 @@ def get_web_app_button(telegram_id: int, text: str = "🌐 Open Web") -> InlineK
 
 # ============== Authorization Middleware ==============
 
+async def _get_admin_ids_from_db() -> list[int]:
+    """Fetch active admin telegram IDs from the database."""
+    try:
+        from .database import async_session
+        from .models import AdminUser
+        from sqlalchemy import select as _sel
+        async with async_session() as db:
+            result = await db.execute(_sel(AdminUser).where(AdminUser.is_active == True))
+            return [a.telegram_id for a in result.scalars().all()]
+    except Exception:
+        return []
+
+
 @tg_client.on_message(filters.private, group=-2)
 async def check_auth(client, message: Message):
-    """Check if the user is authorized — ADMIN_TELEGRAM_IDS has priority."""
-    # Admin-only mode (new)
-    admin_ids = settings.admin_ids
+    """Check if the user is authorized — DB AdminUser table takes priority."""
+    # Prefer DB admins (set via setup wizard), fall back to env var
+    admin_ids = await _get_admin_ids_from_db()
+    if not admin_ids:
+        admin_ids = settings.admin_ids
     if admin_ids:
         if message.from_user.id not in admin_ids:
             logger.warning(

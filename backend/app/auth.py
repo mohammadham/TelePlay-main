@@ -125,15 +125,31 @@ async def get_current_user(
     return user
 
 
+async def _get_admin_ids_from_db(db: AsyncSession) -> list[int]:
+    """Fetch active admin telegram IDs from the database."""
+    from ..models import AdminUser
+    result = await db.execute(
+        select(AdminUser).where(AdminUser.is_active == True)
+    )
+    return [a.telegram_id for a in result.scalars().all()]
+
+
 async def require_admin(
+    request: Request = None,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Require admin telegram_id."""
+    """Require admin telegram_id — checks DB AdminUser table (overrides env var)."""
     from .config import get_settings
     settings = get_settings()
-    # If no admin configured, allow all (dev mode) — log warning
-    if not settings.admin_ids:
+
+    # Prefer DB admins (synced from setup wizard)
+    db_admin_ids = await _get_admin_ids_from_db(db)
+    admin_ids = db_admin_ids if db_admin_ids else settings.admin_ids
+
+    # If no admin configured at all, allow all (dev mode) — log warning
+    if not admin_ids:
         return current_user
-    if current_user.telegram_id not in settings.admin_ids:
+    if current_user.telegram_id not in admin_ids:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user

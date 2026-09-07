@@ -14,6 +14,8 @@ from ..config import get_settings, mark_db_ready, mark_setup_complete
 from ..auth import create_access_token, create_refresh_token
 from ..encryption import encrypt, decrypt
 from ..services import telegram_auth_service, session_manager
+from ..telegram import tg_client
+from ..encryption import ensure_encryption_key
 from ..services.telegram_auth import SendCodeResult, VerifyCodeResult
 
 logger = logging.getLogger(__name__)
@@ -322,6 +324,33 @@ async def complete_setup(
     await db.refresh(user_acc)
     await db.refresh(super_admin)
 
+    # Persist encryption key and JWT secret to DB (so they survive restarts)
+    ensure_encryption_key()
+    settings = get_settings()
+    if settings.jwt_secret and settings.jwt_secret != "change-me-in-production-please-set-via-panel":
+        try:
+            from ..models import AppSetting
+            from ..database import get_engine
+            import sqlalchemy
+            eng = get_engine()
+            if eng is not None:
+                def _set_jwt(conn) -> None:
+                    row = conn.execute(
+                        sqlalchemy.select(AppSetting)
+                        .where(AppSetting.key == 'JWT_SECRET').limit(1)
+                    ).scalar_one_or_none()
+                    if row is None:
+                        conn.execute(
+                            sqlalchemy.insert(AppSetting).values(
+                                key='JWT_SECRET',
+                                value=settings.jwt_secret,
+                                description="JWT signing secret",
+                            )
+                        )
+                eng.sync_engine.run_sync(_set_jwt)
+        except Exception as e:
+            logger.warning(f"Could not persist JWT_SECRET to DB: {e}")
+
     # 6. Apply DB overrides to settings (must await — it's an async function)
     settings = get_settings()
     await mark_db_ready(settings)
@@ -331,7 +360,16 @@ async def complete_setup(
     # 7. Load user account into pool
     await session_manager.load_account_to_pool(user_acc)
 
-    # 8. Generate tokens for super admin
+    # 8. Notify all admins that the bot is active
+    admin_list = [super_admin.telegram_id] + admin_ids_to_create
+    for admin_id in admin_list:
+        try:
+            await tg_client.send_message(admin_id, "🟢 ربات فعال است")
+            logger.info("Sent activation notification to admin %d", admin_id)
+        except Exception as e:
+            logger.warning("Failed to notify admin %d: %s", admin_id, e)
+
+    # 9. Generate tokens for super admin
     access_token = create_access_token(super_admin.telegram_id, version=super_admin.auth_version)
     refresh_token = create_refresh_token(super_admin.telegram_id, version=super_admin.auth_version)
 

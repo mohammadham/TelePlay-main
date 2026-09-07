@@ -323,19 +323,8 @@ async def validate_startup_config(s: Settings) -> tuple[bool, list[str]]:
     if not bot_token or bot_token == "your_bot_token":
         missing.append("telegram_bot_token")
 
-    # Check Storage Channel ID: from settings OR DB
-    # NOT required for basic system readiness — only needed for file forwarding features.
-    # Mark as missing only if we have partial config (other fields set) but storage_id is zero.
-    storage_id = s.telegram_storage_channel_id or db_values.get('TELEGRAM_STORAGE_CHANNEL_ID', '0')
-    if not storage_id or int(storage_id) == 0:
-        # Only flag as missing if we're otherwise fully configured
-        other_ok = (
-            (s.telegram_api_id or db_values.get('TELEGRAM_API_ID', '0')) and
-            (s.telegram_api_hash or db_values.get('TELEGRAM_API_HASH', '')) and
-            (s.telegram_bot_token or db_values.get('TELEGRAM_BOT_TOKEN', ''))
-        )
-        if other_ok:
-            missing.append("telegram_storage_channel_id")
+    # NOTE: telegram_storage_channel_id is OPTIONAL — not required for system readiness.
+    # It is only needed for file-forwarding features. The setup wizard never asks for it.
 
     # Check JWT Secret: from settings OR DB
     jwt_secret = s.jwt_secret or db_values.get('JWT_SECRET', '')

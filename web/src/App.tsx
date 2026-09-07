@@ -338,7 +338,10 @@ const KNOWN_ROUTES = [
 function RouteGuard() {
     const location = useLocation();
     const { data: setupData, isLoading: setupLoading } = useSetupStatus();
-    const needsSetup = !setupLoading && setupData && !setupData.configured;
+    const needsSetup = !setupLoading && setupData && (
+        !setupData.configured ||
+        setupData.show_setup_wizard
+    );
     const [resolved, setResolved] = useState(false);
 
     // Resolve once to avoid Flash of wrong content before status loads

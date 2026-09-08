@@ -595,10 +595,10 @@ export interface MusicHistoryItem {
 }
 
 export const useMusicHistory = (limit = 20) => {
-    return useQuery<MusicHistoryItem[]>({
+    return useQuery<MusicTrack[]>({
         queryKey: ['music-history', limit],
         queryFn: async () => {
-            const { data } = await api.get<MusicHistoryItem[]>('/v1/music/history', { params: { limit } });
+            const { data } = await api.get<MusicTrack[]>('/v1/music/history', { params: { limit } });
             return data;
         },
         staleTime: 30_000,

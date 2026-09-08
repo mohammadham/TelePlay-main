@@ -3,7 +3,7 @@ import {
     Bot, UserCog, Crown, FileText, Home, X, ChevronRight, ChevronLeft, Menu, LogOut,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import logo from '../assets/logo.png';
+import logo from '../../assets/logo.png';
 import { useState, useEffect, useRef } from 'react';
 
 // ── Admin route map ──────────────────────────────────────────────────────────

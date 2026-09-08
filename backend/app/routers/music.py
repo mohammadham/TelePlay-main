@@ -282,7 +282,6 @@ async def add_download(request: Request = None, payload: Dict[str, Any] = None, 
 @router.delete("/downloads/{dq_id}")
 async def delete_download(dq_id: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)) -> Dict[str, Any]:
     from ..models import DownloadQueue
-    from sqlalchemy import delete as sql_del
-    await db.execute(sql_del(DownloadQueue).where(DownloadQueue.id==dq_id, DownloadQueue.user_id==current_user.id))
+    await db.execute(delete(DownloadQueue).where(DownloadQueue.id==dq_id, DownloadQueue.user_id==current_user.id))
     await db.commit()
     return {"ok": True}

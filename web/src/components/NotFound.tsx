@@ -5,7 +5,7 @@
  *  - Setup is complete but the user hits an invalid route
  *  - Pre-setup any unknown route (redirected to /setup)
  */
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSetupStatus } from '../lib/api';
 import logo from '../assets/logo.png';

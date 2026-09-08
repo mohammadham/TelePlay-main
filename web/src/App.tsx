@@ -344,12 +344,6 @@ function MusicLayout({ children }: { children: React.ReactNode }) {
         </div>
     );
 }
-                <ErrorBoundary>{children}</ErrorBoundary>
-            </main>
-            <NowPlayingBar />
-        </div>
-    );
-}
 function MusicSearchLayout(){ return <MusicLayout><SearchView /></MusicLayout> }
 function MusicPlaylistsLayout(){ return <MusicLayout><PlaylistView /></MusicLayout> }
 function MusicDownloadsLayout(){ return <MusicLayout><Downloads /></MusicLayout> }

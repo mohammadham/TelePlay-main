@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import PlainTextResponse, XMLResponse, JSONResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from ..database import get_db
@@ -155,7 +155,8 @@ async def get_sitemap(db: AsyncSession = Depends(get_db)):
         xml_lines.append(f'  </url>')
     xml_lines.append('</urlset>')
 
-    return XMLResponse("\n".join(xml_lines), media_type="application/xml")
+    from fastapi import Response
+    return Response(content="\n".join(xml_lines), media_type="application/xml")
 
 
 @router.get("/ai-docs")

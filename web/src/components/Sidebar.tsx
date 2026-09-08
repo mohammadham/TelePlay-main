@@ -96,8 +96,6 @@ export default function Sidebar({
     const hasOverlay = isPhone && isOpen;
     // Track hover state for tablet expansion
     const [isHovering, setIsHovering] = useState(false);
-    // Track hover state for tablet expansion
-    const [isHovering, setIsHovering] = useState(false);
 
     return (
         <>
@@ -230,6 +228,7 @@ interface ContentProps {
     onClose: () => void;
     onToggleCollapse?: () => void;
     isCollapsed?: boolean;
+    isHovering?: boolean;
     isAdmin: boolean;
     storage: any;
     formatFileSize: (bytes: number) => string;
@@ -246,11 +245,13 @@ interface ContentProps {
 }
 
 function SidebarContent({
-    onClose, onToggleCollapse, isCollapsed, isAdmin, storage, formatFileSize,
+    onClose, onToggleCollapse, isCollapsed, isHovering, isAdmin, storage, formatFileSize,
     showLogoutConfirm: _showLogoutConfirm, setShowLogoutConfirm: _setShowLogoutConfirm,
     showLogoutAllConfirm: _showLogoutAllConfirm, setShowLogoutAllConfirm: _setShowLogoutAllConfirm,
     handleLogoutAll: _handleLogoutAll, activeSection, setActiveSection, navigate, ROUTE_MAP, isPhone
 }: ContentProps) {
+    const location = useLocation();
+    const isIconOnly = isCollapsed && !isPhone && !isHovering;
     return (
         <>
             {/* Header */}
@@ -258,7 +259,7 @@ function SidebarContent({
                 <div className="flex items-center gap-3 overflow-hidden">
                     <img src={logo} alt="Logo" className="w-8 h-8 rounded shrink-0" />
                     <span className={`font-bold text-white truncate transition-all duration-300 ${
-                        isCollapsed && !isPhone ? 'opacity-0 w-0' : 'opacity-100'
+                        isIconOnly ? 'opacity-0 w-0' : 'opacity-100'
                     }`}>
                         TelePlay
                     </span>
@@ -268,11 +269,11 @@ function SidebarContent({
                     <button
                         onClick={onToggleCollapse}
                         className={`shrink-0 p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
-                            isCollapsed && !isPhone ? 'invisible' : ''
+                            isIconOnly ? 'invisible' : ''
                         }`}
                         aria-label="Toggle sidebar"
                     >
-                        {isCollapsed && !isPhone ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                        {isIconOnly ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
                     </button>
                 )}
                 {/* Close button (phone only) */}
@@ -290,9 +291,9 @@ function SidebarContent({
             {/* Navigation */}
             <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
                 <p className={`px-3 py-2 text-xs font-semibold text-white/30 uppercase tracking-wider ${
-                    isCollapsed && !isPhone ? 'text-center' : ''
+                    isIconOnly ? 'text-center' : ''
                 }`}>
-                    {isCollapsed && !isPhone ? '···' : 'Menu'}
+                    {isIconOnly ? '···' : 'Menu'}
                 </p>
                 {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label }]) => {
                     const isActive = activeSection === route ||
@@ -308,11 +309,11 @@ function SidebarContent({
                             label={label}
                             isActive={isActive}
                             onClick={handleClick}
-                            isCollapsed={isCollapsed && !isPhone}
+                            isCollapsed={isIconOnly}
                         >
                             <Icon className="w-5 h-5 shrink-0" />
                             <span className={`truncate transition-opacity ${
-                                isCollapsed && !isPhone ? 'opacity-0' : 'opacity-100'
+                                isIconOnly ? 'opacity-0' : 'opacity-100'
                             }`}>{label}</span>
                         </TooltipButton>
                     );
@@ -321,18 +322,18 @@ function SidebarContent({
 
             {/* Storage */}
             <div className={`mx-3 mb-3 p-3 rounded-xl bg-[#181818] border border-white/5 ${
-                isCollapsed && !isPhone ? 'text-center' : ''
+                isIconOnly ? 'text-center' : ''
             }`}>
-                <div className={`flex items-center gap-2 ${isCollapsed && !isPhone ? 'justify-center' : ''}`}>
+                <div className={`flex items-center gap-2 ${isIconOnly ? 'justify-center' : ''}`}>
                     <HardDrive className="w-4 h-4 text-white/40 shrink-0" />
-                    <span className={`text-sm text-white/60 truncate ${isCollapsed && !isPhone ? 'hidden' : ''}`}>
+                    <span className={`text-sm text-white/60 truncate ${isIconOnly ? 'hidden' : ''}`}>
                         Storage
                     </span>
                 </div>
                 {storage ? (
-                    <div className={isCollapsed && !isPhone ? 'mt-2' : 'mt-1'}>
-                        <p className={`font-bold text-white ${isCollapsed && !isPhone ? 'text-xs' : 'text-lg'}`}>
-                            {isCollapsed && !isPhone ? formatFileSize(storage.total_size).charAt(0) : formatFileSize(storage.total_size)}
+                    <div className={isIconOnly ? 'mt-2' : 'mt-1'}>
+                        <p className={`font-bold text-white ${isIconOnly ? 'text-xs' : 'text-lg'}`}>
+                            {isIconOnly ? formatFileSize(storage.total_size).charAt(0) : formatFileSize(storage.total_size)}
                         </p>
                         {!isCollapsed && <p className="text-xs text-[#1DB954]">Unlimited 🚀</p>}
                     </div>
@@ -344,16 +345,16 @@ function SidebarContent({
             {/* Admin + Logout */}
             <div className="px-2 pb-3 space-y-1">
                 {isAdmin && (
-                    <TooltipButton label="Admin Panel" isActive={false} onClick={() => navigate('/admin')} isCollapsed={isCollapsed && !isPhone}>
+                    <TooltipButton label="Admin Panel" isActive={false} onClick={() => navigate('/admin')} isCollapsed={isIconOnly}>
                         <Settings2 className="w-5 h-5 shrink-0" />
                         <span className="truncate">Admin Panel</span>
                     </TooltipButton>
                 )}
-                <TooltipButton label="Logout" isActive={false} onClick={() => _setShowLogoutConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
+                <TooltipButton label="Logout" isActive={false} onClick={() => _setShowLogoutConfirm(true)} isCollapsed={isIconOnly}>
                     <LogOut className="w-5 h-5 shrink-0" />
                     <span className="truncate">Logout</span>
                 </TooltipButton>
-                <TooltipButton label="Logout All" isActive={false} onClick={() => _setShowLogoutAllConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
+                <TooltipButton label="Logout All" isActive={false} onClick={() => _setShowLogoutAllConfirm(true)} isCollapsed={isIconOnly}>
                     <Users className="w-5 h-5 shrink-0" />
                     <span className="truncate">Logout All</span>
                 </TooltipButton>

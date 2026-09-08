@@ -312,6 +312,7 @@ import PlaylistDetail from './components/music/PlaylistDetail';
 import ArtistDetail from './components/music/ArtistDetail';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
+import AdminSidebar from './components/admin/AdminSidebar';
 import MobileBottomNav from './components/MobileBottomNav';
 import FileBrowser from './components/FileBrowser';
 
@@ -384,7 +385,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="flex min-h-screen bg-dark-950 text-white">
-            <Sidebar
+            <AdminSidebar
                 isDesktop={isDesktop}
                 isOpen={!tabletCollapsed}
                 onClose={() => setTabletCollapsed(true)}

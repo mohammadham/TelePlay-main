@@ -465,7 +465,7 @@ export default function FileBrowser() {
 
     return (
         <div className="flex h-screen bg-dark-950 text-white selection:bg-primary-500/30 overflow-hidden">
-            <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <Sidebar isDesktop={false} isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} onToggleCollapse={() => {}} isCollapsed={true} />
             
             <main className={`flex-1 flex flex-col min-w-0 relative bg-gradient-to-br from-dark-950 to-dark-900 transition-[margin] duration-300 ease-in-out ${isSidebarOpen ? 'md:ml-64' : 'ml-0'}`}>
                 {/* Header */}

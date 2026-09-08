@@ -1,256 +1,447 @@
-import { Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Settings2, Home, Search, List, Download } from 'lucide-react';
+import {
+    Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Settings2,
+    Home, Search, List, Download, Menu, ChevronRight, ChevronLeft,
+} from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
 import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '../lib/api';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
-interface SidebarProps {
-    isOpen: boolean;
-    onClose: () => void;
-    alwaysOpen?: boolean;
-}
-
-const musicRoutes: Record<string, string> = {
-    home: '/music',
-    search: '/music/search',
-    playlists: '/music/playlists',
-    downloads: '/music/downloads',
-    history: '/music/history',
+// ── Route map for active highlight & icon→text mapping ───────────────────────
+const ROUTE_MAP: Record<string, { icon: any; label: string }> = {
+    '/music':        { icon: Home,       label: 'Music' },
+    '/music/search': { icon: Search,     label: 'Search' },
+    '/music/playlists': { icon: List,   label: 'Playlists' },
+    '/music/downloads': { icon: Download, label: 'Downloads' },
+    '/music/history':   { icon: Clock,  label: 'History' },
+    '/files':        { icon: Files,      label: 'My Files' },
+    '/recent':       { icon: Clock,      label: 'Recent' },
+    '/continue':     { icon: PlayCircle, label: 'Continue' },
 };
 
-export default function Sidebar({ isOpen, onClose, alwaysOpen = false }: SidebarProps) {
+interface Props {
+    isDesktop: boolean;
+    isOpen: boolean;           // tablet: true = full, false = icon-only
+    onClose: () => void;
+    onToggleCollapse: () => void;
+    isCollapsed: boolean;
+}
+
+export default function Sidebar({
+    isDesktop, isOpen, onClose, onToggleCollapse, isCollapsed
+}: Props) {
     const { activeSection, setActiveSection } = useAppStore();
     const navigate = useNavigate();
     const location = useLocation();
-
-    // On desktop with alwaysOpen, force open; otherwise respect isOpen prop
-    const [mobileOpen, setMobileOpen] = useState(false);
-
-    // Listen for global open-sidebar event (dispatched from MobileBottomNav or hamburger)
-    useEffect(() => {
-        const handler = () => setMobileOpen(true);
-        window.addEventListener('open-sidebar', handler);
-        return () => window.removeEventListener('open-sidebar', handler);
-    }, []);
-
-    // Sync activeSection from current route so the highlight matches the URL
-    useEffect(() => {
-        const entry = Object.entries(musicRoutes).find(([, r]) => location.pathname === r || location.pathname.startsWith(r + '/'));
-        if (entry) setActiveSection(entry[0] as any);
-    }, [location.pathname, setActiveSection]);
-    const { data: storage } = useStorageStats();
-    const { data: user } = useCurrentUser();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [showLogoutAllConfirm, setShowLogoutAllConfirm] = useState(false);
     const logoutAllMutation = useLogoutAll();
+    const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sidebarRef = useRef<HTMLDivElement>(null);
 
+    const { data: storage } = useStorageStats();
+    const { data: user } = useCurrentUser();
     const isAdmin = (user as any)?.role === 'ADMIN' || (user as any)?.role === 'SUPER_ADMIN';
 
-    const handleLogout = () => {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-    };
+    // Sync active section from URL
+    useEffect(() => {
+        const matches = Object.keys(ROUTE_MAP).find(route =>
+            location.pathname === route || location.pathname.startsWith(route + '/')
+        );
+        if (matches) setActiveSection(matches);
+    }, [location.pathname, setActiveSection]);
 
-    const handleLogoutAll = async () => {
-        try {
-            await logoutAllMutation.mutateAsync();
-            handleLogout();
-        } catch (error) {
-            console.error('Failed to logout all', error);
-            handleLogout();
-        }
-    };
+    // Cleanup hover timer
+    useEffect(() => {
+        return () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); };
+    }, []);
 
-    const handleNavClick = (section: string) => {
-        onClose();
-        const route = musicRoutes[section];
-        if (route) {
-            navigate(route);
-        } else {
-            setActiveSection(section as 'files' | 'recent' | 'continue_watching');
-        }
-    };
+    // Desktop → always open, no toggle, no hover, no overlay
+    if (isDesktop) {
+        return (
+            <aside className="fixed left-0 top-0 w-64 h-full bg-[#0a0a0a] border-r border-white/10 flex flex-col z-50">
+                <SidebarContent
+                    onClose={() => {}}
+                    isAdmin={isAdmin}
+                    storage={storage}
+                    formatFileSize={formatFileSize}
+                    showLogoutConfirm={showLogoutConfirm}
+                    setShowLogoutConfirm={setShowLogoutConfirm}
+                    showLogoutAllConfirm={showLogoutAllConfirm}
+                    setShowLogoutAllConfirm={setShowLogoutAllConfirm}
+                    handleLogoutAll={async () => {
+                        try { await logoutAllMutation.mutateAsync(); } catch {}
+                        localStorage.removeItem('access_token');
+                        localStorage.removeItem('refresh_token');
+                        localStorage.removeItem('user');
+                        window.location.href = '/login';
+                    }}
+                    activeSection={activeSection}
+                    setActiveSection={setActiveSection}
+                    navigate={navigate}
+                    ROUTE_MAP={ROUTE_MAP}
+                />
+                {renderModals(showLogoutConfirm, setShowLogoutConfirm, showLogoutAllConfirm, setShowLogoutAllConfirm, logoutAllMutation)}
+            </aside>
+        );
+    }
 
-    const NavItem = ({ section, icon: Icon, label }: { section: string; icon: any; label: string }) => (
-        <button
-            onClick={() => handleNavClick(section as any)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                activeSection === section
-                    ? 'text-[#1DB954]'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-            }`}
-        >
-            <Icon className="w-5 h-5 shrink-0" />
-            <span className="truncate">{label}</span>
-        </button>
-    );
-
-    // Desktop: always visible. Mobile/tablet: slide-over when open.
-    const visible = alwaysOpen || isOpen || mobileOpen;
+    // ── Tablet / Phone: slide-over or icon strip ──────────────────────────────
+    const isPhone = window.innerWidth < 768;
+    // On phone: hidden unless isOpen. On tablet: icon-only when collapsed.
+    const isVisible = !isPhone && (!isCollapsed || isOpen);
+    const hasOverlay = isPhone && isOpen;
 
     return (
         <>
-            {/* Mobile Overlay */}
-            <div
-                className={`fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity duration-300 ${
-                    visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-                onClick={onClose}
-            />
+            {/* Icon strip button (always visible on tablet/phone when collapsed) */}
+            {!isCollapsed && (
+                <button
+                    onClick={onToggleCollapse}
+                    className="fixed top-3 left-3 z-50 w-10 h-10 rounded-xl bg-[#181818]/90 backdrop-blur border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all"
+                    aria-label="Toggle sidebar"
+                >
+                    <Menu className="w-5 h-5" />
+                </button>
+            )}
 
-            <aside className={`
-                w-64 bg-black border-r border-white/10 flex flex-col shrink-0
-                fixed inset-y-0 left-0 z-40
-                transition-transform duration-300 ease-in-out shadow-2xl
-                ${visible ? 'translate-x-0' : '-translate-x-full'}
-            `}>
-                {/* Logo Area */}
-                <div className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <img
-                            src={logo}
-                            alt="TelePlay Logo"
-                            className="w-8 h-8 rounded shadow-lg"
-                        />
-                        <span className="text-lg font-bold text-white">
-                            TelePlay
-                        </span>
+            {/* Icon strip (collapsed state on tablet) */}
+            {isCollapsed && !isPhone && (
+                <aside className="fixed left-0 top-0 w-14 h-full bg-[#0a0a0a] border-r border-white/10 flex flex-col items-center py-4 z-50">
+                    <img src={logo} alt="Logo" className="w-8 h-8 mb-6 rounded" />
+                    <nav className="flex flex-col gap-2 w-full px-2">
+                        {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label }]) => {
+                            const isActive = location.pathname === route || location.pathname.startsWith(route + '/');
+                            return (
+                                <TooltipButton
+                                    key={route}
+                                    label={label}
+                                    isActive={isActive}
+                                    onClick={() => handleNavClick(route)}
+                                >
+                                    <Icon className="w-5 h-5" />
+                                </TooltipButton>
+                            );
+                        })}
+                    </nav>
+                    <div className="mt-auto px-2 w-full">
+                        <TooltipButton label="Admin" isActive={isAdmin} onClick={() => navigate('/admin')}>
+                            <Settings2 className="w-5 h-5" />
+                        </TooltipButton>
+                        <TooltipButton label="Logout" isActive={false} onClick={() => setShowLogoutConfirm(true)}>
+                            <LogOut className="w-5 h-5 text-red-400" />
+                        </TooltipButton>
                     </div>
+                </aside>
+            )}
+
+            {/* Full sidebar (expanded on tablet, slide-over on phone) */}
+            {(isCollapsed || !isPhone) && (
+                <>
+                    {hasOverlay && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                            onClick={onClose}
+                        />
+                    )}
+                    <aside
+                        ref={sidebarRef}
+                        className={`
+                            fixed left-0 top-0 h-full bg-[#0a0a0a] border-r border-white/10
+                            flex flex-col z-50 transition-all duration-300 ease-in-out
+                            ${isPhone
+                                ? isOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full'
+                                : isCollapsed
+                                    ? 'w-14 hover:w-64 group'
+                                    : 'w-64'
+                            }
+                        `}
+                        onMouseEnter={() => {
+                            if (isCollapsed && !isPhone) {
+                                hoverTimer.current = setTimeout(() => {
+                                    // Expand sidebar visually
+                                    if (sidebarRef.current) {
+                                        sidebarRef.current.style.width = '16rem';
+                                    }
+                                }, 150);
+                            }
+                        }}
+                        onMouseLeave={() => {
+                            if (hoverTimer.current) clearTimeout(hoverTimer.current);
+                            if (isCollapsed && !isPhone && sidebarRef.current) {
+                                sidebarRef.current.style.width = '3.5rem';
+                            }
+                        }}
+                    >
+                        <SidebarContent
+                            onClose={onClose}
+                            onToggleCollapse={onToggleCollapse}
+                            isCollapsed={isCollapsed}
+                            isAdmin={isAdmin}
+                            storage={storage}
+                            formatFileSize={formatFileSize}
+                            showLogoutConfirm={showLogoutConfirm}
+                            setShowLogoutConfirm={setShowLogoutConfirm}
+                            showLogoutAllConfirm={showLogoutAllConfirm}
+                            setShowLogoutAllConfirm={setShowLogoutAllConfirm}
+                            handleLogoutAll={async () => {
+                                try { await logoutAllMutation.mutateAsync(); } catch {}
+                                localStorage.removeItem('access_token');
+                                localStorage.removeItem('refresh_token');
+                                localStorage.removeItem('user');
+                                window.location.href = '/login';
+                            }}
+                            activeSection={activeSection}
+                            setActiveSection={setActiveSection}
+                            navigate={navigate}
+                            ROUTE_MAP={ROUTE_MAP}
+                            isPhone={isPhone}
+                        />
+                    </aside>
+                </>
+            )}
+
+            {renderModals(showLogoutConfirm, setShowLogoutConfirm, showLogoutAllConfirm, setShowLogoutAllConfirm, logoutAllMutation)}
+        </>
+    );
+
+    function handleNavClick(route: string) {
+        onClose();
+        if (ROUTE_MAP[route]) {
+            navigate(route);
+            setActiveSection(route);
+        }
+    }
+}
+
+// ── Reusable content rendered in all three modes ─────────────────────────────
+interface ContentProps {
+    onClose: () => void;
+    onToggleCollapse?: () => void;
+    isCollapsed?: boolean;
+    isAdmin: boolean;
+    storage: any;
+    formatFileSize: (bytes: number) => string;
+    showLogoutConfirm: boolean;
+    setShowLogoutConfirm: (v: boolean) => void;
+    showLogoutAllConfirm: boolean;
+    setShowLogoutAllConfirm: (v: boolean) => void;
+    handleLogoutAll: () => void;
+    activeSection: string;
+    setActiveSection: (s: string) => void;
+    navigate: (path: string) => void;
+    ROUTE_MAP: Record<string, { icon: any; label: string }>;
+    isPhone?: boolean;
+}
+
+function SidebarContent({
+    onClose, onToggleCollapse, isCollapsed, isAdmin, storage, formatFileSize,
+    showLogoutConfirm, setShowLogoutConfirm, showLogoutAllConfirm, setShowLogoutAllConfirm,
+    handleLogoutAll, activeSection, setActiveSection, navigate, ROUTE_MAP, isPhone
+}: ContentProps) {
+    return (
+        <>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-white/5">
+                <div className="flex items-center gap-3 overflow-hidden">
+                    <img src={logo} alt="Logo" className="w-8 h-8 rounded shrink-0" />
+                    <span className={`font-bold text-white truncate transition-all duration-300 ${
+                        isCollapsed && !isPhone ? 'opacity-0 w-0' : 'opacity-100'
+                    }`}>
+                        TelePlay
+                    </span>
+                </div>
+                {/* Toggle button (tablet only) */}
+                {onToggleCollapse && (
+                    <button
+                        onClick={onToggleCollapse}
+                        className={`shrink-0 p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
+                            isCollapsed && !isPhone ? 'invisible' : ''
+                        }`}
+                        aria-label="Toggle sidebar"
+                    >
+                        {isCollapsed && !isPhone ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                    </button>
+                )}
+                {/* Close button (phone only) */}
+                {isPhone && (
                     <button
                         onClick={onClose}
-                        className="md:hidden p-1 text-white/60 hover:text-white"
+                        className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
+                        aria-label="Close"
                     >
-                        <X className="w-6 h-6" />
+                        <X className="w-5 h-5" />
                     </button>
-                </div>
-
-                {/* Navigation */}
-                <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-                    <p className="px-3 py-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
-                        Menu
-                    </p>
-                    <NavItem section="home" icon={Home} label="Music" />
-                    <NavItem section="search" icon={Search} label="Search" />
-                    <NavItem section="playlists" icon={List} label="Playlists" />
-                    <NavItem section="downloads" icon={Download} label="Downloads" />
-                    <NavItem section="history" icon={Clock} label="Recently Played" />
-
-                    <p className="px-3 py-2 mt-4 text-xs font-semibold text-white/40 uppercase tracking-wider">
-                        Library
-                    </p>
-                    <NavItem section="files" icon={Files} label="My Files" />
-                    <NavItem section="recent" icon={Clock} label="Recently Added" />
-                    <NavItem section="continue_watching" icon={PlayCircle} label="Continue Watching" />
-                </nav>
-
-                {/* Storage Info */}
-                <div className="p-4 m-3 rounded-xl bg-[#181818] border border-white/5">
-                    <div className="flex items-center gap-2 mb-2 text-sm text-white/60">
-                        <HardDrive className="w-4 h-4" />
-                        <span>Storage</span>
-                    </div>
-                    {storage ? (
-                        <>
-                            <div className="text-xl font-bold text-white mb-1">
-                                {formatFileSize(storage.total_size)}
-                            </div>
-                            <div className="text-xs text-[#1DB954]">
-                                Unlimited Storage 🚀
-                            </div>
-                        </>
-                    ) : (
-                        <div className="h-4 w-20 bg-[#282828] rounded animate-pulse" />
-                    )}
-                </div>
-
-                {/* Admin Link */}
-                {isAdmin && (
-                    <div className="px-3 pb-2">
-                        <a href="/admin" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                            <Settings2 className="w-5 h-5" />
-                            <span>Admin Panel</span>
-                        </a>
-                    </div>
                 )}
+            </div>
 
-                {/* Logout */}
-                <div className="p-4 border-t border-white/10">
-                    <button
-                        onClick={() => setShowLogoutConfirm(true)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-white/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                    >
-                        <LogOut className="w-5 h-5" />
-                        <span className="font-medium">Logout</span>
-                    </button>
-                    <button
-                        onClick={() => setShowLogoutAllConfirm(true)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-white/60 hover:text-orange-400 hover:bg-orange-500/10 transition-colors mt-1"
-                    >
-                        <Users className="w-5 h-5" />
-                        <span className="font-medium">Logout All</span>
-                    </button>
+            {/* Navigation */}
+            <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+                <p className={`px-3 py-2 text-xs font-semibold text-white/30 uppercase tracking-wider ${
+                    isCollapsed && !isPhone ? 'text-center' : ''
+                }`}>
+                    {isCollapsed && !isPhone ? '···' : 'Menu'}
+                </p>
+                {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label }]) => {
+                    const isActive = activeSection === route ||
+                        (route !== '/music' && location.pathname.startsWith(route));
+                    const handleClick = () => {
+                        setActiveSection(route);
+                        navigate(route);
+                        if (isPhone) onClose();
+                    };
+                    return (
+                        <TooltipButton
+                            key={route}
+                            label={label}
+                            isActive={isActive}
+                            onClick={handleClick}
+                            isCollapsed={isCollapsed && !isPhone}
+                        >
+                            <Icon className="w-5 h-5 shrink-0" />
+                            <span className={`truncate transition-opacity ${
+                                isCollapsed && !isPhone ? 'opacity-0' : 'opacity-100'
+                            }`}>{label}</span>
+                        </TooltipButton>
+                    );
+                })}
+            </nav>
+
+            {/* Storage */}
+            <div className={`mx-3 mb-3 p-3 rounded-xl bg-[#181818] border border-white/5 ${
+                isCollapsed && !isPhone ? 'text-center' : ''
+            }`}>
+                <div className={`flex items-center gap-2 ${isCollapsed && !isPhone ? 'justify-center' : ''}`}>
+                    <HardDrive className="w-4 h-4 text-white/40 shrink-0" />
+                    <span className={`text-sm text-white/60 truncate ${isCollapsed && !isPhone ? 'hidden' : ''}`}>
+                        Storage
+                    </span>
                 </div>
-            </aside>
+                {storage ? (
+                    <div className={isCollapsed && !isPhone ? 'mt-2' : 'mt-1'}>
+                        <p className={`font-bold text-white ${isCollapsed && !isPhone ? 'text-xs' : 'text-lg'}`}>
+                            {isCollapsed && !isPhone ? formatFileSize(storage.total_size).charAt(0) : formatFileSize(storage.total_size)}
+                        </p>
+                        {!isCollapsed && <p className="text-xs text-[#1DB954]">Unlimited 🚀</p>}
+                    </div>
+                ) : (
+                    <div className="h-4 w-16 bg-[#282828] rounded animate-pulse mt-2" />
+                )}
+            </div>
 
-            {/* Logout Modal */}
+            {/* Admin + Logout */}
+            <div className="px-2 pb-3 space-y-1">
+                {isAdmin && (
+                    <TooltipButton label="Admin Panel" isActive={false} onClick={() => navigate('/admin')} isCollapsed={isCollapsed && !isPhone}>
+                        <Settings2 className="w-5 h-5 shrink-0" />
+                        <span className="truncate">Admin Panel</span>
+                    </TooltipButton>
+                )}
+                <TooltipButton label="Logout" isActive={false} onClick={() => setShowLogoutConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
+                    <LogOut className="w-5 h-5 shrink-0" />
+                    <span className="truncate">Logout</span>
+                </TooltipButton>
+                <TooltipButton label="Logout All" isActive={false} onClick={() => setShowLogoutAllConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
+                    <Users className="w-5 h-5 shrink-0" />
+                    <span className="truncate">Logout All</span>
+                </TooltipButton>
+            </div>
+        </>
+    );
+}
+
+// ── Tooltip button for collapsed icon mode ───────────────────────────────────
+interface TooltipButtonProps {
+    children: React.ReactNode;
+    label: string;
+    isActive: boolean;
+    onClick: () => void;
+    isCollapsed?: boolean;
+}
+
+function TooltipButton({ children, label, isActive, onClick, isCollapsed }: TooltipButtonProps) {
+    const [showTooltip, setShowTooltip] = useState(false);
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleMouseEnter = () => {
+        if (isCollapsed) {
+            timer.current = setTimeout(() => setShowTooltip(true), 200);
+        }
+    };
+    const handleMouseLeave = () => {
+        if (timer.current) clearTimeout(timer.current);
+        setShowTooltip(false);
+    };
+
+    return (
+        <div className="relative">
+            <button
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                onClick={onClick}
+                className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
+                    ${isActive
+                        ? 'text-[#1DB954] bg-[#1DB954]/10'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                    }
+                    ${isCollapsed ? 'justify-center' : ''}
+                `}
+                title={label}
+            >
+                {children}
+            </button>
+            {/* Tooltip */}
+            {isCollapsed && showTooltip && (
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 bg-[#1e1e1e] border border-white/10 rounded-lg text-white text-sm whitespace-nowrap z-[60] shadow-xl">
+                    {label}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Modals ───────────────────────────────────────────────────────────────────
+function renderModals(
+    showLogoutConfirm: boolean,
+    setShowLogoutConfirm: (v: boolean) => void,
+    showLogoutAllConfirm: boolean,
+    setShowLogoutAllConfirm: (v: boolean) => void,
+    logoutAllMutation: any
+) {
+    return (
+        <>
             {showLogoutConfirm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-[#181818] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-[#181818] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
                         <div className="p-6 text-center">
                             <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <LogOut className="w-6 h-6 text-red-500" />
                             </div>
                             <h3 className="text-xl font-semibold text-white mb-2">Confirm Logout</h3>
-                            <p className="text-white/60 text-sm">
-                                Are you sure you want to end your session?
-                            </p>
+                            <p className="text-white/60 text-sm">Are you sure you want to end your session?</p>
                         </div>
                         <div className="p-4 border-t border-white/5 flex gap-3 bg-[#282828]">
-                            <button
-                                onClick={() => setShowLogoutConfirm(false)}
-                                className="flex-1 px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors shadow-lg shadow-red-500/20"
-                            >
-                                Logout
-                            </button>
+                            <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium">Cancel</button>
+                            <button onClick={() => { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); window.location.href = '/login'; }} className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium shadow-lg shadow-red-500/20">Logout</button>
                         </div>
                     </div>
                 </div>
             )}
-
-            {/* Logout All Modal */}
             {showLogoutAllConfirm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-[#181818] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-[#181818] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
                         <div className="p-6 text-center">
                             <div className="w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Users className="w-6 h-6 text-orange-500" />
                             </div>
                             <h3 className="text-xl font-semibold text-white mb-2">Logout Everywhere</h3>
-                            <p className="text-white/60 text-sm">
-                                This will end your session on <strong>all devices</strong>. Are you sure?
-                            </p>
+                            <p className="text-white/60 text-sm">This will end your session on <strong>all devices</strong>.</p>
                         </div>
                         <div className="p-4 border-t border-white/5 flex gap-3 bg-[#282828]">
-                            <button
-                                onClick={() => setShowLogoutAllConfirm(false)}
-                                className="flex-1 px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleLogoutAll}
-                                className="flex-1 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors shadow-lg shadow-orange-500/20"
-                                disabled={logoutAllMutation.isPending}
-                            >
+                            <button onClick={() => setShowLogoutAllConfirm(false)} className="flex-1 px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium">Cancel</button>
+                            <button onClick={async () => { try { await logoutAllMutation.mutateAsync(); } catch {} localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); window.location.href = '/login'; }} className="flex-1 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium shadow-lg shadow-orange-500/20" disabled={logoutAllMutation.isPending}>
                                 {logoutAllMutation.isPending ? 'Logging out...' : 'Logout All'}
                             </button>
                         </div>

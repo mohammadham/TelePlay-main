@@ -316,30 +316,39 @@ import MobileBottomNav from './components/MobileBottomNav';
 
 function MusicLayout({ children }: { children: React.ReactNode }) {
     const isDesktop = useMediaQuery('(min-width: 1024px)');
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    // Tablet: true = expanded full, false = collapsed icon-only.
+    // When switching from tablet to phone, auto-collapse.
+    const [tabletCollapsed, setTabletCollapsed] = useState(true);
+    const [isPhone, setIsPhone] = useState(false);
+
+    useEffect(() => {
+        const checkSize = () => setIsPhone(window.innerWidth < 768);
+        checkSize();
+        window.addEventListener('resize', checkSize);
+        return () => window.removeEventListener('resize', checkSize);
+    }, []);
+
+    // Auto-close sidebar when shrinking past tablet (tablet→phone)
+    const toggleTabletSidebar = () => {
+        setTabletCollapsed(prev => {
+            if (!prev && isPhone) return true; // auto-close on resize to phone
+            return !prev;
+        });
+    };
 
     return (
         <div className="flex min-h-screen bg-[#121212] text-white">
-            {/* Desktop: Sidebar always visible. Tablet/Mobile: Slide-over sidebar */}
-            <Sidebar isOpen={!isDesktop && sidebarOpen} onClose={() => setSidebarOpen(false)} alwaysOpen={isDesktop} />
-            {/* Tablet hamburger (hidden on mobile where bottom nav is used) */}
-            {!isDesktop && (
-                <button
-                    onClick={() => {
-                        const event = new Event('open-sidebar');
-                        window.dispatchEvent(event);
-                    }}
-                    className="hidden md:flex md:items-center md:justify-center md:fixed md:top-3 md:left-3 md:z-50 md:w-9 md:h-9 md:rounded-lg md:bg-[#181818] md:border md:border-white/10 md:text-white/70 md:hover:text-white md:transition-colors"
-                    title="Menu"
-                >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
-            )}
-            {/* Mobile bottom navigation bar - Android-style (small screens only) */}
-            <MobileBottomNav />
-            <main className={`flex-1 ${isDesktop ? 'ml-64' : 'ml-0'} pt-0 md:pt-0`}>
+            {/* Sidebar — 3 modes: desktop always open, tablet toggle icon/full, phone hidden */}
+            <Sidebar
+                isDesktop={isDesktop}
+                isOpen={!tabletCollapsed}
+                onClose={() => setTabletCollapsed(true)}
+                onToggleCollapse={toggleTabletSidebar}
+                isCollapsed={tabletCollapsed}
+            />
+            {/* Phone bottom navigation */}
+            {isPhone && <MobileBottomNav />}
+            <main className={`flex-1 min-w-0 ${isDesktop ? 'ml-64' : ''}`}>
                 <ErrorBoundary>{children}</ErrorBoundary>
             </main>
             <NowPlayingBar />

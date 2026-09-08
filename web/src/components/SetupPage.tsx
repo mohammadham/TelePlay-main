@@ -275,7 +275,7 @@ export default function SetupPage() {
         try {
             const res = await api.post('/setup/complete', {
                 bot_token: botToken,
-                extra_bot_tokens: extraTokens.filter(t => t.trim()),
+                extra_bot_tokens: [],
                 user_phone: userPhone.startsWith('+') ? userPhone : `+${userPhone}`,
                 user_api_id: parseInt(userId),
                 user_api_hash: userHash,

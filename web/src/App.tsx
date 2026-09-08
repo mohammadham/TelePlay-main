@@ -311,23 +311,39 @@ import PlaylistDetail from './components/music/PlaylistDetail';
 import ArtistDetail from './components/music/ArtistDetail';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
+import MobileBottomNav from './components/MobileBottomNav';
 
 function MusicLayout({ children }: { children: React.ReactNode }) {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const isDesktop = useMediaQuery('(min-width: 1024px)');
+
     return (
         <div className="flex min-h-screen bg-[#121212] text-white">
-            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-            {/* Mobile hamburger */}
-            <button
-                onClick={() => setSidebarOpen(true)}
-                className="md:hidden fixed top-3 left-3 z-50 w-9 h-9 rounded-lg bg-[#181818] border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors"
-                title="Menu"
-            >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
-            <main className="flex-1 ml-0 md:ml-64 pt-12 md:pt-0">
+            {/* Desktop: Sidebar always visible. Tablet/Mobile: Slide-over sidebar */}
+            <Sidebar alwaysOpen={isDesktop} />
+            {/* Tablet hamburger (hidden on mobile where bottom nav is used) */}
+            {!isDesktop && (
+                <button
+                    onClick={() => {
+                        const event = new Event('open-sidebar');
+                        window.dispatchEvent(event);
+                    }}
+                    className="hidden md:flex md:items-center md:justify-center md:fixed md:top-3 md:left-3 md:z-50 md:w-9 md:h-9 md:rounded-lg md:bg-[#181818] md:border md:border-white/10 md:text-white/70 md:hover:text-white md:transition-colors"
+                    title="Menu"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            )}
+            {/* Mobile bottom navigation bar - Android-style (small screens only) */}
+            <MobileBottomNav />
+            <main className={`flex-1 ${isDesktop ? 'ml-64' : 'ml-0'} pt-0 md:pt-0`}>
+                <ErrorBoundary>{children}</ErrorBoundary>
+            </main>
+            <NowPlayingBar />
+        </div>
+    );
+}
                 <ErrorBoundary>{children}</ErrorBoundary>
             </main>
             <NowPlayingBar />

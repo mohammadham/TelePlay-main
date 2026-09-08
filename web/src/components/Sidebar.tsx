@@ -8,12 +8,32 @@ import { useState, useEffect } from 'react';
 interface SidebarProps {
     isOpen: boolean;
     onClose: () => void;
+    alwaysOpen?: boolean;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+const musicRoutes: Record<string, string> = {
+    home: '/music',
+    search: '/music/search',
+    playlists: '/music/playlists',
+    downloads: '/music/downloads',
+    history: '/music/history',
+};
+
+export default function Sidebar({ isOpen, onClose, alwaysOpen = false }: SidebarProps) {
     const { activeSection, setActiveSection } = useAppStore();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // On desktop with alwaysOpen, force open; otherwise respect isOpen prop
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const open = alwaysOpen || (isOpen !== undefined ? isOpen : mobileOpen);
+
+    // Listen for global open-sidebar event (dispatched from MobileBottomNav or hamburger)
+    useEffect(() => {
+        const handler = () => setMobileOpen(true);
+        window.addEventListener('open-sidebar', handler);
+        return () => window.removeEventListener('open-sidebar', handler);
+    }, []);
 
     // Sync activeSection from current route so the highlight matches the URL
     useEffect(() => {

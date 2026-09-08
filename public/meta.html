@@ -1,0 +1,45 @@
+const styleHtml = `
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="TelePlay - Stream your Telegram files anywhere">
+  <meta name="keywords" content="telegram, music, video, streaming, files">
+  <meta name="author" content="TelePlay">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/android-chrome-512x512.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/android-chrome-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/android-chrome-16x16.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="msapplication-TileImage" content="/mstile-150x150.png">
+  <meta name="msapplication-TileColor" content="#1DB954">
+  <title>TelePlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #121212;
+      --fg: #ffffff;
+      --muted: #777777;
+      --accent: #1DB954;
+      --card: #181818;
+      --sidebar: #1e1e1e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --fg: #f0f0f0;
+        --muted: #888888;
+        --accent: #1ED760;
+        --card: #1e1e1e;
+        --sidebar: #252525;
+      }
+    }
+    body { font-family: 'Vazirmatn', sans-serif; background: var(--bg); color: var(--fg); }
+    a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+`;

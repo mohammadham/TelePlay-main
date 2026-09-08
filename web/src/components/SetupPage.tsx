@@ -17,7 +17,6 @@ export default function SetupPage() {
     const [step, setStep] = useState<SetupStep>('bot');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [autoConfig, setAutoConfig] = useState<any>(null);
 
     // Bot form state
     const [botToken, setBotToken] = useState('');

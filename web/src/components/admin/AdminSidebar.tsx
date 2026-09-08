@@ -1,5 +1,5 @@
 import {
-    LayoutDashboard, Users, HardDrive, Database, Ad, Server, Settings2,
+    LayoutDashboard, Users, HardDrive, Database, Megaphone, Server, Settings2,
     Bot, UserCog, Crown, FileText, Home, X, ChevronRight, ChevronLeft, Menu, LogOut,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,7 +12,7 @@ const ADMIN_ROUTE_MAP: Record<string, { icon: any; label: string; section?: stri
     '/admin/users':    { icon: Users,          label: 'Users',     section: 'users' },
     '/admin/files':    { icon: HardDrive,      label: 'Files',     section: 'files' },
     '/admin/cache':    { icon: Database,       label: 'Cache',     section: 'cache' },
-    '/admin/ads':      { icon: Ad,             label: 'Ads',       section: 'ads' },
+    '/admin/ads':      { icon: Megaphone,      label: 'Ads',       section: 'ads' },
     '/admin/system':   { icon: Server,         label: 'System',    section: 'system' },
     '/admin/settings': { icon: Settings2,      label: 'Settings',  section: 'settings' },
     '/admin/bots':     { icon: Bot,            label: 'Bots',      section: 'bots' },

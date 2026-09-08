@@ -90,11 +90,12 @@ async def lifespan(app: FastAPI):
     logger.info("Encryption key ensured")
 
     # Run migration from legacy settings
-    from .migration import migrate_existing_settings, ensure_default_bot_config
+    from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list
     from .database import async_session
     async with async_session() as db:
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
+        await migrate_seo_config_geo_list(db)
 
     # Validate startup configuration
     is_valid, missing_fields = await validate_startup_config(settings)

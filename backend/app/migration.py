@@ -6,9 +6,9 @@ import logging
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text, text
 
-from .models import BotConfig, UserAccount, AdminUser, AppSetting
+from .models import BotConfig, UserAccount, AdminUser, AppSetting, SEOConfig, SEOConfig
 from .config import get_settings
 from .encryption import encrypt
 
@@ -182,3 +182,21 @@ async def ensure_default_bot_config(db: AsyncSession) -> None:
                     logger.info("Created default MAIN bot: @%s", me.username)
             except Exception as e:
                 logger.error("Failed to create default MAIN bot: %s", e)
+
+
+async def migrate_seo_config_geo_list(db: AsyncSession) -> None:
+    """Ensure geo_list column exists in seo_config table."""
+    try:
+        result = await db.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'seo_config' AND column_name = 'geo_list'"
+        ))
+        exists = result.scalar()
+        if not exists:
+            await db.execute(text(
+                "ALTER TABLE seo_config ADD COLUMN geo_list TEXT DEFAULT '[]'"
+            ))
+            await db.commit()
+            logger.info("Added geo_list column to seo_config")
+    except Exception as e:
+        logger.warning("SEO geo_list migration failed (may already exist): %s", e)

@@ -39,7 +39,7 @@ export default function SearchView() {
     if (track.media_type === 'music_video' || track.media_type === 'reel') {
       api.get(`/files/${track.file_id}`).then(r => {
         setPreviewFile(r.data as any)
-      }).catch(() => {})
+      }).catch(console.error)
     } else {
       setQueue(tracks, index)
     }

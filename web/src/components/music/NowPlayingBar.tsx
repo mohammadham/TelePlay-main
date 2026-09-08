@@ -35,10 +35,10 @@ export default function NowPlayingBar() {
     else (mediaRef.current as any).pause()
   }, [isPlaying, currentTrack, setPlaying])
 
-  // Track history + ad check
+  // Track history + ad check (fire-and-forget, non-critical)
   useEffect(() => {
     if (!currentTrack) return
-    api.post('/v1/music/history', { track_id: currentTrack.id }).catch(() => {})
+    api.post('/v1/music/history', { track_id: currentTrack.id }).catch(console.error)
     api.get('/ads/next', { params: { play_count: queueIndex + 1 } }).catch(() => {})
   }, [currentTrack?.id, queueIndex])
 

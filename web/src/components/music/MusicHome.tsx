@@ -47,12 +47,17 @@ export default function MusicHome() {
     try {
       await toggleLike.mutateAsync({ trackId: track.id, liked: track.is_liked })
       await qc.invalidateQueries({ queryKey: ['music-tracks', mediaType] })
-    } catch {}
+    } catch (e) {
+      console.error('Like failed:', e)
+    }
   }
 
   const download = async (id: number) => {
     setDownloading(id)
-    try { await api.post('/v1/music/downloads', { track_id: id }) } catch {}
+    try { await api.post('/v1/music/downloads', { track_id: id }) }
+    catch (e) {
+      console.error('Download failed:', e)
+    }
     setDownloading(null)
   }
 
@@ -61,7 +66,7 @@ export default function MusicHome() {
       api.get(`/files/${track.file_id}`).then(r => {
         const file = r.data
         setPreviewFile(file as any)
-      }).catch(() => {})
+      }).catch(console.error)
     } else {
       setQueue(list, list.findIndex((t) => t.id === track.id))
     }

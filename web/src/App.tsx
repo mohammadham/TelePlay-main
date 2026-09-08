@@ -496,8 +496,8 @@ function App() {
                 <Route path="/music/playlists/:id" element={<ProtectedRoute><MusicPlaylistDetailLayout /></ProtectedRoute>} />
                 <Route path="/music/artists/:id" element={<ProtectedRoute><MusicArtistDetailLayout /></ProtectedRoute>} />
                 <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
-                <Route path="/recent" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
-                <Route path="/continue" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
+                <Route path="/recent" element={<Navigate to="/music/history" replace />} />
+                <Route path="/continue" element={<Navigate to="/music/history" replace />} />
                 <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />

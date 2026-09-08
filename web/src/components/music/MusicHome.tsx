@@ -220,7 +220,7 @@ export default function MusicHome() {
         <section className="animate-fade-in-up">
           <h2 className="text-xl font-bold mb-5 flex items-center gap-2">
             <Clock className="w-5 h-5 text-[#1DB954]" />
-            Continue Listening
+            Recently Played
           </h2>
           {historyLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -246,8 +246,8 @@ export default function MusicHome() {
             </div>
           ) : (
             <div className="text-center py-12 text-white/30">
-              <p className="text-lg font-medium text-white/50">Nothing played yet</p>
-              <p className="text-sm mt-2">Start listening to see your history</p>
+              <p className="text-lg font-medium text-white/50">No listening history yet</p>
+              <p className="text-sm mt-2">Start playing music to see it here</p>
             </div>
           )}
         </section>

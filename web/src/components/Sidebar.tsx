@@ -16,8 +16,6 @@ const ROUTE_MAP: Record<string, { icon: any; label: string; section?: string }> 
     '/music/downloads': { icon: Download,  label: 'Downloads', section: 'music' },
     '/music/history':   { icon: Clock,     label: 'History',  section: 'music' },
     '/files':           { icon: Files,     label: 'My Files', section: 'files' },
-    '/recent':          { icon: Clock,     label: 'Recent',   section: 'recent' },
-    '/continue':        { icon: PlayCircle, label: 'Continue', section: 'continue_watching' },
 };
 
 interface Props {

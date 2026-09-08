@@ -1,63 +1,84 @@
----
-name: music-platform-fixes-summary
-description: Summary of fixes applied to admin sidebar and music panel issues on feature/music-platform branch
-metadata:
-  type: project
----
+# TelePlay Music Platform Fixes — Complete Summary
 
-# TelePlay Music Platform Fixes
+## All Issues Fixed
 
-## Issues Fixed
+### 1. Admin Sidebar 404 Errors ✅
+**File**: `web/src/App.tsx`  
+**Commit**: `8f7650b`
 
-### 1. Admin Sidebar 404 Errors
 **Problem**: Clicking admin sidebar buttons (`/admin/users`, `/admin/files`, etc.) led to 404 pages.
-**Root Cause**: `KNOWN_ROUTES` in `App.tsx` only listed `/admin`, `/admin/cache`, `/admin/settings` — missing 8 admin sub-routes.
 
-**Fix**: Added all 9 admin sub-routes to both `KNOWN_ROUTES` and `<Route>` definitions:
-- `/admin/users`, `/admin/files`, `/admin/ads`, `/admin/system`
-- `/admin/bots`, `/admin/accounts`, `/admin/admins`, `/admin/seo`
+**Root Cause**: `KNOWN_ROUTES` only listed `/admin`, `/admin/cache`, `/admin/settings` — missing 8 sub-routes.
 
-**File**: `web/src/App.tsx`
+**Fix**: Added all 9 admin sub-routes to both `KNOWN_ROUTES` and `<Route>` definitions.
 
-### 2. Admin Tab Not Syncing with URL
-**Problem**: Clicking admin sidebar buttons navigated correctly but tab content didn't change — always showed overview.
-**Root Cause**: `AdminDashboard.tsx` used local React state for tab selection without reading from URL. Navigation happened via client-side router but component didn't react to route changes.
+### 2. Admin Tab Not Syncing with URL ✅
+**File**: `web/src/components/admin/AdminDashboard.tsx`  
+**Commit**: `ec773e1`
 
-**Fix**: Added `ROUTE_TAB_MAP` to read initial tab from `location.pathname` on mount, `useEffect` syncs tab on URL changes, and `handleTabChange` navigates to matching URL.
+**Problem**: Clicking admin sidebar buttons navigated correctly but content didn't change — always showed overview.
 
-**File**: `web/src/components/admin/AdminDashboard.tsx`
+**Root Cause**: `AdminDashboard` used local React state without reading URL pathname.
 
-### 3. Music Panel "Something went wrong"
-**Problem**: `/music` page crashed with "Something went wrong" error boundary.
-**Root Cause**: `useMusicHistory` hook used wrong type `MusicHistoryItem[]` but backend returns `TrackResponse[]` (same shape as `MusicTrack`).
+**Fix**: Added `ROUTE_TAB_MAP`, `useEffect` syncs tab on URL changes, `handleTabChange` navigates to matching URL.
 
-**Fix**: Changed hook return type from `MusicHistoryItem[]` to `MusicTrack[]`.
+### 3. Music Panel "Something went wrong" ✅
+**File**: `web/src/lib/api.ts`  
+**Commit**: `27beace`
 
-**File**: `web/src/lib/api.ts` (line ~600)
+**Problem**: `/music` page crashed with error boundary showing "Something went wrong".
 
-### 4. Database geo_list Column Missing (500 Error)
-**Problem**: `/admin/seo/config` returned 500 error after deployment.
-**Root Cause**: `SEOConfig` model added `geo_list` column but existing database tables didn't have it. Old databases worked on first deploy but failed after redeployment due to SQLAlchemy creating new tables from metadata instead of detecting schema.
+**Root Cause**: `useMusicHistory` hook typed as `MusicHistoryItem[]` but backend returns `TrackResponse[]`.
 
-**Fix**: Added `migrate_seo_config_geo_list()` function to `backend/app/migration.py` that creates the column if missing, called during startup alongside existing migrations.
+**Fix**: Changed type to `MusicTrack[]`.
 
-**File**: `backend/app/migration.py` (lines 187-202), `backend/app/main.py` (line ~98)
+### 4. Database geo_list Column Missing ✅
+**Files**: `backend/app/migration.py`, `backend/app/main.py`  
+**Commit**: `4956386`
+
+**Problem**: `/admin/seo/config` returned 500 Internal Server Error.
+
+**Root Cause**: `SEOConfig` model has `geo_list` column but old databases lack it.
+
+**Fix**: Added `migrate_seo_config_geo_list()` to auto-create column during startup.
+
+### 5. React Error #300 (Hooks Order) ✅
+**Files**: `web/src/components/Sidebar.tsx`, `web/src/components/admin/AdminSidebar.tsx`  
+**Commit**: `e66af5b`
+
+**Problem**: First visit to `/music` shows "Something went wrong" crash.
+
+**Root Cause**: `useState(isHovering)` and other hooks declared AFTER `if (isDesktop) return` early return. When window resizes, hook count changes → React crash.
+
+**Fix**: Moved all hooks before the early return in both components.
+
+### 6. CSP Blocking Google Fonts ✅
+**File**: `backend/app/main.py`  
+**Commit**: `e66af5b`
+
+**Problem**: CSP blocks Google Fonts loading, causes React hydration mismatch.
+
+**Root Cause**: `style-src 'self' 'unsafe-inline'` doesn't allow external stylesheets.
+
+**Fix**: Added `https://fonts.googleapis.com` to `style-src` and `font-src` directive.
 
 ## Build Status
-- ✅ Vite build passes (1557 modules transformed, 478.73 kB JS)
-- ✅ All changes pushed to `feature/music-platform` branch
-- ✅ 2 new commits: `8f7650b` (admin routes), `27beace` (history type fix)
+- ✅ All 6 fixes applied
+- ✅ Frontend build passes (1557 modules, 479.41 kB JS)
+- ✅ 6 commits on `feature/music-platform`
+- ✅ All pushed to production
 
-## Admin Sub-Routes Now Working
-All admin navigation items in `AdminSidebar.tsx` now have matching routes:
-- Overview → `/admin`
-- Users → `/admin/users`
-- Files → `/admin/files`
-- Cache → `/admin/cache`
-- Ads → `/admin/ads`
-- System → `/admin/system`
-- Settings → `/admin/settings`
-- Bots → `/admin/bots`
-- Accounts → `/admin/accounts`
-- Admins → `/admin/admins`
-- SEO → `/admin/seo`
+## Admin Routes Now Working
+| Route | Tab |
+|-------|-----|
+| `/admin` | overview |
+| `/admin/users` | users |
+| `/admin/files` | files |
+| `/admin/cache` | cache |
+| `/admin/ads` | ads |
+| `/admin/system` | system |
+| `/admin/settings` | settings |
+| `/admin/bots` | bots |
+| `/admin/accounts` | accounts |
+| `/admin/admins` | admins |
+| `/admin/seo` | seo |

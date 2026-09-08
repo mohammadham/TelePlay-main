@@ -313,6 +313,7 @@ import ArtistDetail from './components/music/ArtistDetail';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
 import MobileBottomNav from './components/MobileBottomNav';
+import FileBrowser from './components/FileBrowser';
 
 function MusicLayout({ children }: { children: React.ReactNode }) {
     const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -493,6 +494,9 @@ function App() {
                 <Route path="/music/history" element={<ProtectedRoute><MusicHistoryLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists/:id" element={<ProtectedRoute><MusicPlaylistDetailLayout /></ProtectedRoute>} />
                 <Route path="/music/artists/:id" element={<ProtectedRoute><MusicArtistDetailLayout /></ProtectedRoute>} />
+                <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
+                <Route path="/recent" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
+                <Route path="/continue" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/cache" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />

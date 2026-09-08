@@ -9,15 +9,15 @@ import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '.
 import { useState, useEffect, useRef } from 'react';
 
 // ── Route map for active highlight & icon→text mapping ───────────────────────
-const ROUTE_MAP: Record<string, { icon: any; label: string }> = {
-    '/music':          { icon: Home,       label: 'Music' },
-    '/music/search':   { icon: Search,     label: 'Search' },
-    '/music/playlists': { icon: List,    label: 'Playlists' },
-    '/music/downloads': { icon: Download, label: 'Downloads' },
-    '/music/history':    { icon: Clock,   label: 'History' },
-    '/files':        { icon: Files,      label: 'My Files' },
-    '/recent':       { icon: Clock,      label: 'Recent' },
-    '/continue':     { icon: PlayCircle, label: 'Continue' },
+const ROUTE_MAP: Record<string, { icon: any; label: string; section?: string }> = {
+    '/music':           { icon: Home,      label: 'Music',    section: 'music' },
+    '/music/search':    { icon: Search,    label: 'Search',   section: 'music' },
+    '/music/playlists': { icon: List,      label: 'Playlists', section: 'music' },
+    '/music/downloads': { icon: Download,  label: 'Downloads', section: 'music' },
+    '/music/history':   { icon: Clock,     label: 'History',  section: 'music' },
+    '/files':           { icon: Files,     label: 'My Files', section: 'files' },
+    '/recent':          { icon: Clock,     label: 'Recent',   section: 'recent' },
+    '/continue':        { icon: PlayCircle, label: 'Continue', section: 'continue_watching' },
 };
 
 interface Props {
@@ -49,7 +49,10 @@ export default function Sidebar({
         const matches = Object.keys(ROUTE_MAP).find(route =>
             location.pathname === route || location.pathname.startsWith(route + '/')
         );
-        if (matches) setActiveSection(matches);
+        if (matches) {
+            const section = ROUTE_MAP[matches].section || matches;
+            setActiveSection(section);
+        }
     }, [location.pathname, setActiveSection]);
 
     // Cleanup hover timer
@@ -208,8 +211,9 @@ export default function Sidebar({
     function handleNavClick(route: string) {
         onClose();
         if (ROUTE_MAP[route]) {
+            const section = ROUTE_MAP[route].section || route;
             navigate(route);
-            setActiveSection(route);
+            setActiveSection(section);
         }
     }
 }

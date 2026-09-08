@@ -293,6 +293,7 @@ class SEOConfig(Base):
     geo_region: Mapped[str] = mapped_column(String(100), default="IR")
     geo_locale: Mapped[str] = mapped_column(String(10), default="fa")
     social_image: Mapped[Optional[str]] = mapped_column(String(500), default="/api/stream/cover/default")
+    geo_list: Mapped[Optional[str]] = mapped_column(Text, default="[]")  # AI-generated geo list
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

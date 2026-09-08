@@ -24,7 +24,7 @@ export default function MusicHome() {
   const { data: tracks, isLoading } = useQuery({
     queryKey: ['music-tracks', mediaType, genre],
     queryFn: async () => {
-      const params: Record<string, string | number> = { per_page: 60 }
+      const params: Record<string, string | number> = { per_page: 50 }
       if (mediaType !== 'all') params.media_type = mediaType
       if (genre) params.genre = genre
       return (await api.get<MusicTrack[]>('/v1/music/tracks', { params })).data

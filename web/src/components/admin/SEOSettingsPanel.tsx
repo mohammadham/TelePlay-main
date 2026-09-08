@@ -9,6 +9,7 @@ interface SEOData {
   keywords: string;
   geo_region: string;
   geo_locale: string;
+  geo_list: string;
   social_image: string;
 }
 
@@ -80,27 +81,17 @@ export default function SEOSettingsPanel() {
           />
         </label>
 
-        {/* Geo Region */}
-        <div className="grid grid-cols-2 gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Geo Region</span>
-            <input
-              value={values.geo_region}
-              onChange={e => set('geo_region', e.target.value)}
-              className="input"
-              placeholder="IR"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Geo Locale</span>
-            <input
-              value={values.geo_locale}
-              onChange={e => set('geo_locale', e.target.value)}
-              className="input"
-              placeholder="fa"
-            />
-          </label>
-        </div>
+        {/* Geo List */}
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Geo List (AI)</span>
+          <input
+            value={values.geo_list}
+            onChange={e => set('geo_list', e.target.value)}
+            className="input"
+            placeholder="IR,US,CA"
+          />
+          <span className="text-xs text-dark-500">AI will format this list</span>
+        </label>
 
         {/* Social Image */}
         <label className="flex flex-col gap-1.5">

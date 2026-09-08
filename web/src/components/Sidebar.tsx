@@ -10,11 +10,11 @@ import { useState, useEffect, useRef } from 'react';
 
 // ── Route map for active highlight & icon→text mapping ───────────────────────
 const ROUTE_MAP: Record<string, { icon: any; label: string }> = {
-    '/music':        { icon: Home,       label: 'Music' },
-    '/music/search': { icon: Search,     label: 'Search' },
-    '/music/playlists': { icon: List,   label: 'Playlists' },
+    '/music':          { icon: Home,       label: 'Music' },
+    '/music/search':   { icon: Search,     label: 'Search' },
+    '/music/playlists': { icon: List,    label: 'Playlists' },
     '/music/downloads': { icon: Download, label: 'Downloads' },
-    '/music/history':   { icon: Clock,  label: 'History' },
+    '/music/history':    { icon: Clock,   label: 'History' },
     '/files':        { icon: Files,      label: 'My Files' },
     '/recent':       { icon: Clock,      label: 'Recent' },
     '/continue':     { icon: PlayCircle, label: 'Continue' },
@@ -226,6 +226,7 @@ interface ContentProps {
     setShowLogoutConfirm: (v: boolean) => void;
     showLogoutAllConfirm: boolean;
     setShowLogoutAllConfirm: (v: boolean) => void;
+    handleLogoutAll: () => void;
     activeSection: string;
     setActiveSection: (s: string) => void;
     navigate: (path: string) => void;
@@ -235,8 +236,9 @@ interface ContentProps {
 
 function SidebarContent({
     onClose, onToggleCollapse, isCollapsed, isAdmin, storage, formatFileSize,
-    showLogoutConfirm, setShowLogoutConfirm, showLogoutAllConfirm, setShowLogoutAllConfirm,
-    handleLogoutAll, activeSection, setActiveSection, navigate, ROUTE_MAP, isPhone
+    showLogoutConfirm: _showLogoutConfirm, setShowLogoutConfirm: _setShowLogoutConfirm,
+    showLogoutAllConfirm: _showLogoutAllConfirm, setShowLogoutAllConfirm: _setShowLogoutAllConfirm,
+    handleLogoutAll: _handleLogoutAll, activeSection, setActiveSection, navigate, ROUTE_MAP, isPhone
 }: ContentProps) {
     return (
         <>
@@ -336,11 +338,11 @@ function SidebarContent({
                         <span className="truncate">Admin Panel</span>
                     </TooltipButton>
                 )}
-                <TooltipButton label="Logout" isActive={false} onClick={() => setShowLogoutConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
+                <TooltipButton label="Logout" isActive={false} onClick={() => _setShowLogoutConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
                     <LogOut className="w-5 h-5 shrink-0" />
                     <span className="truncate">Logout</span>
                 </TooltipButton>
-                <TooltipButton label="Logout All" isActive={false} onClick={() => setShowLogoutAllConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
+                <TooltipButton label="Logout All" isActive={false} onClick={() => _setShowLogoutAllConfirm(true)} isCollapsed={isCollapsed && !isPhone}>
                     <Users className="w-5 h-5 shrink-0" />
                     <span className="truncate">Logout All</span>
                 </TooltipButton>

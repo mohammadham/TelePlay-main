@@ -27,7 +27,17 @@ async def get_seo_config(db: AsyncSession = Depends(get_db), admin: User = Depen
         "geo_region": row.geo_region,
         "geo_locale": row.geo_locale,
         "social_image": row.social_image,
+        "geo_list": row.geo_list,
     }
+
+
+@router.post("/seed")
+async def seed_seo_config(db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+    exists = (await db.execute(select(SEOConfig).limit(1))).scalar_one_or_none()
+    if not exists:
+        db.add(SEOConfig())
+        await db.commit()
+    return {"ok": True}
 
 
 @router.put("/config")
@@ -36,7 +46,7 @@ async def update_seo_config(payload: dict, db: AsyncSession = Depends(get_db), a
     if not row:
         row = SEOConfig()
         db.add(row)
-    for key in ["title_template", "description_template", "keywords", "geo_region", "geo_locale", "social_image"]:
+    for key in ["title_template", "description_template", "keywords", "geo_region", "geo_locale", "social_image", "geo_list"]:
         if key in payload and payload[key] is not None:
             setattr(row, key, str(payload[key]))
     await db.commit()
@@ -49,6 +59,7 @@ async def update_seo_config(payload: dict, db: AsyncSession = Depends(get_db), a
         "geo_region": row.geo_region,
         "geo_locale": row.geo_locale,
         "social_image": row.social_image,
+        "geo_list": row.geo_list,
     }
 
 

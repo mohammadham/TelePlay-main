@@ -94,6 +94,10 @@ export default function Sidebar({
     const isPhone = window.innerWidth < 768;
     // On phone: hidden unless isOpen. On tablet: icon-only when collapsed.
     const hasOverlay = isPhone && isOpen;
+    // Track hover state for tablet expansion
+    const [isHovering, setIsHovering] = useState(false);
+    // Track hover state for tablet expansion
+    const [isHovering, setIsHovering] = useState(false);
 
     return (
         <>
@@ -159,27 +163,30 @@ export default function Sidebar({
                                     : 'w-64'
                             }
                         `}
-                        onMouseEnter={() => {
-                            if (isCollapsed && !isPhone) {
-                                hoverTimer.current = setTimeout(() => {
-                                    // Expand sidebar visually
-                                    if (sidebarRef.current) {
-                                        sidebarRef.current.style.width = '16rem';
-                                    }
-                                }, 150);
-                            }
-                        }}
-                        onMouseLeave={() => {
-                            if (hoverTimer.current) clearTimeout(hoverTimer.current);
-                            if (isCollapsed && !isPhone && sidebarRef.current) {
-                                sidebarRef.current.style.width = '3.5rem';
-                            }
-                        }}
+onMouseEnter={() => {
+                        if (isCollapsed && !isPhone) {
+                            setIsHovering(true);
+                            hoverTimer.current = setTimeout(() => {
+                                // Expand sidebar visually
+                                if (sidebarRef.current) {
+                                    sidebarRef.current.style.width = '16rem';
+                                }
+                            }, 150);
+                        }
+                    }}
+                    onMouseLeave={() => {
+                        if (hoverTimer.current) clearTimeout(hoverTimer.current);
+                        setIsHovering(false);
+                        if (isCollapsed && !isPhone && sidebarRef.current) {
+                            sidebarRef.current.style.width = '3.5rem';
+                        }
+                    }}
                     >
                         <SidebarContent
                             onClose={onClose}
                             onToggleCollapse={onToggleCollapse}
                             isCollapsed={isCollapsed}
+                            isHovering={isHovering}
                             isAdmin={isAdmin}
                             storage={storage}
                             formatFileSize={formatFileSize}

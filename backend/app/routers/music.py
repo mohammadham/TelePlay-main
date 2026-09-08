@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from ..database import get_db
-from ..models import User, Track, Artist, Album, Playlist, PlaylistTrack, Like, Follow, ListenHistory, File
+from ..models import User, Track, Artist, Album, Playlist, PlaylistTrack, Like, Follow, ListenHistory, File, AppSetting
 from ..schemas import TrackResponse, ArtistResponse, AlbumResponse, PlaylistResponse
 from ..auth import get_current_user
 from ..services import sanitize_text, escape_like
@@ -253,6 +253,80 @@ async def add_history(payload: Dict[str, Any], db: AsyncSession=Depends(get_db),
 async def get_history(limit: int=20, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
     rows = (await db.execute(select(Track).join(ListenHistory, Track.id==ListenHistory.track_id).where(ListenHistory.user_id==current_user.id).options(selectinload(Track.artist)).order_by(ListenHistory.played_at.desc()).limit(limit))).scalars().all()
     return [TrackResponse(**_track_to_resp(t)) for t in rows]
+
+# User's own tracks
+@router.get("/my/tracks")
+async def get_my_tracks(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get tracks created by the current user via the /v1/music/my/upload endpoint."""
+    from ..models import Artist, Album
+    result = await db.execute(
+        select(Track)
+        .join(Artist)
+        .outerjoin(Album)
+        .order_by(Track.created_at.desc())
+        .limit(100)
+    )
+    tracks = result.scalars().all()
+    liked_ids = set((await db.execute(select(Like.track_id).where(Like.user_id==current_user.id))).scalars().all())
+    return [TrackResponse(**_track_to_resp(t, t.id in liked_ids)).model_dump() for t in tracks]
+
+
+@router.post("/my/upload", response_model=TrackResponse)
+async def upload_track(payload: Dict[str, Any], db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)) -> TrackResponse:
+    """User creates a track from their existing Telegram file."""
+    from ..config import get_settings
+    settings = get_settings()
+    # Check if my-music is enabled
+    my_music_enabled = (await db.execute(
+        select(AppSetting).where(AppSetting.key == "MY_MUSIC_ENABLED")
+    )).scalar_one_or_none()
+    if my_music_enabled and my_music_enabled.value.lower() == "false":
+        raise HTTPException(403, "My Music is disabled by admin")
+
+    artist_id = payload.get("artist_id")
+    if not artist_id and payload.get("artist_name"):
+        r = await db.execute(select(Artist).where(Artist.name == payload["artist_name"]))
+        a = r.scalar_one_or_none()
+        if not a:
+            a = Artist(name=sanitize_text(payload["artist_name"]))
+            db.add(a); await db.flush()
+        artist_id = a.id
+    if not artist_id:
+        raise HTTPException(400, "artist_id or artist_name required")
+
+    file_id = payload.get("file_id")
+    if not file_id:
+        raise HTTPException(400, "file_id required")
+
+    # Verify file belongs to user
+    file_check = await db.execute(select(File).where(File.id == file_id, File.user_id == current_user.id))
+    if not file_check.scalar_one_or_none():
+        raise HTTPException(403, "File not found in your library")
+
+    album_id = payload.get("album_id")
+    if not album_id and payload.get("album_title"):
+        r = await db.execute(select(Album).where(Album.title == payload["album_title"], Album.artist_id == artist_id))
+        al = r.scalar_one_or_none()
+        if not al:
+            al = Album(title=sanitize_text(payload["album_title"]), artist_id=artist_id)
+            db.add(al); await db.flush()
+        album_id = al.id
+
+    t = Track(
+        title=sanitize_text(payload.get("title", "Untitled")),
+        artist_id=artist_id,
+        album_id=album_id,
+        file_id=file_id,
+        duration=payload.get("duration"),
+        genre=sanitize_text(payload.get("genre")),
+        track_number=payload.get("track_number"),
+        media_type=payload.get("media_type", "audio"),
+    )
+    db.add(t); await db.commit(); await db.refresh(t)
+    r = await db.execute(select(Track).where(Track.id == t.id).options(selectinload(Track.artist), selectinload(Track.album)))
+    t = r.scalar_one()
+    return TrackResponse(**_track_to_resp(t))
+
 
 # Downloads
 @router.get("/downloads")

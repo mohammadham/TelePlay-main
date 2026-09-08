@@ -23,6 +23,7 @@ TEMPLATE = {
     "CACHE_ENABLED": ("true", "true/false"),
     "VIDEO_CACHE_ENABLED": ("true", "true/false"),
     "ADS_ENABLED": ("true", "true/false"),
+    "MY_MUSIC_ENABLED": ("true", "Enable My Music section — users can create tracks from uploaded files"),
 }
 
 @router.get("")

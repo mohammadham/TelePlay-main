@@ -605,6 +605,31 @@ export const useMusicHistory = (limit = 20) => {
     });
 };
 
+export const useMyMusicTracks = () => {
+    return useQuery<MusicTrack[]>({
+        queryKey: ['my-music-tracks'],
+        queryFn: async () => {
+            const { data } = await api.get<MusicTrack[]>('/v1/music/my/tracks');
+            return data;
+        },
+        staleTime: 60_000,
+    });
+};
+
+export const useUploadTrack = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (payload: { title: string; artist_name: string; file_id: number; album_title?: string; duration?: number; genre?: string }) => {
+            const { data } = await api.post<MusicTrack>('/v1/music/my/upload', payload);
+            return data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['my-music-tracks'] });
+            qc.invalidateQueries({ queryKey: ['music-tracks'] });
+        },
+    });
+};
+
 export const useToggleLike = () => {
     return useMutation({
         mutationFn: async ({ trackId, liked }: { trackId: number; liked: boolean }) => {

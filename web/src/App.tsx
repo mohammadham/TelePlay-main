@@ -310,6 +310,7 @@ import Downloads from './components/music/Downloads';
 import HistoryView from './components/music/HistoryView';
 import PlaylistDetail from './components/music/PlaylistDetail';
 import ArtistDetail from './components/music/ArtistDetail';
+import MyMusic from './components/music/MyMusic';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Sidebar from './components/Sidebar';
 import AdminSidebar from './components/admin/AdminSidebar';
@@ -363,6 +364,7 @@ function MusicDownloadsLayout(){ return <MusicLayout><Downloads /></MusicLayout>
 function MusicHistoryLayout(){ return <MusicLayout><HistoryView /></MusicLayout> }
 function MusicPlaylistDetailLayout(){ return <PlaylistDetail /> }
 function MusicArtistDetailLayout(){ return <ArtistDetail /> }
+function MyMusicLayout(){ return <MyMusic /> }
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
     const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -412,7 +414,7 @@ const PUBLIC_ROUTES = ['/setup', '/login', '/auth'];
 const KNOWN_ROUTES = [
     '/', '/admin', '/admin/cache', '/admin/settings',
     '/admin/users', '/admin/files', '/admin/ads', '/admin/system', '/admin/bots', '/admin/accounts', '/admin/admins', '/admin/seo',
-    '/music', '/music/search', '/music/playlists', '/music/playlists/:id', '/music/artists/:id', '/music/downloads', '/music/history',
+    '/music', '/music/search', '/music/playlists', '/music/playlists/:id', '/music/artists/:id', '/music/downloads', '/music/history', '/my-music',
 ];
 
 function RouteGuard() {
@@ -496,6 +498,7 @@ function App() {
                 <Route path="/music/history" element={<ProtectedRoute><MusicHistoryLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists/:id" element={<ProtectedRoute><MusicPlaylistDetailLayout /></ProtectedRoute>} />
                 <Route path="/music/artists/:id" element={<ProtectedRoute><MusicArtistDetailLayout /></ProtectedRoute>} />
+                <Route path="/my-music" element={<ProtectedRoute><MyMusicLayout /></ProtectedRoute>} />
                 <Route path="/files" element={<ProtectedRoute><FileBrowser /></ProtectedRoute>} />
                 <Route path="/recent" element={<Navigate to="/music/history" replace />} />
                 <Route path="/continue" element={<Navigate to="/music/history" replace />} />

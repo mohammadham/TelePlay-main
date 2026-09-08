@@ -290,6 +290,7 @@ class SEOConfig(Base):
     title_template: Mapped[str] = mapped_column(String(255), default="TelePlay | {title}")
     description_template: Mapped[str] = mapped_column(Text, default="TelePlay - stream your files anywhere")
     keywords: Mapped[str] = mapped_column(String(500), default="telegram, files, streaming, music, video")
+    ai_agent_description: Mapped[str] = mapped_column(Text, default="")
     geo_region: Mapped[str] = mapped_column(String(100), default="IR")
     geo_locale: Mapped[str] = mapped_column(String(10), default="fa")
     social_image: Mapped[Optional[str]] = mapped_column(String(500), default="/api/stream/cover/default")

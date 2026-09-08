@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /music/
+Allow: /api/
+Disallow: /admin/
+Disallow: /login/
+Disallow: /setup/
+Disallow: /auth/
+
+Sitemap: https://teleplay-main-production.up.railway.app/api/admin/seo/sitemap.xml

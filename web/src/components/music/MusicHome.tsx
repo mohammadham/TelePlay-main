@@ -17,7 +17,11 @@ const MEDIA_TABS: { key: MediaType; label: string }[] = [
 ]
 
 export default function MusicHome() {
-  useSEO({ title: 'Music Home', description: 'Browse and listen to your music library' })
+  useSEO({
+    title: 'Music Home',
+    description: 'Browse and listen to your music library',
+    type: 'website',
+  })
   const [mediaType, setMediaType] = useState<MediaType>('all')
   const [genre, setGenre] = useState<string>('')
   const navigate = useNavigate()

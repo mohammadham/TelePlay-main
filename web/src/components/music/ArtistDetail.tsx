@@ -13,7 +13,12 @@ export default function ArtistDetail() {
   const { setQueue } = useMusicStore()
   const qc = useQueryClient()
   const [downloading, setDownloading] = useState<number | null>(null)
-  useSEO({ title: 'Artist', description: 'Browse artist tracks' })
+  useSEO({
+    title: artist?.name || 'Artist',
+    description: artist?.bio || 'Browse artist tracks',
+    type: 'music_group',
+    image: artist?.avatar_url,
+  })
 
   const { data: artist, isLoading } = useQuery({
     queryKey: ['artist', id],

@@ -41,6 +41,7 @@ interface SEOData {
   title_template: string;
   description_template: string;
   keywords: string;
+  ai_agent_description: string;
   geo_region: string;
   geo_locale: string;
   geo_list: string;
@@ -124,6 +125,16 @@ export default function SEOSettingsPanel() {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Description</span>
           <textarea value={values.description_template} onChange={e => set('description_template', e.target.value)} className="input resize-none" rows={3} placeholder="TelePlay - stream your files anywhere" />
+        </label>
+
+        {/* AI Agent Description */}
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">
+            AI Agent Description
+            <span className="text-xs text-dark-500 font-normal ml-2">For AI assistants and search engines</span>
+          </span>
+          <textarea value={values.ai_agent_description} onChange={e => set('ai_agent_description', e.target.value)} className="input resize-none" rows={3} placeholder="TelePlay is a media streaming platform that allows users to stream audio, video, and reels from Telegram file storage." />
+          <span className="text-xs text-dark-500">This helps AI agents understand your site content and structure.</span>
         </label>
 
         {/* Keywords */}

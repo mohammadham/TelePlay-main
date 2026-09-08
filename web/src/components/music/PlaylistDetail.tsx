@@ -11,7 +11,12 @@ export default function PlaylistDetail() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { setQueue } = useMusicStore()
-  useSEO({ title: 'Playlist Details', description: 'Manage your playlist tracks' })
+  useSEO({
+    title: playlist?.title || 'Playlist',
+    description: `${playlist?.tracks?.length || 0} tracks`,
+    type: 'music_playlist',
+    numTracks: playlist?.tracks?.length,
+  })
   const [showAdd, setShowAdd] = useState(false)
   const [searchQ, setSearchQ] = useState('')
 

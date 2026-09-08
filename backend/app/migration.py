@@ -200,3 +200,20 @@ async def migrate_seo_config_geo_list(db: AsyncSession) -> None:
             logger.info("Added geo_list column to seo_config")
     except Exception as e:
         logger.warning("SEO geo_list migration failed (may already exist): %s", e)
+
+async def migrate_seo_config_ai_description(db: AsyncSession) -> None:
+    """Ensure ai_agent_description column exists in seo_config table."""
+    try:
+        result = await db.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'seo_config' AND column_name = 'ai_agent_description'"
+        ))
+        exists = result.scalar()
+        if not exists:
+            await db.execute(text(
+                "ALTER TABLE seo_config ADD COLUMN ai_agent_description TEXT DEFAULT ''"
+            ))
+            await db.commit()
+            logger.info("Added ai_agent_description column to seo_config")
+    except Exception as e:
+        logger.warning("SEO ai_agent_description migration failed (may already exist): %s", e)

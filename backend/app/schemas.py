@@ -221,6 +221,17 @@ class PlaylistResponse(BaseModel):
     tracks: List[TrackResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
+class SEOData(BaseModel):
+    id: Optional[int] = None
+    title_template: Optional[str] = None
+    description_template: Optional[str] = None
+    keywords: Optional[str] = None
+    ai_agent_description: Optional[str] = None
+    geo_region: Optional[str] = None
+    geo_locale: Optional[str] = None
+    social_image: Optional[str] = None
+    geo_list: Optional[str] = None
+
 class CacheConfigResponse(BaseModel):
     max_size_mb: int
     max_file_size_mb: int

@@ -7,7 +7,11 @@ import { useAppStore } from '../../lib/store'
 import { useSEO } from '../../hooks/useSEO'
 
 export default function SearchView() {
-  useSEO({ title: 'Search Music', description: 'Find your favorite tracks and artists' })
+  useSEO({
+    title: q ? `Search: ${q}` : 'Search Music',
+    description: 'Find your favorite tracks and artists',
+    type: 'website',
+  })
   const [q, setQ] = useState('')
   const { setQueue } = useMusicStore()
   const { setPreviewFile } = useAppStore()

@@ -6,7 +6,11 @@ import { Clock } from 'lucide-react'
 import { useSEO } from '../../hooks/useSEO'
 
 export default function HistoryView() {
-  useSEO({ title: 'Recently Played', description: 'Your music listening history' })
+  useSEO({
+    title: 'Recently Played',
+    description: 'Your music listening history',
+    type: 'website',
+  })
   const { data: history, isLoading } = useQuery({
     queryKey: ['music-history'],
     queryFn: async () => (await api.get<any[]>('/v1/music/history', { params: { limit: 50 } })).data,

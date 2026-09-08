@@ -5,7 +5,11 @@ import { api } from '../../lib/api'
 import { useSEO } from '../../hooks/useSEO'
 
 export default function PlaylistView() {
-  useSEO({ title: 'My Playlists', description: 'Manage your music playlists' })
+  useSEO({
+    title: 'My Playlists',
+    description: 'Manage your music playlists',
+    type: 'website',
+  })
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({

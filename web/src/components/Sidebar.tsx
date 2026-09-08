@@ -58,7 +58,12 @@ export default function Sidebar({
         return () => { if (hoverTimer.current) clearTimeout(hoverTimer.current); };
     }, []);
 
-    // Desktop → always open, no toggle, no hover, no overlay
+    // ── Shared state (must be before any early return) ────────────────────────
+    const isPhone = window.innerWidth < 768;
+    const hasOverlay = isPhone && isOpen;
+    const [isHovering, setIsHovering] = useState(false);
+
+    // Desktop → always open
     if (isDesktop) {
         return (
             <aside className="fixed left-0 top-0 w-64 h-full bg-[#0a0a0a] border-r border-white/10 flex flex-col z-50">
@@ -87,13 +92,6 @@ export default function Sidebar({
             </aside>
         );
     }
-
-    // ── Tablet / Phone: slide-over or icon strip ──────────────────────────────
-    const isPhone = window.innerWidth < 768;
-    // On phone: hidden unless isOpen. On tablet: icon-only when collapsed.
-    const hasOverlay = isPhone && isOpen;
-    // Track hover state for tablet expansion
-    const [isHovering, setIsHovering] = useState(false);
 
     return (
         <>

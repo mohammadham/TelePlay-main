@@ -37,6 +37,8 @@ export default function AdminSidebar({
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sidebarRef = useRef<HTMLDivElement>(null);
+    const isPhone = window.innerWidth < 768;
+    const hasOverlay = isPhone && isOpen;
     const [isHovering, setIsHovering] = useState(false);
 
     useEffect(() => {
@@ -56,10 +58,6 @@ export default function AdminSidebar({
             </aside>
         );
     }
-
-    // ── Tablet / Phone ───────────────────────────────────────────────────────
-    const isPhone = window.innerWidth < 768;
-    const hasOverlay = isPhone && isOpen;
 
     return (
         <>

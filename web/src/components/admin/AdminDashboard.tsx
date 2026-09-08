@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import CachePanel from './CachePanel'
@@ -11,13 +11,50 @@ import AdminManager from './AdminManager'
 import UserDetailPanel from './UserDetailPanel'
 import SEOSettingsPanel from './SEOSettingsPanel'
 
+const ROUTE_TAB_MAP: Record<string, 'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'> = {
+  '/admin': 'overview',
+  '/admin/users': 'users',
+  '/admin/files': 'files',
+  '/admin/cache': 'cache',
+  '/admin/ads': 'ads',
+  '/admin/system': 'system',
+  '/admin/settings': 'settings',
+  '/admin/bots': 'bots',
+  '/admin/accounts': 'accounts',
+  '/admin/admins': 'admins',
+  '/admin/seo': 'seo',
+}
+
 function StatCard({ label, value }: { label: string; value: any }) {
   return <div className="glass-card p-4 text-center"><div className="text-2xl font-bold">{value}</div><div className="text-xs text-dark-400">{label}</div></div>
 }
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'>('overview')
+  const location = useLocation()
+
+  const initialTab = ROUTE_TAB_MAP[location.pathname] || 'overview'
+  const [tab, setTab] = useState<'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'>(initialTab)
+
+  // Keep tab in sync when URL changes
+  useEffect(() => {
+    const routeTab = ROUTE_TAB_MAP[location.pathname]
+    if (routeTab && routeTab !== tab) setTab(routeTab)
+  }, [location.pathname])
+
+  const handleTabChange = (newTab: string) => {
+    const routeMap: Record<string, string> = {
+      overview: '/admin', users: '/admin/users', files: '/admin/files',
+      cache: '/admin/cache', ads: '/admin/ads', system: '/admin/system',
+      settings: '/admin/settings', bots: '/admin/bots', accounts: '/admin/accounts',
+      admins: '/admin/admins', seo: '/admin/seo', 'user-detail': '/admin/users',
+    }
+    if (routeMap[newTab] && routeMap[newTab] !== location.pathname) {
+      navigate(routeMap[newTab])
+    }
+    setTab(newTab as typeof tab)
+  }
+
   const { data: stats } = useQuery({ queryKey: ['admin-stats'], queryFn: async()=>(await api.get('/admin/stats')).data, enabled: tab==='overview' })
   const { data: users } = useQuery({ queryKey: ['admin-users'], queryFn: async()=>(await api.get('/admin/users')).data, enabled: tab==='users' })
   const { data: files } = useQuery({ queryKey: ['admin-files'], queryFn: async()=>(await api.get('/admin/files')).data, enabled: tab==='files' })
@@ -34,7 +71,7 @@ export default function AdminDashboard() {
         </div>
         <div className="flex gap-1 px-6 pb-3 overflow-x-auto">
           {(['overview','users','user-detail','files','bots','accounts','admins','cache','ads','system','settings','seo'] as const).map(t=>(
-            <button key={t} onClick={()=>setTab(t)} className={`px-3 py-1.5 rounded text-sm capitalize ${tab===t?'bg-primary-600 text-white':'bg-white/[0.06] hover:bg-white/[0.10]'}`}>{t}</button>
+            <button key={t} onClick={()=>handleTabChange(t)} className={`px-3 py-1.5 rounded text-sm capitalize ${tab===t?'bg-primary-600 text-white':'bg-white/[0.06] hover:bg-white/[0.10]'}`}>{t}</button>
           ))}
         </div>
       </div>

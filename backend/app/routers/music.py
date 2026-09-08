@@ -26,6 +26,8 @@ def _track_to_resp(t: Track, is_liked: bool = False) -> Dict[str, Any]:
     cover_url: Optional[str] = None
     if t.album and t.album.cover_file_id:
         cover_url = f"/api/stream/cover/{t.album.cover_file_id}"
+    elif t.cover_url:
+        cover_url = t.cover_url
     return {
         "id": t.id, "title": t.title, "artist_id": t.artist_id,
         "artist": t.artist, "album_id": t.album_id, "album": t.album,
@@ -33,7 +35,9 @@ def _track_to_resp(t: Track, is_liked: bool = False) -> Dict[str, Any]:
         "track_number": t.track_number, "play_count": t.play_count,
         "like_count": t.like_count, "created_at": t.created_at,
         "stream_url": f"/api/stream/{t.file_id}", "cover_url": cover_url,
+        "thumbnail_url": t.thumbnail_url if hasattr(t, 'thumbnail_url') else None,
         "is_liked": is_liked, "media_type": t.media_type,
+        "explicit": t.explicit if hasattr(t, 'explicit') else False,
     }
 
 @router.get("/tracks", response_model=list[TrackResponse])
@@ -128,12 +132,19 @@ async def list_artists(request: Request = None, q: Optional[str]=None, db: Async
 
 @router.get("/artists/{aid}")
 async def get_artist(aid: int, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):
-    from sqlalchemy import delete as sql_del
     artist = (await db.execute(select(Artist).where(Artist.id==aid))).scalar_one_or_none()
     if not artist: raise HTTPException(404, "Artist not found")
     rows = (await db.execute(select(Track).where(Track.artist_id==aid).options(selectinload(Track.artist))).order_by(Track.created_at.desc()).limit(50)).scalars().all()
     liked_ids = (await db.execute(select(Like.track_id).where(Like.user_id==current_user.id))).scalars().all()
-    return {"id": artist.id, "name": artist.name, "bio": artist.bio, "verified": artist.verified, "tracks": [TrackResponse(**_track_to_resp(t, t.id in liked_ids)).model_dump() for t in rows]}
+    avatar_url = f"/api/stream/cover/{artist.avatar_file_id}" if artist.avatar_file_id else None
+    return {
+        "id": artist.id,
+        "name": artist.name,
+        "bio": artist.bio,
+        "verified": artist.verified,
+        "avatar_url": avatar_url,
+        "tracks": [TrackResponse(**_track_to_resp(t, t.id in liked_ids)).model_dump() for t in rows],
+    }
 
 @router.get("/albums", response_model=list[AlbumResponse])
 async def list_albums(request: Request = None, artist_id: Optional[int]=None, db: AsyncSession=Depends(get_db), current_user: User=Depends(get_current_user)):

@@ -82,13 +82,13 @@ export default function MusicHome() {
             Good Evening
           </h1>
           <div className="flex items-center gap-4">
-            <button className="w-14 h-14 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 hover:bg-[#1ed760] transition-all shadow-xl">
+            <button className="w-14 h-14 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 hover:bg-[#1ed760] transition-all shadow-xl" onClick={() => setQueue(list, 0)}>
               <Play className="w-7 h-7 fill-black text-black ml-1" />
             </button>
             <button className="w-14 h-14 rounded-full bg-[#1DB954] flex items-center justify-center hover:scale-105 hover:bg-[#1ed760] transition-all shadow-xl" onClick={handleShuffle}>
               <Shuffle className="w-7 h-7 fill-black text-black" />
             </button>
-            <button className="border border-white/30 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-white/10 transition-all">
+            <button className="border border-white/30 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-white/10 transition-all" onClick={() => navigate('/music/search')}>
               Explore More
             </button>
           </div>

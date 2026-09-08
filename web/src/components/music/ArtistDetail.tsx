@@ -47,13 +47,17 @@ export default function ArtistDetail() {
           Back
         </button>
         <div className="flex items-end gap-6">
-          <div className="w-40 h-40 rounded-full bg-[#282828] flex items-center justify-center text-5xl shadow-2xl overflow-hidden">
-            {artist?.verified ? (
+          <div className="w-40 h-40 rounded-full bg-[#282828] flex items-center justify-center shadow-2xl overflow-hidden">
+            {artist?.avatar_url ? (
+              <img src={artist.avatar_url} alt={artist?.name} className="w-full h-full object-cover" />
+            ) : artist?.verified ? (
               <div className="relative">
-                <span>🎤</span>
+                <span className="text-5xl">🎤</span>
                 <Verified className="w-6 h-6 text-[#1DB954] absolute -bottom-1 -right-1 fill-current" />
               </div>
-            ) : '🎤'}
+            ) : (
+              <span className="text-5xl">🎤</span>
+            )}
           </div>
           <div className="flex-1">
             <p className="text-xs font-medium text-white/60 uppercase tracking-wider mb-1">Artist</p>

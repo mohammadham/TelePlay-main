@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import { useCurrentUser, useLoginWithCode, useBotInfo, useGenerateLoginCode, useVerifyLoginCode, useSetupStatus } from './lib/api';
 import GlobalContextMenu from './components/GlobalContextMenu';
 import SetupPage from './components/SetupPage';
@@ -315,11 +316,12 @@ import MobileBottomNav from './components/MobileBottomNav';
 
 function MusicLayout({ children }: { children: React.ReactNode }) {
     const isDesktop = useMediaQuery('(min-width: 1024px)');
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     return (
         <div className="flex min-h-screen bg-[#121212] text-white">
             {/* Desktop: Sidebar always visible. Tablet/Mobile: Slide-over sidebar */}
-            <Sidebar alwaysOpen={isDesktop} />
+            <Sidebar isOpen={!isDesktop && sidebarOpen} onClose={() => setSidebarOpen(false)} alwaysOpen={isDesktop} />
             {/* Tablet hamburger (hidden on mobile where bottom nav is used) */}
             {!isDesktop && (
                 <button

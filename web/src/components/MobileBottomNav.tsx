@@ -1,4 +1,4 @@
-import { Home, Search, List, Download, Clock, Music, Folder, PlayCircle } from 'lucide-react';
+import { Home, Search, List, Download, Clock } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface NavItem {

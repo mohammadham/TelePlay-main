@@ -26,7 +26,6 @@ export default function Sidebar({ isOpen, onClose, alwaysOpen = false }: Sidebar
 
     // On desktop with alwaysOpen, force open; otherwise respect isOpen prop
     const [mobileOpen, setMobileOpen] = useState(false);
-    const open = alwaysOpen || (isOpen !== undefined ? isOpen : mobileOpen);
 
     // Listen for global open-sidebar event (dispatched from MobileBottomNav or hamburger)
     useEffect(() => {
@@ -65,14 +64,6 @@ export default function Sidebar({ isOpen, onClose, alwaysOpen = false }: Sidebar
         }
     };
 
-    const musicRoutes: Record<string, string> = {
-        home: '/music',
-        search: '/music/search',
-        playlists: '/music/playlists',
-        downloads: '/music/downloads',
-        history: '/music/history',
-    };
-
     const handleNavClick = (section: string) => {
         onClose();
         const route = musicRoutes[section];
@@ -97,12 +88,15 @@ export default function Sidebar({ isOpen, onClose, alwaysOpen = false }: Sidebar
         </button>
     );
 
+    // Desktop: always visible. Mobile/tablet: slide-over when open.
+    const visible = alwaysOpen || isOpen || mobileOpen;
+
     return (
         <>
             {/* Mobile Overlay */}
             <div
                 className={`fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity duration-300 ${
-                    isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
                 onClick={onClose}
             />
@@ -111,7 +105,7 @@ export default function Sidebar({ isOpen, onClose, alwaysOpen = false }: Sidebar
                 w-64 bg-black border-r border-white/10 flex flex-col shrink-0
                 fixed inset-y-0 left-0 z-40
                 transition-transform duration-300 ease-in-out shadow-2xl
-                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+                ${visible ? 'translate-x-0' : '-translate-x-full'}
             `}>
                 {/* Logo Area */}
                 <div className="p-4 flex items-center justify-between">

@@ -22,7 +22,7 @@ export default function SetupPage() {
     const [botToken, setBotToken] = useState('');
     const [botValid, setBotValid] = useState(false);
     const [botInfo, setBotInfo] = useState<any>(null);
-    const [extraTokens, setExtraTokens] = useState<string[]>(['']);
+
 
     // User authentication state
     const [userPhone, setUserPhone] = useState('');
@@ -267,6 +267,7 @@ export default function SetupPage() {
     const { addToast } = useAppStore();
 
     // ── Complete Setup ─────────────────────────────────────────────
+    // (goToStep removed - unused; navigation handled via setStep calls)
     const handleComplete = async () => {
         if (!botValid || !userVerified) return;
         setLoading(true);
@@ -311,14 +312,6 @@ export default function SetupPage() {
         setNeeds2fa(false);
         setLastErrorCode(null);
         setUserVerified(false);
-    }, []);
-
-    /**
-     * Go back to previous step after successful completion of current step.
-     */
-    const goToStep = useCallback((s: SetupStep) => {
-        setStep(s);
-        setError(null);
     }, []);
 
     // ── Render ──────────────────────────────────────────────────────

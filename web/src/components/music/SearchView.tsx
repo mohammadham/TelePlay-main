@@ -4,8 +4,10 @@ import { api, MusicTrack, useToggleLike } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
+import { useSEO } from '../../hooks/useSEO'
 
 export default function SearchView() {
+  useSEO({ title: 'Search Music', description: 'Find your favorite tracks and artists' })
   const [q, setQ] = useState('')
   const { setQueue } = useMusicStore()
   const { setPreviewFile } = useAppStore()

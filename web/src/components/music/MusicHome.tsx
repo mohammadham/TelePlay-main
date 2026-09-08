@@ -6,6 +6,7 @@ import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
 import { Play, Shuffle, Clock, Filter } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useSEO } from '../../hooks/useSEO'
 
 type MediaType = 'all' | 'music_video' | 'reel'
 
@@ -16,6 +17,7 @@ const MEDIA_TABS: { key: MediaType; label: string }[] = [
 ]
 
 export default function MusicHome() {
+  useSEO({ title: 'Music Home', description: 'Browse and listen to your music library' })
   const [mediaType, setMediaType] = useState<MediaType>('all')
   const [genre, setGenre] = useState<string>('')
   const navigate = useNavigate()

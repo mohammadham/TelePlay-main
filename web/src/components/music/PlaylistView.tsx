@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
+import { useSEO } from '../../hooks/useSEO'
 
 export default function PlaylistView() {
+  useSEO({ title: 'My Playlists', description: 'Manage your music playlists' })
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({

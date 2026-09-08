@@ -3,8 +3,10 @@ import { api, MusicTrack } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { Clock } from 'lucide-react'
+import { useSEO } from '../../hooks/useSEO'
 
 export default function HistoryView() {
+  useSEO({ title: 'Recently Played', description: 'Your music listening history' })
   const { data: history, isLoading } = useQuery({
     queryKey: ['music-history'],
     queryFn: async () => (await api.get<any[]>('/v1/music/history', { params: { limit: 50 } })).data,

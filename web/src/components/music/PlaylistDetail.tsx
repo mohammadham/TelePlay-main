@@ -4,12 +4,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { api, MusicTrack } from '../../lib/api'
 import { useMusicStore } from '../../lib/musicStore'
 import { ArrowLeft, Plus, Trash2, Play } from 'lucide-react'
+import { useSEO } from '../../hooks/useSEO'
 
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { setQueue } = useMusicStore()
+  useSEO({ title: 'Playlist Details', description: 'Manage your playlist tracks' })
   const [showAdd, setShowAdd] = useState(false)
   const [searchQ, setSearchQ] = useState('')
 

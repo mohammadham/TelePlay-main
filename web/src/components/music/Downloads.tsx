@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { Download, CheckCircle, Clock, Loader, X } from 'lucide-react'
+import { useSEO } from '../../hooks/useSEO'
 
 interface DownloadItem {
   id: number
@@ -18,6 +19,7 @@ const STATUS_CONFIG = {
 }
 
 export default function Downloads() {
+  useSEO({ title: 'Downloads', description: 'Your music download queue' })
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['downloads'],

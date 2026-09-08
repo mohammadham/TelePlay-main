@@ -5,6 +5,7 @@ import { api, MusicTrack } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { ArrowLeft, Verified } from 'lucide-react'
+import { useSEO } from '../../hooks/useSEO'
 
 export default function ArtistDetail() {
   const { id } = useParams<{ id: string }>()
@@ -12,6 +13,7 @@ export default function ArtistDetail() {
   const { setQueue } = useMusicStore()
   const qc = useQueryClient()
   const [downloading, setDownloading] = useState<number | null>(null)
+  useSEO({ title: 'Artist', description: 'Browse artist tracks' })
 
   const { data: artist, isLoading } = useQuery({
     queryKey: ['artist', id],

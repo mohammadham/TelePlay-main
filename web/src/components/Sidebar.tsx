@@ -6,7 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useAppStore } from '../lib/store';
 import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '../lib/api';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // ── Route map for active highlight & icon→text mapping ───────────────────────
 const ROUTE_MAP: Record<string, { icon: any; label: string }> = {
@@ -90,7 +90,6 @@ export default function Sidebar({
     // ── Tablet / Phone: slide-over or icon strip ──────────────────────────────
     const isPhone = window.innerWidth < 768;
     // On phone: hidden unless isOpen. On tablet: icon-only when collapsed.
-    const isVisible = !isPhone && (!isCollapsed || isOpen);
     const hasOverlay = isPhone && isOpen;
 
     return (
@@ -227,7 +226,6 @@ interface ContentProps {
     setShowLogoutConfirm: (v: boolean) => void;
     showLogoutAllConfirm: boolean;
     setShowLogoutAllConfirm: (v: boolean) => void;
-    handleLogoutAll: () => void;
     activeSection: string;
     setActiveSection: (s: string) => void;
     navigate: (path: string) => void;

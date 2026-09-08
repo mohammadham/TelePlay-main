@@ -348,7 +348,7 @@ function MusicLayout({ children }: { children: React.ReactNode }) {
             />
             {/* Phone bottom navigation */}
             {isPhone && <MobileBottomNav />}
-            <main className={`flex-1 min-w-0 ${isDesktop ? 'ml-64' : ''}`}>
+            <main className={`flex-1 min-w-0 ${isDesktop || !tabletCollapsed ? 'ml-64' : ''}`}>
                 <ErrorBoundary>{children}</ErrorBoundary>
             </main>
             <NowPlayingBar />
@@ -362,8 +362,44 @@ function MusicHistoryLayout(){ return <MusicLayout><HistoryView /></MusicLayout>
 function MusicPlaylistDetailLayout(){ return <PlaylistDetail /> }
 function MusicArtistDetailLayout(){ return <ArtistDetail /> }
 
-function AdminLayout() {
-    return <AdminDashboard />;
+function AdminLayout({ children }: { children: React.ReactNode }) {
+    const isDesktop = useMediaQuery('(min-width: 1024px)');
+    const [tabletCollapsed, setTabletCollapsed] = useState(true);
+    const [isPhone, setIsPhone] = useState(false);
+
+    useEffect(() => {
+        const checkSize = () => setIsPhone(window.innerWidth < 768);
+        checkSize();
+        window.addEventListener('resize', checkSize);
+        return () => window.removeEventListener('resize', checkSize);
+    }, []);
+
+    const toggleTabletSidebar = () => {
+        setTabletCollapsed(prev => {
+            if (!prev && isPhone) return true;
+            return !prev;
+        });
+    };
+
+    return (
+        <div className="flex min-h-screen bg-dark-950 text-white">
+            <Sidebar
+                isDesktop={isDesktop}
+                isOpen={!tabletCollapsed}
+                onClose={() => setTabletCollapsed(true)}
+                onToggleCollapse={toggleTabletSidebar}
+                isCollapsed={tabletCollapsed}
+            />
+            {isPhone && <MobileBottomNav />}
+            <main className={`flex-1 min-w-0 ${isDesktop || !tabletCollapsed ? 'ml-64' : ''}`}>
+                <ErrorBoundary>{children}</ErrorBoundary>
+            </main>
+        </div>
+    );
+}
+
+function AdminPage() {
+    return <AdminLayout><AdminDashboard /></AdminLayout>;
 }
 
 // ── Allowed paths for pre-setup vs post-setup ────────────────────────────────
@@ -457,9 +493,9 @@ function App() {
                 <Route path="/music/history" element={<ProtectedRoute><MusicHistoryLayout /></ProtectedRoute>} />
                 <Route path="/music/playlists/:id" element={<ProtectedRoute><MusicPlaylistDetailLayout /></ProtectedRoute>} />
                 <Route path="/music/artists/:id" element={<ProtectedRoute><MusicArtistDetailLayout /></ProtectedRoute>} />
-                <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
-                <Route path="/admin/cache" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
-                <Route path="/admin/settings" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+                <Route path="/admin/cache" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
 
                 {/* Catch-all: authenticated or 404 depending on setup state */}
                 <Route path="/*" element={<RouteGuard />} />

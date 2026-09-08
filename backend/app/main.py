@@ -29,6 +29,7 @@ from .routers.admin_bots import router as admin_bots_router
 from .routers.admin_accounts import router as admin_accounts_router
 from .routers.admin_admins import router as admin_admins_router
 from .routers.telegram_status import router as telegram_status_router
+from .routers.admin_seo import router as admin_seo_router
 
 try:
     settings = get_settings()
@@ -325,6 +326,7 @@ app.include_router(admin_bots_router, prefix="/api")
 app.include_router(admin_accounts_router, prefix="/api")
 app.include_router(admin_admins_router, prefix="/api")
 app.include_router(telegram_status_router, prefix="/api")
+app.include_router(admin_seo_router, prefix="/api")
 
 
 @app.get("/health")

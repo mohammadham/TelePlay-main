@@ -8,7 +8,7 @@ import { api, useMyMusicTracks, TelegramFile } from '../../lib/api'
 import TrackCard from './TrackCard'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
-import { Plus, Music, X, Upload, Search } from 'lucide-react'
+import { Plus, Headphones, X, Upload, Search } from 'lucide-react'
 import { useSEO } from '../../hooks/useSEO'
 
 type MediaType = 'all' | 'audio' | 'music_video' | 'reel'
@@ -223,7 +223,7 @@ export default function MyMusic() {
                 <label className="block text-sm font-medium text-white/70 mb-2">Select File *</label>
                 {selectedFile ? (
                   <div className="flex items-center gap-3 p-3 bg-[#282828] rounded-lg">
-                    <Music className="w-8 h-8 text-[#1DB954]" />
+                    <Headphones className="w-8 h-8 text-[#1DB954]" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{selectedFile.file_name}</p>
                       <p className="text-xs text-white/50">

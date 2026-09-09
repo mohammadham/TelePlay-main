@@ -1,6 +1,7 @@
 import {
     Files, Clock, PlayCircle, LogOut, HardDrive, X, Users, Settings2,
     Home, Search, List, Download, Menu, ChevronRight, ChevronLeft,
+    Headphones
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.png';
@@ -15,7 +16,7 @@ const ROUTE_MAP: Record<string, { icon: any; label: string; section?: string }> 
     '/music/playlists': { icon: List,      label: 'Playlists', section: 'music' },
     '/music/downloads': { icon: Download,  label: 'Downloads', section: 'music' },
     '/music/history':   { icon: Clock,     label: 'History',  section: 'music' },
-    '/my-music':        { icon: Music,     label: 'My Music', section: 'music' },
+    '/my-music':        { icon: Headphones,     label: 'My Music', section: 'music' },
     '/files':           { icon: Files,     label: 'My Files', section: 'files' },
 };
 

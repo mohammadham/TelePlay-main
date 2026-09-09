@@ -1,7 +1,7 @@
 /**
  * FileCard component - displays a single file in grid or list view
  */
-import { Play, MoreVertical, Film, Music, FileText, Image } from 'lucide-react';
+import { Play, MoreVertical, Film, Headphones, FileText, Image } from 'lucide-react';
 import { TelegramFile, formatFileSize, formatDuration } from '../lib/api';
 import { useAppStore } from '../lib/store';
 

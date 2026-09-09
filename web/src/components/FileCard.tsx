@@ -53,7 +53,7 @@ export default function FileCard({
     const getIcon = () => {
         switch (file.file_type) {
             case 'video': return <Film className="w-8 h-8 text-primary-400" />;
-            case 'audio': return <Music className="w-8 h-8 text-pink-400" />;
+            case 'audio': return <Headphones className="w-8 h-8 text-pink-400" />;
             case 'image': return <Image className="w-8 h-8 text-emerald-400" />;
             default: return <FileText className="w-8 h-8 text-blue-400" />;
         }
@@ -62,7 +62,7 @@ export default function FileCard({
     const getSmallIcon = () => {
         switch (file.file_type) {
             case 'video': return <Film className="w-3 h-3 text-primary-400" />;
-            case 'audio': return <Music className="w-3 h-3 text-pink-400" />;
+            case 'audio': return <Headphones className="w-3 h-3 text-pink-400" />;
             case 'image': return <Image className="w-3 h-3 text-emerald-400" />;
             default: return <FileText className="w-3 h-3 text-blue-400" />;
         }

@@ -172,7 +172,7 @@ export default function MyMusic() {
           </div>
         ) : list.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-white/30">
-            <Music className="w-16 h-16 mb-4 opacity-30" />
+            <Headphones className="w-16 h-16 mb-4 opacity-30" />
             <p className="text-lg font-medium text-white/50">
               {searchQ ? 'No tracks match your search' : 'No tracks yet'}
             </p>
@@ -256,7 +256,7 @@ export default function MyMusic() {
                             onClick={() => { setSelectedFileId(f.id); setSelectedFile(f); setSearchQ(''); setFileSearchResults([]); }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 text-left transition-colors"
                           >
-                            <Music className="w-5 h-5 text-[#1DB954] shrink-0" />
+                            <Headphones className="w-5 h-5 text-[#1DB954] shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{f.file_name}</p>
                               <p className="text-xs text-white/40">{(f.file_size / 1024 / 1024).toFixed(1)} MB</p>

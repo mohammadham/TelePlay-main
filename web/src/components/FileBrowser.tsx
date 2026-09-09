@@ -544,7 +544,7 @@ export default function FileBrowser() {
                                     fileTypeFilter === 'audio' ? 'bg-primary-600 text-white shadow-sm' : 'text-dark-400 hover:text-white hover:bg-white/[0.05]'
                                 }`}
                             >
-                                <Music className="w-4 h-4" />
+                                <Headphones className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setFileTypeFilter('image')}

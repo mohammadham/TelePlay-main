@@ -301,6 +301,42 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
 }
 
+function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
+    const { data: currentUser } = useCurrentUser();
+    const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        if (currentUser) {
+            const checkAdmin = async () => {
+                try {
+                    const response = await api.get('/api/admin/users/me');
+                    setIsAdmin(true);
+                } catch (error) {
+                    setIsAdmin(false);
+                }
+            };
+            checkAdmin();
+        }
+    }, [currentUser]);
+
+    if (isAdmin === null) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-dark-950">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                    <p className="text-dark-400">Checking admin permissions...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return <Navigate to="/404" replace />;
+    }
+
+    return <>{children}</>;
+}
+
 import MediaPlayer from './components/MediaPlayer';
 import MusicHome from './components/music/MusicHome';
 import NowPlayingBar from './components/music/NowPlayingBar';

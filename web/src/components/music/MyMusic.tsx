@@ -1,7 +1,7 @@
 /**
  * My Music — users create tracks from their existing Telegram file library.
  */
-import { useState, useRef, ChangeEvent } from 'react'
+import { useEffect, useState, useRef, ChangeEvent } from 'react'
 // import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, useMyMusicTracks, TelegramFile } from '../../lib/api'
@@ -25,6 +25,22 @@ export default function MyMusic() {
   const [searchQ, setSearchQ] = useState('')
   const [isSearchingFiles, setIsSearchingFiles] = useState(false)
   const [fileSearchResults, setFileSearchResults] = useState<TelegramFile[]>([])
+  const [myMusicDisabled, setMyMusicDisabled] = useState(false)
+
+  useEffect(() => {
+    async function checkMyMusicStatus() {
+      try {
+        const { data } = await api.get('/admin/settings')
+        const myMusicSetting = data.find((s: any) => s.key === 'MY_MUSIC_ENABLED')
+        setMyMusicDisabled(!(myMusicSetting && myMusicSetting.value === 'true'))
+      } catch (error) {
+        console.error('Failed to check My Music status:', error)
+        // Default to enabled if we can't check
+        setMyMusicDisabled(false)
+      }
+    }
+    checkMyMusicStatus()
+  }, [])
 
   // Upload form state
   const [formTitle, setFormTitle] = useState('')
@@ -284,7 +300,7 @@ export default function MyMusic() {
             <p className="text-sm mt-2">
               {searchQ ? 'Try a different search term' : 'Upload files via Telegram bot, then add them here'}
             </p>
-            {!searchQ && (
+            {!searchQ && !myMusicDisabled && (
               <button
                 onClick={() => setShowUpload(true)}
                 className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-[#1DB954] text-black font-semibold rounded-full hover:bg-[#1ed760] transition-all"
@@ -292,6 +308,11 @@ export default function MyMusic() {
                 <Plus className="w-5 h-5" />
                 Add First Track
               </button>
+            )}
+            {myMusicDisabled && (
+              <div className="mt-6 text-center">
+                <p className="text-sm text-yellow-400">This feature is disabled by admin</p>
+              </div>
             )}
           </div>
         ) : (
@@ -309,7 +330,7 @@ export default function MyMusic() {
       </div>
 
       {/* Upload Modal */}
-      {showUpload && (
+      {showUpload && !myMusicDisabled && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">

@@ -24,6 +24,10 @@ TEMPLATE = {
     "VIDEO_CACHE_ENABLED": ("true", "true/false"),
     "ADS_ENABLED": ("true", "true/false"),
     "MY_MUSIC_ENABLED": ("true", "Enable My Music section — users can create tracks from uploaded files"),
+    "UPLOAD_STRATEGY": ("round_robin", "Account selection strategy for uploads"),
+    "WEB_UPLOAD_ENABLED": ("true", "Enable web-based file upload"),
+    "BOT_FALLBACK_ENABLED": ("true", "Enable bot fallback chain when primary fails"),
+    "MAX_CONCURRENT_UPLOADS": ("5", "Max concurrent uploads per account"),
 }
 
 @router.get("")

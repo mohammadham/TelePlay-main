@@ -1,6 +1,6 @@
 import {
     LayoutDashboard, Users, HardDrive, Database, Megaphone, Server, Settings2,
-    Bot, UserCog, Crown, FileText, Home, X, ChevronRight, ChevronLeft, Menu, LogOut,
+    Bot, UserCog, Crown, FileText, Upload, Home, X, ChevronRight, ChevronLeft, Menu, LogOut,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../assets/logo.png';
@@ -19,6 +19,7 @@ const ADMIN_ROUTE_MAP: Record<string, { icon: any; label: string; section?: stri
     '/admin/accounts': { icon: UserCog,        label: 'Accounts',  section: 'accounts' },
     '/admin/admins':   { icon: Crown,          label: 'Admins',    section: 'admins' },
     '/admin/seo':      { icon: FileText,       label: 'SEO',       section: 'seo' },
+    '/admin/upload':   { icon: Upload,         label: 'Upload',    section: 'upload' },
 };
 
 interface Props {

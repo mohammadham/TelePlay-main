@@ -10,8 +10,9 @@ import AccountManager from './AccountManager'
 import AdminManager from './AdminManager'
 import UserDetailPanel from './UserDetailPanel'
 import SEOSettingsPanel from './SEOSettingsPanel'
+import UploadManagerPanel from './UploadManagerPanel'
 
-const ROUTE_TAB_MAP: Record<string, 'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'> = {
+const ROUTE_TAB_MAP: Record<string, 'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'|'upload'> = {
   '/admin': 'overview',
   '/admin/users': 'users',
   '/admin/files': 'files',
@@ -23,6 +24,7 @@ const ROUTE_TAB_MAP: Record<string, 'overview'|'users'|'user-detail'|'files'|'ca
   '/admin/accounts': 'accounts',
   '/admin/admins': 'admins',
   '/admin/seo': 'seo',
+  '/admin/upload': 'upload',
 }
 
 function StatCard({ label, value }: { label: string; value: any }) {
@@ -34,7 +36,7 @@ export default function AdminDashboard() {
   const location = useLocation()
 
   const initialTab = ROUTE_TAB_MAP[location.pathname] || 'overview'
-  const [tab, setTab] = useState<'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'>(initialTab)
+  const [tab, setTab] = useState<'overview'|'users'|'user-detail'|'files'|'cache'|'ads'|'system'|'settings'|'bots'|'accounts'|'admins'|'seo'|'upload'>(initialTab)
 
   // Keep tab in sync when URL changes
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function AdminDashboard() {
       cache: '/admin/cache', ads: '/admin/ads', system: '/admin/system',
       settings: '/admin/settings', bots: '/admin/bots', accounts: '/admin/accounts',
       admins: '/admin/admins', seo: '/admin/seo', 'user-detail': '/admin/users',
+      upload: '/admin/upload',
     }
     if (routeMap[newTab] && routeMap[newTab] !== location.pathname) {
       navigate(routeMap[newTab])
@@ -70,7 +73,7 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className="flex gap-1 px-6 pb-3 overflow-x-auto">
-          {(['overview','users','user-detail','files','bots','accounts','admins','cache','ads','system','settings','seo'] as const).map(t=>(
+          {(['overview','users','user-detail','files','bots','accounts','admins','cache','ads','system','settings','seo','upload'] as const).map(t=>(
             <button key={t} onClick={()=>handleTabChange(t)} className={`px-3 py-1.5 rounded text-sm capitalize ${tab===t?'bg-primary-600 text-white':'bg-white/[0.06] hover:bg-white/[0.10]'}`}>{t}</button>
           ))}
         </div>
@@ -118,6 +121,7 @@ export default function AdminDashboard() {
         )}
         {tab==='cache' && <CachePanel />}
         {tab==='ads' && <AdsPanel />}
+        {tab==='upload' && <UploadManagerPanel />}
         {tab==='system' && (
           !system ? (
             <div className="space-y-2">

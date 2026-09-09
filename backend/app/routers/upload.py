@@ -1,26 +1,29 @@
 """
 Upload and send-to-bot endpoints for file handling.
+Uses pool manager for flexible account selection and fallback strategies.
 """
 import secrets
 import hashlib
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, BackgroundTasks
+import asyncio
+from typing import Optional, Dict
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import os
 from pathlib import Path
 
 from ..database import get_db
-from ..models import File, User
+from ..models import File, User, AppSetting
 from ..schemas import FileResponse
 from ..auth import get_current_user
-from ..telegram import forward_to_storage_channel, tg_client
+from ..telegram import forward_to_storage_channel, clients as bot_clients
 from ..config import get_settings
 from ..services import (
     escape_like,
     sanitize_filename,
     add_urls_to_file,
 )
+from ..pool_manager import pool_manager, SelectionStrategy
 
 router = APIRouter(tags=["Upload"])
 settings = get_settings()
@@ -51,11 +54,28 @@ async def upload_file(
     file: UploadFile = FastAPIFile(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    request: Request = None,
 ):
     """
     Upload a file and store it temporarily.
-    Returns a file ID that can be used with /send-to-bot endpoint.
+    Uses pool manager for account selection and fallback strategies.
     """
+    # Check if web upload is enabled
+    web_upload_enabled = True
+    try:
+        result = await db.execute(select(AppSetting).where(AppSetting.key == "WEB_UPLOAD_ENABLED"))
+        setting = result.scalar_one_or_none()
+        if setting and setting.value.lower() == "false":
+            web_upload_enabled = False
+    except Exception:
+        pass
+
+    if not web_upload_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Web upload is disabled by admin"
+        )
+
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
@@ -138,15 +158,59 @@ async def send_file_to_bot(
     file_path = stored_files[0]
 
     try:
-        # Send file to Telegram storage channel
-        from pyrogram.types import InputMediaDocument
+        # Check if bot fallback is enabled
+        bot_fallback_enabled = True
+        try:
+            result = await db.execute(select(AppSetting).where(AppSetting.key == "BOT_FALLBACK_ENABLED"))
+            setting = result.scalar_one_or_none()
+            if setting and setting.value.lower() == "false":
+                bot_fallback_enabled = False
+        except Exception:
+            pass
 
-        # Send as document to storage channel
-        sent_message = await tg_client.send_document(
-            chat_id=settings.telegram_storage_channel_id,
-            document=str(file_path),
-            caption=db_file.file_name
-        )
+        # Try to find an available client using pool manager
+        sent_message = None
+        client = None
+        used_indices = set()
+
+        while len(used_indices) < len(pool_manager.bot_pool):
+            # Get next bot client from pool
+            client = pool_manager.get_bot()
+            if client is None:
+                break
+
+            client_index = None
+            for idx, c in pool_manager.bot_pool.items():
+                if c == client:
+                    client_index = idx
+                    break
+
+            if client_index in used_indices:
+                continue
+
+            used_indices.add(client_index)
+
+            try:
+                # Send as document to storage channel
+                sent_message = await client.send_document(
+                    chat_id=settings.telegram_storage_channel_id,
+                    document=str(file_path),
+                    caption=db_file.file_name
+                )
+                break
+            except Exception as e:
+                logger.warning(f"Failed to send via client {client_index}: {e}")
+                pool_manager.record_error(client_index)
+                client = None
+                continue
+
+        if sent_message is None:
+            # Clean up on error
+            await db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to send file to Telegram bot"
+            )
 
         # Update file with Telegram information
         db_file.file_id = sent_message.document.file_id
@@ -169,6 +233,13 @@ async def send_file_to_bot(
 
         # Clean up temporary file in background
         background_tasks.add_task(lambda: file_path.unlink(missing_ok=True))
+
+        # Record success for this client
+        if client is not None:
+            for idx, c in pool_manager.bot_pool.items():
+                if c == client:
+                    pool_manager.record_success(idx)
+                    break
 
         # Return updated file info
         return FileResponse(**add_urls_to_file(db_file))

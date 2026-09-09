@@ -23,6 +23,7 @@ from .database import init_db, get_db
 from .telegram import stop_telegram_client
 from .encryption import ensure_encryption_key
 from .routers import files_router, folders_router, streaming_router, auth_router, tv_router, music_router, admin_router, ads_router
+from .routers.upload import router as upload_router
 from .routers.settings import router as settings_router
 from .routers.setup import router as setup_router
 from .routers.admin_bots import router as admin_bots_router
@@ -316,6 +317,7 @@ async def add_security_headers(request: Request, call_next):
 # Include routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
+app.include_router(upload_router, prefix="/api")
 app.include_router(folders_router, prefix="/api")
 app.include_router(streaming_router, prefix="/api")
 app.include_router(tv_router, prefix="/api")

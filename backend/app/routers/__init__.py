@@ -10,6 +10,7 @@ from .music import router as music_router
 from .admin import router as admin_router
 from .ads import router as ads_router
 from .admin_seo import router as admin_seo_router
+from .upload import router as upload_router
 
-__all__ = ["files_router", "folders_router", "streaming_router", "auth_router", "tv_router", "music_router", "admin_router", "ads_router", "admin_seo_router"]
+__all__ = ["files_router", "folders_router", "streaming_router", "auth_router", "tv_router", "music_router", "admin_router", "ads_router", "admin_seo_router", "upload_router"]
 

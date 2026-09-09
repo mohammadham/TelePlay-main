@@ -1,11 +1,12 @@
 /**
  * My Music — users create tracks from their existing Telegram file library.
  */
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useState, useRef, ChangeEvent } from 'react'
+// import { useNavigate } from 'react-router-dom'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, useMyMusicTracks, TelegramFile } from '../../lib/api'
 import TrackCard from './TrackCard'
+import Progress from '../Progress'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
 import { Plus, Headphones, X, Upload, Search } from 'lucide-react'
@@ -15,7 +16,6 @@ type MediaType = 'all' | 'audio' | 'music_video' | 'reel'
 
 export default function MyMusic() {
   useSEO({ title: 'My Music', description: 'Create and manage your music tracks', type: 'website' })
-  const navigate = useNavigate()
   const { setQueue } = useMusicStore()
   const { setPreviewFile } = useAppStore()
   const qc = useQueryClient()
@@ -35,7 +35,13 @@ export default function MyMusic() {
   const [formMediaType, setFormMediaType] = useState<'audio' | 'music_video' | 'reel'>('audio')
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null)
   const [selectedFile, setSelectedFile] = useState<TelegramFile | null>(null)
+  const [webFile, setWebFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number>(0)
+  const [uploadStatus, setUploadStatus] = useState<string>('')
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isFormLocked, setIsFormLocked] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const list = (Array.isArray(tracks) ? tracks : [])
     .filter(t => mediaType === 'all' || t.media_type === mediaType)
@@ -67,16 +73,8 @@ export default function MyMusic() {
   }
 
   const uploadTrack = useMutation({
-    mutationFn: async () => {
-      return api.post('/v1/music/my/upload', {
-        title: formTitle.trim(),
-        artist_name: formArtist.trim(),
-        file_id: selectedFileId,
-        album_title: formAlbum.trim() || undefined,
-        duration: formDuration ? parseInt(formDuration) : undefined,
-        genre: formGenre.trim() || undefined,
-        media_type: formMediaType,
-      })
+    mutationFn: async (payload: { title: string; artist_name: string; file_id: number; album_title?: string; duration?: number; genre?: string; media_type: 'audio' | 'music_video' | 'reel' }) => {
+      return api.post('/v1/music/my/upload', payload)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-music-tracks'] })
@@ -86,7 +84,13 @@ export default function MyMusic() {
     },
     onError: (e: any) => {
       console.error('Upload failed:', e)
-      alert(e.response?.data?.detail || 'Upload failed')
+      let errorMessage = 'Upload failed'
+      if (e.response && e.response.data) {
+        errorMessage = e.response.data.detail || 'Upload failed'
+      } else if (e.message) {
+        errorMessage = e.message
+      }
+      setUploadError(errorMessage)
     },
   })
 
@@ -99,16 +103,117 @@ export default function MyMusic() {
     setFormMediaType('audio')
     setSelectedFileId(null)
     setSelectedFile(null)
+    setWebFile(null)
     setFileSearchResults([])
   }
 
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0]
+      // Store the raw browser File for upload
+      setWebFile(file)
+      // Create a display object - file_id here will be DB row ID after upload
+      setSelectedFile({
+        id: Date.now(),
+        user_id: 0,
+        folder_id: null,
+        file_id: Date.now().toString(),
+        file_unique_id: `web_${Date.now()}`,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type || null,
+        file_type: 'audio',
+        duration: null,
+        width: null,
+        height: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        stream_url: '',
+        thumbnail_url: null,
+      } as TelegramFile)
+      setUploadError(null)
+      setUploadStatus('')
+    }
+  }
+
   const handleUpload = async () => {
-    if (!formTitle.trim() || !formArtist.trim() || !selectedFileId) return
+    if (!formTitle.trim() || !formArtist.trim() || (!selectedFileId && !webFile)) return
+
+    // Lock form and show upload progress
     setUploading(true)
+    setIsFormLocked(true)
+    setUploadProgress(0)
+    setUploadStatus('Uploading file...')
+    setUploadError(null)
+
     try {
-      await uploadTrack.mutateAsync()
-    } finally {
+      let fileId: number | null = selectedFileId ?? null
+      let isWebUpload = false
+
+      // If we have a web file (not from Telegram search), upload it first
+      if (webFile && !fileId) {
+        const formData = new FormData()
+        formData.append('file', webFile)
+
+        // Upload file to get DB file_id
+        const uploadResponse = await api.post('/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            const total = progressEvent.total || webFile.size
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / total)
+            setUploadProgress(percentCompleted)
+          }
+        })
+
+        // uploadResponse returns { file_id: str(db_file.id), ... }
+        // Convert to integer since Track.file_id is ForeignKey to files.id (int)
+        fileId = parseInt(uploadResponse.data.file_id, 10)
+        isWebUpload = true
+      }
+
+      if (!fileId) {
+        throw new Error('No file selected')
+      }
+
+      // If this was a web upload, we need to store the file_id in selectedFile
+      // for the uploadTrack mutation which expects it as the file_id parameter
+      if (isWebUpload && webFile) {
+        // After upload, the file_id is set correctly by the upload step
+        // but we need to make sure selectedFileId is updated
+        setSelectedFileId(fileId)
+      }
+
+      // Now use the file_id to create the track
+      // For web uploads: file_id is File.id (FK to files.id)
+      // For Telegram uploads: file_id is File.id (FK to files.id)
+      await uploadTrack.mutateAsync({
+        title: formTitle.trim(),
+        artist_name: formArtist.trim(),
+        file_id: fileId,
+        album_title: formAlbum.trim() || undefined,
+        duration: formDuration ? parseInt(formDuration) : undefined,
+        genre: formGenre.trim() || undefined,
+        media_type: formMediaType
+      })
+
+      // After successful upload
+      setUploadProgress(100)
+      setUploadStatus(isWebUpload ? 'File uploaded and track created!' : 'Track created successfully!')
+
+      // Close modal after delay
+      setTimeout(() => {
+        setUploadStatus('')
+        setShowUpload(false)
+        resetForm()
+      }, 2000)
+    } catch (error) {
+      setUploadProgress(0)
+      setUploadStatus('')
+      setUploadError(error instanceof Error ? error.message : 'Upload failed')
       setUploading(false)
+      setIsFormLocked(false)
     }
   }
 
@@ -230,18 +335,39 @@ export default function MyMusic() {
                         {(selectedFile.file_size / 1024 / 1024).toFixed(1)} MB
                       </p>
                     </div>
-                    <button onClick={() => { setSelectedFile(null); setSelectedFileId(null) }} className="text-white/40 hover:text-white">
+                    <button onClick={() => { setSelectedFile(null); setSelectedFileId(null); setWebFile(null) }} className="text-white/40 hover:text-white">
                       <X className="w-5 h-5" />
                     </button>
                   </div>
                 ) : (
                   <div className="relative">
-                    <div className="flex gap-2">
+                    {/* Web upload button */}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isFormLocked}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#282828] border border-dashed border-white/20 rounded-lg text-white/60 hover:bg-[#282828]/80 hover:border-[#1DB954]/50 hover:text-[#1DB954] transition-all disabled:opacity-40 disabled:cursor-not-allowed mb-3"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span className="text-sm font-medium">从本地上传文件（Web端）</span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*,video/*"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                      disabled={isFormLocked}
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-white/20 text-xs">或</span>
+                      <span className="text-white/20 text-xs">从你的 Telegram 文件库中选择</span>
+                    </div>
+                    <div className="flex gap-2 mt-2">
                       <input
                         value={searchQ}
                         onChange={e => { setSearchQ(e.target.value); searchFiles(e.target.value) }}
                         onKeyDown={e => { if (e.key === 'Enter') searchFiles(searchQ) }}
-                        placeholder="Search your files..."
+                        placeholder="搜索你的文件..."
                         className="flex-1 bg-[#282828] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#1DB954]/50"
                       />
                       {isSearchingFiles && (
@@ -266,12 +392,31 @@ export default function MyMusic() {
                       </div>
                     )}
                     {!isSearchingFiles && fileSearchResults.length === 0 && searchQ.length >= 2 && (
-                      <p className="text-sm text-white/40 mt-2 text-center">No files found</p>
+                      <p className="text-sm text-white/40 mt-2 text-center">未找到文件</p>
                     )}
                     {!searchQ && (
-                      <p className="text-xs text-white/30 mt-2 text-center">Send files to the bot to add them to your library</p>
+                      <p className="text-xs text-white/30 mt-2 text-center">先在 Telegram  bot 中发送文件，再在这里选择</p>
                     )}
                   </div>
+                )}
+                {/* Upload progress */}
+                {uploading && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-white/50">
+                      <span>{uploadStatus}</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="w-full" />
+                    <button
+                      onClick={() => { setUploading(false); setIsFormLocked(false); setUploadStatus(''); setUploadProgress(0); }}
+                      className="text-xs text-red-400 hover:text-red-300 underline"
+                    >
+                      取消上传
+                    </button>
+                  </div>
+                )}
+                {uploadError && (
+                  <p className="mt-2 text-sm text-red-400">{uploadError}</p>
                 )}
               </div>
 
@@ -340,17 +485,18 @@ export default function MyMusic() {
             <div className="p-6 border-t border-white/10 flex gap-3">
               <button
                 onClick={() => { setShowUpload(false); resetForm() }}
-                className="flex-1 px-4 py-2.5 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium"
+                disabled={uploading}
+                className="flex-1 px-4 py-2.5 rounded-lg text-white/60 hover:bg-white/5 transition-colors font-medium disabled:opacity-40"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpload}
-                disabled={!formTitle.trim() || !formArtist.trim() || !selectedFileId || uploading}
+                disabled={!formTitle.trim() || !formArtist.trim() || (!selectedFileId && !webFile) || uploading}
                 className="flex-1 px-4 py-2.5 rounded-lg bg-[#1DB954] text-black font-semibold hover:bg-[#1ed760] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {uploading ? (
-                  <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  <><div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> Uploading...</>
                 ) : (
                   <><Upload className="w-4 h-4" /> Add Track</>
                 )}

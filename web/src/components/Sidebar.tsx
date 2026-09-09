@@ -10,14 +10,14 @@ import { useStorageStats, formatFileSize, useLogoutAll, useCurrentUser } from '.
 import { useState, useEffect, useRef } from 'react';
 
 // ── Route map for active highlight & icon→text mapping ───────────────────────
-const ROUTE_MAP: Record<string, { icon: any; label: string; section?: string }> = {
+const ROUTE_MAP: Record<string, { icon: any; label: string; section?: string; adminOnly?: boolean }> = {
     '/music':           { icon: Home,      label: 'Music',    section: 'music' },
     '/music/search':    { icon: Search,    label: 'Search',   section: 'music' },
     '/music/playlists': { icon: List,      label: 'Playlists', section: 'music' },
     '/music/downloads': { icon: Download,  label: 'Downloads', section: 'music' },
     '/music/history':   { icon: Clock,     label: 'History',  section: 'music' },
     '/my-music':        { icon: Headphones,     label: 'My Music', section: 'music' },
-    '/files':           { icon: Files,     label: 'My Files', section: 'files' },
+    '/files':           { icon: Files,     label: 'My Files', section: 'files', adminOnly: true },
 };
 
 interface Props {
@@ -113,7 +113,10 @@ export default function Sidebar({
                 <aside className="fixed left-0 top-0 w-14 h-full bg-[#0a0a0a] border-r border-white/10 flex flex-col items-center py-4 z-50">
                     <img src={logo} alt="Logo" className="w-8 h-8 mb-6 rounded" />
                     <nav className="flex flex-col gap-2 w-full px-2">
-                        {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label }]) => {
+                        {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label, adminOnly = false }]) => {
+                            // Skip admin-only routes if not admin
+                            if (adminOnly && !isAdmin) return null;
+
                             const isActive = location.pathname === route || location.pathname.startsWith(route + '/');
                             return (
                                 <TooltipButton
@@ -238,7 +241,7 @@ interface ContentProps {
     activeSection: string;
     setActiveSection: (s: string) => void;
     navigate: (path: string) => void;
-    ROUTE_MAP: Record<string, { icon: any; label: string }>;
+    ROUTE_MAP: Record<string, { icon: any; label: string; section?: string; adminOnly?: boolean }>;
     isPhone?: boolean;
 }
 
@@ -293,7 +296,10 @@ function SidebarContent({
                 }`}>
                     {isIconOnly ? '···' : 'Menu'}
                 </p>
-                {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label }]) => {
+                {Object.entries(ROUTE_MAP).map(([route, { icon: Icon, label, adminOnly = false }]) => {
+                    // Skip admin-only routes if not admin
+                    if (adminOnly && !isAdmin) return null;
+
                     const isActive = activeSection === route ||
                         (route !== '/music' && location.pathname.startsWith(route));
                     const handleClick = () => {

@@ -11,23 +11,17 @@ from ..config import get_settings, mark_db_ready
 
 router = APIRouter(prefix="/admin/settings", tags=["Admin Settings"])
 
-# Template defaults shown when DB empty
+# Template defaults shown when DB empty — keys belonging to other panels are excluded
 TEMPLATE = {
     "TELEGRAM_API_ID": ("", "From my.telegram.org"),
     "TELEGRAM_API_HASH": ("", "From my.telegram.org"),
     "TELEGRAM_BOT_TOKEN": ("", "From @BotFather"),
     "TELEGRAM_STORAGE_CHANNEL_ID": ("", "Private channel -100..."),
     "JWT_SECRET": ("", "openssl rand -hex 32"),
-    "ADMIN_TELEGRAM_IDS": ("", "Comma-separated admin IDs"),
     "WEB_BASE_URL": ("", "https://your-domain.com"),
     "CACHE_ENABLED": ("true", "true/false"),
     "VIDEO_CACHE_ENABLED": ("true", "true/false"),
     "ADS_ENABLED": ("true", "true/false"),
-    "MY_MUSIC_ENABLED": ("true", "Enable My Music section — users can create tracks from uploaded files"),
-    "UPLOAD_STRATEGY": ("round_robin", "Account selection strategy for uploads"),
-    "WEB_UPLOAD_ENABLED": ("true", "Enable web-based file upload"),
-    "BOT_FALLBACK_ENABLED": ("true", "Enable bot fallback chain when primary fails"),
-    "MAX_CONCURRENT_UPLOADS": ("5", "Max concurrent uploads per account"),
 }
 
 @router.get("")
@@ -46,22 +40,23 @@ async def list_settings(db: AsyncSession=Depends(get_db), admin: User=Depends(re
 
 @router.put("")
 async def update_settings(payload: dict, db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
-    # payload: {key: value} or {settings: [{key,value}]}
     items = payload.get("settings") if "settings" in payload else payload
     if isinstance(items, dict):
         items = [{"key": k, "value": v} for k, v in items.items()]
+    changed: list[str] = []
     for item in items:
-        k = item["key"]; v = str(item.get("value",""))
-        row = (await db.execute(select(AppSetting).where(AppSetting.key==k))).scalar_one_or_none()
+        k = item["key"]
+        v = str(item.get("value", ""))
+        row = (await db.execute(select(AppSetting).where(AppSetting.key == k))).scalar_one_or_none()
         if row:
             row.value = v
         else:
-            row = AppSetting(key=k, value=v, description=TEMPLATE.get(k, ("",""))[1])
+            row = AppSetting(key=k, value=v, description=TEMPLATE.get(k, ("", ""))[1])
             db.add(row)
+        changed.append(k)
     await db.commit()
-    # Reload settings in memory
-    mark_db_ready(get_settings())
-    return {"ok": True, "message": "Settings saved and applied"}
+    await mark_db_ready(get_settings())
+    return {"ok": True, "message": "Settings saved and applied", "changed": changed}
 
 @router.get("/export")
 async def export_env(db: AsyncSession=Depends(get_db), admin: User=Depends(require_admin)):
@@ -88,5 +83,5 @@ async def seed_template(db: AsyncSession=Depends(get_db), admin: User=Depends(re
 @router.post("/reload")
 async def reload_settings(admin: User=Depends(require_admin)):
     """Reload settings from DB without redeploy."""
-    mark_db_ready(get_settings())
+    await mark_db_ready(get_settings())
     return {"ok": True, "message": "Settings reloaded from database"}

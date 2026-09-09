@@ -304,8 +304,16 @@ async def init_pool_manager():
     await load_user_accounts()
 
 
+_pool_starting = False
+
+
 async def load_user_accounts():
     """Load active MTProto user accounts from database into pool."""
+    global _pool_starting
+    if _pool_starting:
+        logger.warning("Pool is already starting — skipping duplicate load_user_accounts")
+        return
+    _pool_starting = True
     try:
         from .database import get_sessionmaker
         from .models import UserAccount
@@ -319,9 +327,15 @@ async def load_user_accounts():
             accounts = result.scalars().all()
 
             settings = get_settings()
+            seen_sessions = set()
             for account in accounts:
+                enc = account.session_string_encrypted
+                if enc in seen_sessions:
+                    logger.warning("Skipping duplicate account '%s' — same session string as another account", account.name)
+                    continue
+                seen_sessions.add(enc)
                 try:
-                    session_str = decrypt(account.session_string_encrypted)
+                    session_str = decrypt(enc)
                     api_hash = decrypt(account.api_hash_encrypted)
 
                     client = Client(
@@ -338,3 +352,6 @@ async def load_user_accounts():
                     logger.error("Failed to load user account %s: %s", account.name, e)
     except Exception as e:
         logger.warning("Could not load user accounts from database: %s", e)
+    finally:
+        global _pool_starting
+        _pool_starting = False

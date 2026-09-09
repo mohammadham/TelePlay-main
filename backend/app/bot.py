@@ -601,6 +601,13 @@ async def handle_file(client, message: Message):
     
     status_msg = await message.reply("📥 Processing file...")
     
+    if settings.telegram_storage_channel_id <= 0:
+        await status_msg.edit(
+            "❌ Storage channel not configured.\n\n"
+            "Contact the admin to set `TELEGRAM_STORAGE_CHANNEL_ID` in the settings."
+        )
+        return
+
     try:
         # Forward to storage channel
         forwarded = await forward_to_storage_channel(message)

@@ -72,30 +72,27 @@ async def get_upload_config(
     max_concurrent = 5
     my_music = "true"
 
+    # Read from AppSetting table
     try:
-        # Check if settings exist
-        settings_query = await db.execute(select(settings.__dict__).where(True)) if hasattr(settings, '__dict__') else select()
-        if hasattr(settings, 'web_upload_enabled'):
-            web_upload = settings.web_upload_enabled
-        if hasattr(settings, 'bot_fallback_enabled'):
-            bot_fallback = settings.bot_fallback_enabled
-        if hasattr(settings, 'max_concurrent_uploads'):
-            max_concurrent = settings.max_concurrent_uploads
-        if hasattr(settings, 'my_music_enabled'):
-            my_music = settings.my_music_enabled
+        from ..models import AppSetting as AS
+        result = await db.execute(select(AS).where(AS.key == "WEB_UPLOAD_ENABLED"))
+        setting = result.scalar_one_or_none()
+        if setting:
+            web_upload = setting.value
+        result = await db.execute(select(AS).where(AS.key == "BOT_FALLBACK_ENABLED"))
+        setting = result.scalar_one_or_none()
+        if setting:
+            bot_fallback = setting.value
+        result = await db.execute(select(AS).where(AS.key == "MAX_CONCURRENT_UPLOADS"))
+        setting = result.scalar_one_or_none()
+        if setting:
+            max_concurrent = setting.value
+        result = await db.execute(select(AS).where(AS.key == "MY_MUSIC_ENABLED"))
+        setting = result.scalar_one_or_none()
+        if setting:
+            my_music = setting.value
     except Exception as e:
         logger.error(f"Error reading settings: {e}")
-
-    # Alternative: read from AppSetting table
-    if not hasattr(settings, 'web_upload_enabled'):
-        try:
-            from ..models import AppSetting as AS
-            result = await db.execute(select(AS).where(AS.key == "WEB_UPLOAD_ENABLED"))
-            setting = result.scalar_one_or_none()
-            if setting:
-                bot_fallback = setting.value.lower() == "true"
-        except Exception:
-            pass
 
     return UploadConfigResponse(
         upload_strategy=strategy,

@@ -11,6 +11,7 @@ export interface User {
     username: string | null;
     first_name: string | null;
     last_name: string | null;
+    is_admin?: boolean;
     created_at: string;
     last_active: string;
 }

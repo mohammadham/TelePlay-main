@@ -20,14 +20,28 @@ security = HTTPBearer(auto_error=False)
 
 
 
-def create_access_token(telegram_id: int, version: int = 0) -> str:
+def create_access_token(telegram_id: int, version: int = 0, is_admin: bool = False) -> str:
     """Create a JWT access token."""
     expire = datetime.utcnow() + timedelta(minutes=settings.jwt_expiry_minutes)
     payload = {
         "sub": str(telegram_id),  # Subject must be string
         "exp": expire,
         "type": "access",
-        "ver": version
+        "ver": version,
+        "is_admin": is_admin
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
+def create_short_lived_token(telegram_id: int, minutes: int = 15) -> str:
+    """Create a short-lived JWT token (e.g. for bot-generated login links)."""
+    expire = datetime.utcnow() + timedelta(minutes=minutes)
+    payload = {
+        "sub": str(telegram_id),
+        "exp": expire,
+        "type": "access",
+        "ver": 0,
+        "is_admin": False
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 

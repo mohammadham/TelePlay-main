@@ -303,32 +303,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
     const { data: currentUser } = useCurrentUser();
-    const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-
-    useEffect(() => {
-        if (currentUser) {
-            const checkAdmin = async () => {
-                try {
-                    const response = await api.get('/api/admin/users/me');
-                    setIsAdmin(true);
-                } catch (error) {
-                    setIsAdmin(false);
-                }
-            };
-            checkAdmin();
-        }
-    }, [currentUser]);
-
-    if (isAdmin === null) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-dark-950">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                    <p className="text-dark-400">Checking admin permissions...</p>
-                </div>
-            </div>
-        );
-    }
+    const isAdmin = currentUser?.is_admin ?? false;
 
     if (!isAdmin) {
         return <Navigate to="/404" replace />;
@@ -400,7 +375,7 @@ function MusicDownloadsLayout(){ return <MusicLayout><Downloads /></MusicLayout>
 function MusicHistoryLayout(){ return <MusicLayout><HistoryView /></MusicLayout> }
 function MusicPlaylistDetailLayout(){ return <PlaylistDetail /> }
 function MusicArtistDetailLayout(){ return <ArtistDetail /> }
-function MyMusicLayout(){ return <MyMusic /> }
+function MyMusicLayout(){ return <MusicLayout><MyMusic /></MusicLayout> }
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
     const isDesktop = useMediaQuery('(min-width: 1024px)');

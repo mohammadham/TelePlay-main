@@ -21,9 +21,10 @@ class UserCreate(UserBase):
 
 class UserResponse(UserBase):
     id: int
+    is_admin: bool = False
     created_at: datetime
     last_active: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 

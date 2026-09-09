@@ -42,7 +42,7 @@ export default function Sidebar({
 
     const { data: storage } = useStorageStats();
     const { data: user } = useCurrentUser();
-    const isAdmin = (user as any)?.role === 'ADMIN' || (user as any)?.role === 'SUPER_ADMIN';
+    const isAdmin = user?.is_admin ?? false;
 
     // Sync active section from URL
     useEffect(() => {

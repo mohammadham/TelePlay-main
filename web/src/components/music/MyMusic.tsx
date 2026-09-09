@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
-import { api, useMyMusicTracks, TelegramFile } from '../../lib/api'
+import { api, useCurrentUser, useMyMusicTracks, TelegramFile } from '../../lib/api'
 import TrackCard from './TrackCard'
 import Progress from '../Progress'
 import { useMusicStore } from '../../lib/musicStore'
@@ -16,6 +16,8 @@ type MediaType = 'all' | 'audio' | 'music_video' | 'reel'
 
 export default function MyMusic() {
   const navigate = useNavigate()
+  const { data: currentUser } = useCurrentUser()
+  const isAdmin = currentUser?.is_admin ?? false
   useSEO({ title: 'My Music', description: 'Create and manage your music tracks', type: 'website' })
   const { setQueue } = useMusicStore()
   const { setPreviewFile } = useAppStore()
@@ -384,13 +386,15 @@ export default function MyMusic() {
                       <span className="text-white/20 text-xs">or</span>
                       <span className="text-white/20 text-xs">Choose from your Telegram file library</span>
                     </div>
-                    <button
-                      onClick={() => navigate('/files')}
-                      className="flex items-center gap-2 px-3 py-1.5 mt-2 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      <Bot className="w-4 h-4" />
-                      <span>Browse files via Telegram bot</span>
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => navigate('/files')}
+                        className="flex items-center gap-2 px-3 py-1.5 mt-2 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <Bot className="w-4 h-4" />
+                        <span>Browse files via Telegram bot</span>
+                      </button>
+                    )}
                     <div className="flex gap-2 mt-2">
                       <input
                         value={searchQ}

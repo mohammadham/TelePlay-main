@@ -16,7 +16,7 @@ from .telegram import tg_client, forward_to_storage_channel
 from .database import async_session
 from .models import User, File, Folder, LoginCode
 from .config import get_settings
-from .auth import create_access_token
+from .auth import create_access_token, create_short_lived_token
 from .utils import format_size, format_duration
 from .services import sanitize_filename, sanitize_text
 
@@ -455,7 +455,7 @@ async def web_command(client, message: Message):
         message.from_user.last_name,
     )
     
-    token = create_access_token(message.from_user.id)
+    token = create_short_lived_token(message.from_user.id, minutes=15)
     web_url = f"{settings.web_base_url}/auth?token={token}"
     
     await message.reply(
@@ -701,7 +701,7 @@ async def handle_callback(client, callback: CallbackQuery):
 
     elif data == "get_web_link":
         # Fallback for old messages - show link and also provide Mini App button
-        token = create_access_token(callback.from_user.id)
+        token = create_short_lived_token(callback.from_user.id, minutes=15)
         web_url = f"{settings.web_base_url}/auth?token={token}"
         await callback.message.reply(
             f"🌐 **Web Interface**\n\n"

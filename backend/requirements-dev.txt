@@ -1,5 +1,6 @@
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-httpx>=0.24.0
-fastapi>=0.100.0
-uvicorn>=0.22.0
+pytest>=7.4
+pytest-asyncio>=0.21
+pytest-cov>=4.1
+httpx>=0.24
+aiosqlite>=0.19
+SQLAlchemy[asyncio]>=2.0

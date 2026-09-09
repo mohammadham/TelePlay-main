@@ -28,6 +28,15 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
         working-directory: backend
+      - name: Install dev deps
+        run: pip install -r requirements-dev.txt
+        working-directory: backend
+      - name: Run unit tests
+        run: pytest tests/test_auth.py tests/test_encryption.py tests/test_config.py tests/test_security.py -v
+        working-directory: backend
+      - name: Run router integration tests
+        run: pytest tests/routers/ -v
+        working-directory: backend
       - name: Check syntax
         run: python -m py_compile app/main.py app/models.py app/cache_manager.py
         working-directory: backend

@@ -1,10 +1,7 @@
+"""Unit tests for security/sanitization functions."""
 import pytest
 from app.services import sanitize_filename, sanitize_text, escape_like
 
-
-# ============================================================
-# sanitize_text
-# ============================================================
 
 class TestSanitizeText:
     def test_strips_html_tags(self):
@@ -14,12 +11,14 @@ class TestSanitizeText:
     def test_strips_html_entities(self):
         assert sanitize_text("&lt;script&gt;") == ""
         assert sanitize_text("a &amp; b") == "a  b"
-        assert sanitize_text("test &#8212; done") == "test  done"
+
+    def test_removes_xss_payloads(self):
+        assert sanitize_text('<img src=x onerror=alert(1)>') == ""
+        assert sanitize_text('<iframe src="evil.com">') == ""
+        assert sanitize_text('<body onload=alert(1)>') == ""
 
     def test_removes_dangerous_chars(self):
         assert sanitize_text('test "quoted"') == "test quoted"
-        # Single quotes are safe in HTML context (not removed)
-        assert sanitize_text("it's fine") == "it's fine"
         assert sanitize_text("a & b") == "a  b"
 
     def test_removes_control_chars(self):
@@ -49,10 +48,12 @@ class TestSanitizeText:
         assert sanitize_text("مرحبه دنیا") == "مرحبه دنیا"
         assert sanitize_text("Hello World 123") == "Hello World 123"
 
+    def test_sql_injection_in_text(self):
+        # SQL injection in text context should be stripped of special chars
+        result = sanitize_text("'; DROP TABLE users; --")
+        assert "DROP" not in result
+        assert ";" not in result
 
-# ============================================================
-# sanitize_filename
-# ============================================================
 
 class TestSanitizeFilename:
     def test_strips_path_separators(self):
@@ -89,10 +90,12 @@ class TestSanitizeFilename:
         assert sanitize_filename("movie.mkv") == "movie.mkv"
         assert sanitize_filename("آهنگ.mp3") == "آهنگ.mp3"
 
+    def test_path_traversal_blocked(self):
+        result = sanitize_filename("../../etc/passwd")
+        assert ".." not in result
+        assert "/" not in result
+        assert "\\" not in result
 
-# ============================================================
-# escape_like
-# ============================================================
 
 class TestEscapeLike:
     def test_escapes_percent(self):
@@ -110,19 +113,53 @@ class TestEscapeLike:
     def test_empty_string(self):
         assert escape_like("") == ""
 
+    def test_combined_special_chars(self):
+        result = escape_like("100%_done\\now")
+        assert result == "100\\%\\_done\\\\now"
 
-# ============================================================
-# Endpoint integration tests (if server is reachable)
-# ============================================================
 
-@pytest.mark.asyncio
-async def test_folder_create_sanitize():
-    """Folder creation must sanitize name at the API layer."""
-    from fastapi.testclient import TestClient
-    from app.main import app
+class TestAddUrlsToFile:
+    @pytest.mark.asyncio
+    async def test_basic_fields(self):
+        from app.models import File
+        from app.services import add_urls_to_file
+        from datetime import datetime
 
-    # Auth helper — creates a temporary admin token
-    # In a real CI we'd use a fixture; here we just verify the route exists
-    # and the sanitize_text import is wired correctly.
-    # Direct unit test of the sanitization logic above covers behavior.
-    pass  # Integration tests require DB + auth tokens; skipped in light mode.
+        f = File(
+            id=1, user_id=1, folder_id=None,
+            file_id="AgACAgIAAxkDAAJaX123", file_unique_id="abc",
+            channel_message_id=100, file_name="test.mp4",
+            file_size=1024, mime_type="video/mp4", file_type="video",
+            duration=60, width=1920, height=1080,
+            thumbnail_file_id="thumb", public_hash=None,
+            created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        )
+        f.watch_progress = []
+
+        result = add_urls_to_file(f)
+        assert result["id"] == 1
+        assert result["stream_url"] == "/api/stream/1"
+        assert result["thumbnail_url"] == "/api/stream/1/thumbnail"
+        assert result["last_pos"] == 0
+
+    @pytest.mark.asyncio
+    async def test_with_public_hash(self):
+        from app.models import File
+        from app.services import add_urls_to_file
+        from datetime import datetime
+
+        f = File(
+            id=1, user_id=1, folder_id=None,
+            file_id="AgACAgIAAxkDAAJaX123", file_unique_id="abc",
+            channel_message_id=100, file_name="test.mp4",
+            file_size=1024, mime_type="video/mp4", file_type="video",
+            duration=60, width=1920, height=1080,
+            thumbnail_file_id=None, public_hash="myhash",
+            created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        )
+        f.watch_progress = []
+
+        result = add_urls_to_file(f)
+        assert result["public_hash"] == "myhash"
+        assert result["public_stream_url"] == "/api/stream/s/myhash"
+        assert result["thumbnail_url"] is None

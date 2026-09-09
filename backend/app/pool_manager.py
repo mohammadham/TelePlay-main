@@ -353,5 +353,4 @@ async def load_user_accounts():
     except Exception as e:
         logger.warning("Could not load user accounts from database: %s", e)
     finally:
-        global _pool_starting
         _pool_starting = False

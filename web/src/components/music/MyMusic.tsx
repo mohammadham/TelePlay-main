@@ -2,19 +2,20 @@
  * My Music — users create tracks from their existing Telegram file library.
  */
 import { useEffect, useState, useRef, ChangeEvent } from 'react'
-// import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, useMyMusicTracks, TelegramFile } from '../../lib/api'
 import TrackCard from './TrackCard'
 import Progress from '../Progress'
 import { useMusicStore } from '../../lib/musicStore'
 import { useAppStore } from '../../lib/store'
-import { Plus, Headphones, X, Upload, Search } from 'lucide-react'
+import { Plus, Headphones, X, Upload, Search, Bot } from 'lucide-react'
 import { useSEO } from '../../hooks/useSEO'
 
 type MediaType = 'all' | 'audio' | 'music_video' | 'reel'
 
 export default function MyMusic() {
+  const navigate = useNavigate()
   useSEO({ title: 'My Music', description: 'Create and manage your music tracks', type: 'website' })
   const { setQueue } = useMusicStore()
   const { setPreviewFile } = useAppStore()
@@ -369,7 +370,7 @@ export default function MyMusic() {
                       className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#282828] border border-dashed border-white/20 rounded-lg text-white/60 hover:bg-[#282828]/80 hover:border-[#1DB954]/50 hover:text-[#1DB954] transition-all disabled:opacity-40 disabled:cursor-not-allowed mb-3"
                     >
                       <Upload className="w-5 h-5" />
-                      <span className="text-sm font-medium">从本地上传文件（Web端）</span>
+                      <span className="text-sm font-medium">Upload from computer (Web)</span>
                     </button>
                     <input
                       ref={fileInputRef}
@@ -380,15 +381,22 @@ export default function MyMusic() {
                       disabled={isFormLocked}
                     />
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-white/20 text-xs">或</span>
-                      <span className="text-white/20 text-xs">从你的 Telegram 文件库中选择</span>
+                      <span className="text-white/20 text-xs">or</span>
+                      <span className="text-white/20 text-xs">Choose from your Telegram file library</span>
                     </div>
+                    <button
+                      onClick={() => navigate('/files')}
+                      className="flex items-center gap-2 px-3 py-1.5 mt-2 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Bot className="w-4 h-4" />
+                      <span>Browse files via Telegram bot</span>
+                    </button>
                     <div className="flex gap-2 mt-2">
                       <input
                         value={searchQ}
                         onChange={e => { setSearchQ(e.target.value); searchFiles(e.target.value) }}
                         onKeyDown={e => { if (e.key === 'Enter') searchFiles(searchQ) }}
-                        placeholder="搜索你的文件..."
+                        placeholder="Search your files..."
                         className="flex-1 bg-[#282828] border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#1DB954]/50"
                       />
                       {isSearchingFiles && (
@@ -413,10 +421,10 @@ export default function MyMusic() {
                       </div>
                     )}
                     {!isSearchingFiles && fileSearchResults.length === 0 && searchQ.length >= 2 && (
-                      <p className="text-sm text-white/40 mt-2 text-center">未找到文件</p>
+                      <p className="text-sm text-white/40 mt-2 text-center">No files found</p>
                     )}
                     {!searchQ && (
-                      <p className="text-xs text-white/30 mt-2 text-center">先在 Telegram  bot 中发送文件，再在这里选择</p>
+                      <p className="text-xs text-white/30 mt-2 text-center">Send files to Telegram bot first, then choose here</p>
                     )}
                   </div>
                 )}
@@ -432,7 +440,7 @@ export default function MyMusic() {
                       onClick={() => { setUploading(false); setIsFormLocked(false); setUploadStatus(''); setUploadProgress(0); }}
                       className="text-xs text-red-400 hover:text-red-300 underline"
                     >
-                      取消上传
+                      Cancel upload
                     </button>
                   </div>
                 )}

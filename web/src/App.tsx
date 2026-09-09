@@ -549,6 +549,7 @@ function App() {
                 <Route path="/admin/accounts" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/admins" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/seo" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+                <Route path="/admin/upload" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
 
                 {/* Catch-all: authenticated or 404 depending on setup state */}
                 <Route path="/*" element={<RouteGuard />} />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { useAppStore } from '../../lib/store'
-import { Loader2, Play, Pause, RefreshCw, Eye, CheckCircle, XCircle, AlertCircle, Clock, Download, Upload, Info, AlertTriangle } from 'lucide-react'
+import { Loader2, Play, Pause, RefreshCw, Eye, CheckCircle, XCircle, AlertCircle, Clock, Download, Upload, Info, AlertTriangle, Search, ChevronDown, ChevronUp, FileText, SlidersHorizontal } from 'lucide-react'
 
 interface ImportJob {
   id: number
@@ -61,7 +61,7 @@ function StatusBadge({ status }: { status: string }) {
   const Icon = status && STATUS_ICONS[status]
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[status]}`}>
-      {Icon ? <Icon className="w-3 h-3 inline mr-1" /> : null}
+      {Icon ? <Icon className={`w-3 h-3 inline mr-1 ${status === 'running' ? 'animate-spin' : ''}`} /> : null}
       {status.toUpperCase()}
     </span>
   )
@@ -79,6 +79,7 @@ export default function ChannelImportPanel() {
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [previewResult, setPreviewResult] = useState<{scanned: number, estimated_matches: number} | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [jobStartTime, setJobStartTime] = useState<Date | null>(null) // For ETA calculation
   
   // Form state
   const [fileTypes, setFileTypes] = useState({ video: true, audio: true, document: true, image: true })
@@ -86,6 +87,12 @@ export default function ChannelImportPanel() {
   const [dateTo, setDateTo] = useState('')
   const [userAccountId, setUserAccountId] = useState<number | null>(null)
   const [targetFolderId, setTargetFolderId] = useState<number | null>(null)
+  // Advanced filters
+  const [minFileSize, setMinFileSize] = useState('')
+  const [maxFileSize, setMaxFileSize] = useState('')
+  const [filenameRegex, setFilenameRegex] = useState('')
+  const [captionRegex, setCaptionRegex] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   // Fetch data
   const { data: jobsData, refetch: _refetchJobs } = useQuery({
@@ -161,6 +168,10 @@ export default function ChannelImportPanel() {
     date_to: dateTo || null,
     user_account_id: userAccountId,
     target_folder_id: targetFolderId,
+    min_file_size: minFileSize ? parseInt(minFileSize) : null,
+    max_file_size: maxFileSize ? parseInt(maxFileSize) : null,
+    filename_regex: filenameRegex || null,
+    caption_regex: captionRegex || null,
   })
 
   const handlePreview = () => {
@@ -211,8 +222,7 @@ export default function ChannelImportPanel() {
       <div className="glass-card p-4 space-y-4 border-primary-500/20">
         <h3 className="font-bold text-lg">Import Configuration</h3>
         
-        {/*
-              File Types */}
+        {/* File Types */}
         <div>
           <label className="text-sm text-dark-400 block mb-2">File Types</label>
           <div className="flex flex-wrap gap-3">
@@ -296,6 +306,81 @@ export default function ChannelImportPanel() {
           </label>
         </div>
 
+        {/* Advanced Filters (collapsible) */}
+        <div className="border-t border-white/10 pt-4">
+          <button
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center gap-2 text-sm text-dark-400 hover:text-white transition-colors"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>Advanced Filters</span>
+            {showAdvanced ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+          </button>
+          {showAdvanced && (
+            <div className="mt-4 space-y-4 pt-4 border-t border-white/5">
+              {/* File Size Range */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-dark-400 flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Min File Size (bytes)
+                  </span>
+                  <input
+                    type="number"
+                    value={minFileSize}
+                    onChange={(e) => setMinFileSize(e.target.value)}
+                    placeholder="e.g. 1048576 (1MB)"
+                    className="input"
+                    min="0"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm text-dark-400 flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Max File Size (bytes)
+                  </span>
+                  <input
+                    type="number"
+                    value={maxFileSize}
+                    onChange={(e) => setMaxFileSize(e.target.value)}
+                    placeholder="e.g. 104857600 (100MB)"
+                    className="input"
+                    min="0"
+                  />
+                </label>
+              </div>
+
+              {/* Filename Regex */}
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-dark-400 flex items-center gap-1">
+                  <Search className="w-3 h-3" /> Filename Regex
+                </span>
+                <input
+                  type="text"
+                  value={filenameRegex}
+                  onChange={(e) => setFilenameRegex(e.target.value)}
+                  placeholder="e.g. .*\\.(mp4|mkv)$"
+                  className="input font-mono text-sm"
+                />
+                <p className="text-xs text-dark-400">JavaScript regex pattern to match filename</p>
+              </label>
+
+              {/* Caption Regex */}
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-dark-400 flex items-center gap-1">
+                  <Search className="w-3 h-3" /> Caption Regex
+                </span>
+                <input
+                  type="text"
+                  value={captionRegex}
+                  onChange={(e) => setCaptionRegex(e.target.value)}
+                  placeholder="e.g. .*teleplay.*"
+                  className="input font-mono text-sm"
+                />
+                <p className="text-xs text-dark-400">JavaScript regex pattern to match message caption</p>
+              </label>
+            </div>
+          )}
+        </div>
+
         {/* Actions */}
         <div className="flex flex-wrap gap-2 pt-2 border-t border-white/10">
           <button
@@ -330,71 +415,116 @@ export default function ChannelImportPanel() {
         )}
       </div>
 
-      {/* Active Job Panel */}
-      {activeJob && (
-        <div className="glass-card p-4 space-y-4 border-primary-500/30">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-lg">Active Import Job #{activeJob.id}</h3>
-            <StatusBadge status={activeJob.status} />
-          </div>
+      {/* Active Job Panel - show selected job from polling (running) or jobsData (completed/failed) */}
+      {(() => {
+        // For running jobs, use polling data; for others, use jobsData as fallback
+        const displayJob = activeJob || (activeJobId ? jobsData?.jobs?.find((j: ImportJob) => j.id === activeJobId) : null);
+        
+        if (!displayJob) return null;
+        
+        // Track start time for ETA calculation (only for running jobs)
+        useEffect(() => {
+          if (displayJob.status === 'running' && !jobStartTime) {
+            setJobStartTime(new Date());
+          } else if (displayJob.status !== 'running') {
+            setJobStartTime(null);
+          }
+        }, [displayJob.status, displayJob.id]);
 
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Scanned</span>
-              <span className="font-mono">{formatNumber(activeJob.total_scanned)}</span>
-            </div>
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary-500 transition-all duration-300"
-                style={{ width: activeJob.total_scanned > 0 ? Math.min(100, (activeJob.total_imported / activeJob.total_scanned) * 100) + '%' : '0%' }}
-              />
-            </div>
-          </div>
+        // Calculate ETA for running jobs
+        const getETA = () => {
+          if (displayJob.status !== 'running' || !jobStartTime || displayJob.total_scanned === 0) return null;
+          const elapsedSeconds = (Date.now() - jobStartTime.getTime()) / 1000;
+          const rate = displayJob.total_scanned / elapsedSeconds; // messages per second
+          if (rate === 0) return null;
+          // Estimate total messages (we don't know exact total, so use scanned as baseline)
+          // For simplicity, estimate based on current rate and remaining in current batch
+          const estimatedTotal = displayJob.total_scanned + (displayJob.total_scanned * 0.5); // rough estimate
+          const remaining = estimatedTotal - displayJob.total_scanned;
+          const etaSeconds = remaining / rate;
+          return etaSeconds;
+        };
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="glass-card p-3 text-center">
-              <div className="text-2xl font-bold text-green-400">{formatNumber(activeJob.total_imported)}</div>
-              <div className="text-xs text-dark-400">Imported</div>
+        const eta = getETA();
+        const formatETA = (seconds: number) => {
+          if (seconds < 60) return `${Math.round(seconds)}s`;
+          if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+          return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
+        };
+        
+        return (
+          <div className="glass-card p-4 space-y-4 border-primary-500/30">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Import Job #{displayJob.id}</h3>
+              <StatusBadge status={displayJob.status} />
             </div>
-            <div className="glass-card p-3 text-center">
-              <div className="text-2xl font-bold text-yellow-400">{formatNumber(activeJob.total_skipped)}</div>
-              <div className="text-xs text-dark-400">Skipped (dup)</div>
-            </div>
-            <div className="glass-card p-3 text-center">
-              <div className="text-2xl font-bold text-red-400">{formatNumber(activeJob.total_errors)}</div>
-              <div className="text-xs text-dark-400">Errors</div>
-            </div>
-            <div className="glass-card p-3 text-center">
-              <div className="text-2xl font-bold text-blue-400">{formatNumber(activeJob.total_scanned)}</div>
-              <div className="text-xs text-dark-400">Total Scanned</div>
-            </div>
-          </div>
 
-          {/* Job Details */}
-          <div className="text-sm text-dark-400 space-y-1 font-mono">
-            <div>Started: {formatDate(activeJob.started_at)}</div>
-            {activeJob.finished_at && <div>Finished: {formatDate(activeJob.finished_at)}</div>}
-            {activeJob.last_message_id && <div>Last Message ID: {activeJob.last_message_id}</div>}
-            {activeJob.error_message && (
-              <div className="text-red-400">Error: {activeJob.error_message}</div>
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Scanned</span>
+                <span className="font-mono">{formatNumber(displayJob.total_scanned)}</span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary-500 transition-all duration-300"
+                  style={{ width: displayJob.total_scanned > 0 ? Math.min(100, (displayJob.total_imported / displayJob.total_scanned) * 100) + '%' : '0%' }}
+                />
+              </div>
+              {/* ETA Display */}
+              {eta && jobStartTime && (
+                <div className="text-xs text-yellow-400 flex items-center gap-1">
+                  <span>⏱ ~{formatETA(eta)} remaining</span>
+                  <span className="text-gray-500">|</span>
+                  <span>{(displayJob.total_scanned / ((Date.now() - jobStartTime.getTime()) / 1000)).toFixed(1)} msg/s</span>
+                </div>
+              )}
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-green-400">{formatNumber(displayJob.total_imported)}</div>
+                <div className="text-xs text-dark-400">Imported</div>
+              </div>
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-yellow-400">{formatNumber(displayJob.total_skipped)}</div>
+                <div className="text-xs text-dark-400">Skipped (dup)</div>
+              </div>
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-red-400">{formatNumber(displayJob.total_errors)}</div>
+                <div className="text-xs text-dark-400">Errors</div>
+              </div>
+              <div className="glass-card p-3 text-center">
+                <div className="text-2xl font-bold text-blue-400">{formatNumber(displayJob.total_scanned)}</div>
+                <div className="text-xs text-dark-400">Total Scanned</div>
+              </div>
+            </div>
+
+            {/* Job Details */}
+            <div className="text-sm text-dark-400 space-y-1 font-mono">
+              <div>Started: {formatDate(displayJob.started_at)}</div>
+              {displayJob.finished_at && <div>Finished: {formatDate(displayJob.finished_at)}</div>}
+              {displayJob.last_message_id && <div>Last Message ID: {displayJob.last_message_id}</div>}
+              {displayJob.error_message && (
+                <div className="text-red-400">Error: {displayJob.error_message}</div>
+              )}
+            </div>
+
+            {/* Cancel Button - only for running jobs */}
+            {displayJob.status === 'running' && (
+              <button
+                onClick={() => cancelMut.mutate(displayJob.id)}
+                disabled={cancelMut.isPending}
+                className="btn-secondary w-full"
+              >
+                <Pause className="w-4 h-4 mr-1" />
+                {cancelMut.isPending ? 'Cancelling...' : 'Cancel Job'}
+              </button>
             )}
           </div>
-
-          {/* Cancel Button */}
-          {activeJob.status === 'running' && (
-            <button
-              onClick={() => cancelMut.mutate(activeJob.id)}
-              disabled={cancelMut.isPending}
-              className="btn-secondary w-full"
-            >
-              <Pause className="w-4 h-4 mr-1" />
-              {cancelMut.isPending ? 'Cancelling...' : 'Cancel Job'}
-            </button>
-          )}
-        </div>
-      )}
+        )
+      })()}
 
       {/* Jobs History */}
       <div className="glass-card p-4">

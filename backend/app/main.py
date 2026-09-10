@@ -192,6 +192,28 @@ async def lifespan(app: FastAPI):
         from .pool_manager import load_user_accounts
         await load_user_accounts()
 
+    # Auto-resume stuck import jobs (status=running but no finished_at)
+    # This handles server restarts where jobs were interrupted
+    if is_valid and decryption_ok:
+        from .models import ChannelImportJob
+        from .services import run_import_job
+        from .database import async_session
+        async with async_session() as db:
+            stuck_jobs = await db.execute(
+                select(ChannelImportJob).where(
+                    ChannelImportJob.status == "running",
+                    ChannelImportJob.finished_at.is_(None)
+                )
+            )
+            for job in stuck_jobs.scalars().all():
+                logger.info(f"Auto-resuming stuck import job {job.id} (was running, no finished_at)")
+                # Mark as pending so run_import_job will pick it up and resume from last_message_id
+                job.status = "pending"
+                await db.commit()
+                # Trigger background task
+                import asyncio
+                asyncio.create_task(run_import_job(job.id))
+
     # Check if DB data is readable; log clear warning if decryption fails
     if decryption_ok:
         from .encryption import decrypt as _dec

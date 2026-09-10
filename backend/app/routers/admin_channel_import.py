@@ -5,9 +5,9 @@ Admin-only endpoints for managing channel import jobs.
 import asyncio
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,33 @@ from ..config import get_settings
 router = APIRouter(prefix="/admin/channel-import", tags=["Admin Channel Import"])
 settings = get_settings()
 
+# WebSocket connection manager for real-time progress updates
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[int, List[WebSocket]] = {}
+    
+    async def connect(self, websocket: WebSocket, job_id: int):
+        await websocket.accept()
+        if job_id not in self.active_connections:
+            self.active_connections[job_id] = []
+        self.active_connections[job_id].append(websocket)
+    
+    def disconnect(self, websocket: WebSocket, job_id: int):
+        if job_id in self.active_connections:
+            self.active_connections[job_id].remove(websocket)
+            if not self.active_connections[job_id]:
+                del self.active_connections[job_id]
+    
+    async def broadcast(self, job_id: int, message: dict):
+        if job_id in self.active_connections:
+            for connection in self.active_connections[job_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+manager = ConnectionManager()
+
 
 class StartImportRequest(BaseModel):
     file_types: List[str] = Field(default=["video", "audio", "document", "image"])
@@ -28,6 +55,11 @@ class StartImportRequest(BaseModel):
     date_to: Optional[datetime] = None
     target_folder_id: Optional[int] = None
     user_account_id: Optional[int] = None
+    # Advanced filters
+    min_file_size: Optional[int] = Field(default=None, ge=0, description="Minimum file size in bytes")
+    max_file_size: Optional[int] = Field(default=None, ge=0, description="Maximum file size in bytes")
+    filename_regex: Optional[str] = Field(default=None, description="Regex pattern to match filename")
+    caption_regex: Optional[str] = Field(default=None, description="Regex pattern to match caption")
 
 
 class ImportJobResponse(BaseModel):
@@ -60,6 +92,11 @@ class PreviewRequest(BaseModel):
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
     user_account_id: Optional[int] = None
+    # Advanced filters
+    min_file_size: Optional[int] = Field(default=None, ge=0, description="Minimum file size in bytes")
+    max_file_size: Optional[int] = Field(default=None, ge=0, description="Maximum file size in bytes")
+    filename_regex: Optional[str] = Field(default=None, description="Regex pattern to match filename")
+    caption_regex: Optional[str] = Field(default=None, description="Regex pattern to match caption")
 
 
 def _job_to_response(job: ChannelImportJob, admin: Optional[AdminUser] = None) -> ImportJobResponse:
@@ -113,6 +150,20 @@ async def start_import(
         if not account.is_active:
             raise HTTPException(status_code=400, detail="Selected user account is not active")
     
+    # Check for concurrent jobs on the same account
+    if payload.user_account_id:
+        existing_job = await db.execute(
+            select(ChannelImportJob).where(
+                ChannelImportJob.user_account_id == payload.user_account_id,
+                ChannelImportJob.status.in_(["pending", "running"])
+            )
+        )
+        if existing_job.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400, 
+                detail="This account is already running an import job. Wait for it to complete or cancel it first."
+            )
+    
     # Verify target_folder_id if provided
     if payload.target_folder_id:
         folder = (await db.execute(select(Folder).where(Folder.id == payload.target_folder_id))).scalar_one_or_none()
@@ -128,6 +179,10 @@ async def start_import(
         date_to=payload.date_to,
         target_folder_id=payload.target_folder_id,
         user_account_id=payload.user_account_id,
+        min_file_size=payload.min_file_size,
+        max_file_size=payload.max_file_size,
+        filename_regex=payload.filename_regex,
+        caption_regex=payload.caption_regex,
     )
     db.add(job)
     await db.commit()
@@ -228,6 +283,10 @@ async def preview_import_endpoint(
         file_types=payload.file_types,
         date_from=payload.date_from,
         date_to=payload.date_to,
+        min_file_size=payload.min_file_size,
+        max_file_size=payload.max_file_size,
+        filename_regex=payload.filename_regex,
+        caption_regex=payload.caption_regex,
     )
     
     if "error" in result:
@@ -271,3 +330,49 @@ async def get_available_folders(
         {"id": f.id, "name": f.name, "parent_id": f.parent_id}
         for f in folders
     ]
+
+
+@router.websocket("/jobs/{job_id}/ws")
+async def job_progress_websocket(websocket: WebSocket, job_id: int):
+    """WebSocket endpoint for real-time job progress updates."""
+    # Verify job exists
+    from ..database import async_session
+    from ..models import ChannelImportJob
+    from ..auth import get_current_user_ws
+    
+    async with async_session() as db:
+        job = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
+        job = job.scalar_one_or_none()
+        if not job:
+            await websocket.close(code=4004, reason="Job not found")
+            return
+    
+    await manager.connect(websocket, job_id)
+    try:
+        # Send initial status
+        async with async_session() as db:
+            job = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
+            job = job.scalar_one_or_none()
+            if job:
+                await websocket.send_json({
+                    "type": "status",
+                    "job_id": job.id,
+                    "status": job.status,
+                    "total_scanned": job.total_scanned,
+                    "total_imported": job.total_imported,
+                    "total_skipped": job.total_skipped,
+                    "total_errors": job.total_errors,
+                    "last_message_id": job.last_message_id,
+                })
+        
+        # Keep connection alive and listen for close
+        while True:
+            try:
+                data = await websocket.receive_text()
+                # Handle ping/pong or client messages if needed
+            except WebSocketDisconnect:
+                break
+    except Exception:
+        pass
+    finally:
+        manager.disconnect(websocket, job_id)

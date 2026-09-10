@@ -66,12 +66,97 @@ def extract_file_info(media: Any, file_type: str) -> Dict[str, Any]:
     return file_info
 
 
+def parse_audio_metadata(filename: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Parse artist and album from audio filename.
+    Supports patterns like:
+    - "Artist - Title.mp3"
+    - "Artist - Album - Title.mp3"
+    - "Artist - Title (Album).mp3"
+    Returns (artist, album) or (None, None) if not parseable.
+    """
+    import re
+    name = filename.rsplit('.', 1)[0]  # Remove extension
+    
+    # Pattern 1: "Artist - Album - Title"
+    match = re.match(r'^(.+?)\s*-\s*(.+?)\s*-\s*(.+)$', name)
+    if match:
+        artist, album, _ = match.groups()
+        return artist.strip(), album.strip()
+    
+    # Pattern 2: "Artist - Title (Album)"
+    match = re.match(r'^(.+?)\s*-\s*(.+?)\s*\((.+)\)$', name)
+    if match:
+        artist, _, album = match.groups()
+        return artist.strip(), album.strip()
+    
+    # Pattern 3: "Artist - Title"
+    match = re.match(r'^(.+?)\s*-\s*(.+)$', name)
+    if match:
+        artist, _ = match.groups()
+        return artist.strip(), None
+    
+    return None, None
+
+
+async def get_or_create_audio_folder(
+    db: AsyncSession,
+    user_id: int,
+    artist: Optional[str],
+    album: Optional[str]
+) -> Optional[int]:
+    """
+    Get or create folder structure for audio file: /Artist/Album/
+    Returns folder_id for the deepest folder, or None if no artist/album.
+    """
+    if not artist:
+        return None
+    
+    from sqlalchemy import select
+    from ..models import Folder
+    
+    # Find or create Artist folder
+    artist_folder = await db.execute(
+        select(Folder).where(
+            Folder.user_id == user_id,
+            Folder.name == artist,
+            Folder.parent_id.is_(None)
+        )
+    )
+    artist_folder = artist_folder.scalar_one_or_none()
+    
+    if not artist_folder:
+        artist_folder = Folder(user_id=user_id, name=artist)
+        db.add(artist_folder)
+        await db.flush()
+    
+    if not album:
+        return artist_folder.id
+    
+    # Find or create Album folder under Artist
+    album_folder = await db.execute(
+        select(Folder).where(
+            Folder.user_id == user_id,
+            Folder.name == album,
+            Folder.parent_id == artist_folder.id
+        )
+    )
+    album_folder = album_folder.scalar_one_or_none()
+    
+    if not album_folder:
+        album_folder = Folder(user_id=user_id, name=album, parent_id=artist_folder.id)
+        db.add(album_folder)
+        await db.flush()
+    
+    return album_folder.id
+
+
 async def update_job_progress(
     db: AsyncSession,
     job_id: int,
     **kwargs
 ) -> None:
-    """Update job progress fields."""
+    """Update job progress fields and broadcast via WebSocket."""
     from sqlalchemy import update
     await db.execute(
         update(ChannelImportJob)
@@ -79,6 +164,30 @@ async def update_job_progress(
         .values(**kwargs)
     )
     await db.commit()
+    
+    # Broadcast progress via WebSocket
+    try:
+        from ..routers.admin_channel_import import manager
+        # Fetch updated job for broadcast
+        from ..models import ChannelImportJob
+        from ..database import async_session
+        async with async_session() as ws_db:
+            job = await ws_db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
+            job = job.scalar_one_or_none()
+            if job:
+                await manager.broadcast(job_id, {
+                    "type": "progress",
+                    "job_id": job.id,
+                    "status": job.status,
+                    "total_scanned": job.total_scanned,
+                    "total_imported": job.total_imported,
+                    "total_skipped": job.total_skipped,
+                    "total_errors": job.total_errors,
+                    "last_message_id": job.last_message_id,
+                    "error_message": job.error_message,
+                })
+    except Exception:
+        pass  # Don't fail if broadcast fails
 
 
 async def run_import_job(job_id: int) -> None:
@@ -164,6 +273,28 @@ async def run_import_job(job_id: int) -> None:
         
         target_folder_id = job.target_folder_id
         
+        # Advanced filters
+        min_file_size = job.min_file_size
+        max_file_size = job.max_file_size
+        filename_regex = job.filename_regex
+        caption_regex = job.caption_regex
+        
+        # Compile regex patterns if provided
+        filename_pattern = None
+        caption_pattern = None
+        if filename_regex:
+            import re
+            try:
+                filename_pattern = re.compile(filename_regex)
+            except re.error:
+                logger.warning(f"Invalid filename_regex: {filename_regex}")
+        if caption_regex:
+            import re
+            try:
+                caption_pattern = re.compile(caption_regex)
+            except re.error:
+                logger.warning(f"Invalid caption_regex: {caption_regex}")
+        
         # Resume from last_message_id if available (for FloodWait recovery or server restart)
         offset_id = job.last_message_id
         offset_date = job.date_to if job.date_to else None
@@ -177,97 +308,163 @@ async def run_import_job(job_id: int) -> None:
             errors = job.total_errors or 0
             last_msg_id = job.last_message_id
             
-            # Iterate channel history with resume support
-            async for message in client.get_chat_history(storage_channel_id, offset_date=offset_date, offset_id=offset_id):
-                # Check if job was cancelled (every 25 iterations to reduce DB load)
-                if scanned % 25 == 0:
-                    job_check = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
-                    current_job = job_check.scalar_one_or_none()
-                    if not current_job or current_job.status == "cancelled":
-                        logger.info(f"Job {job_id} cancelled during execution")
-                        break
-                
-                last_msg_id = message.id
-                scanned += 1
-                
-                # Check date range
-                if date_from and message.date < date_from:
-                    # We've gone past the date range (messages are in reverse chronological order)
-                    break
-                
-                if date_to and message.date > date_to:
-                    continue
-                
-                # Check media type
-                media_info = get_media_from_message(message)
-                if not media_info:
-                    continue
-                
-                media, file_type = media_info
-                if file_type not in allowed_types:
-                    continue
-                
-                # Check deduplication by channel_message_id OR file_unique_id
-                existing = await db.execute(
-                    select(File).where(
-                        (File.channel_message_id == message.id) | 
-                        (File.file_unique_id == media.file_unique_id)
-                    )
-                )
-                if existing.scalar_one_or_none():
-                    skipped += 1
-                    continue
-                
-                try:
-                    # Extract file info
-                    file_info = extract_file_info(media, file_type)
-                    
-                    # Create file record
-                    new_file = File(
-                        user_id=sys_user.id,
-                        folder_id=target_folder_id,
-                        channel_message_id=message.id,
-                        file_type=file_type,
-                        **file_info
-                    )
-                    db.add(new_file)
+            # Batch commit buffer
+            batch_files: List[File] = []
+            BATCH_SIZE = 50
+            
+            async def flush_batch():
+                nonlocal imported
+                if batch_files:
+                    db.add_all(batch_files)
                     await db.commit()
-                    imported += 1
+                    imported += len(batch_files)
+                    batch_files.clear()
+            
+            # Create iterator for channel history
+            history_iter = client.get_chat_history(storage_channel_id, offset_date=offset_date, offset_id=offset_id)
+            
+            # Use while True loop to handle FloodWait without recursion
+            while True:
+                try:
+                    async for message in history_iter:
+                        # Check if job was cancelled (every 25 iterations to reduce DB load)
+                        if scanned % 25 == 0:
+                            job_check = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
+                            current_job = job_check.scalar_one_or_none()
+                            if not current_job or current_job.status == "cancelled":
+                                logger.info(f"Job {job_id} cancelled during execution")
+                                break
+                        
+                        last_msg_id = message.id
+                        scanned += 1
+                        
+                        # Check date range
+                        if date_from and message.date < date_from:
+                            # We've gone past the date range (messages are in reverse chronological order)
+                            break
+                        
+                        if date_to and message.date > date_to:
+                            continue
+                        
+                        # Check media type
+                        media_info = get_media_from_message(message)
+                        if not media_info:
+                            continue
+                        
+                        media, file_type = media_info
+                        if file_type not in allowed_types:
+                            continue
+                        
+                        # Apply advanced filters
+                        # File size filter
+                        file_size = getattr(media, "file_size", 0) or 0
+                        if min_file_size is not None and file_size < min_file_size:
+                            skipped += 1
+                            continue
+                        if max_file_size is not None and file_size > max_file_size:
+                            skipped += 1
+                            continue
+                        
+                        # Filename regex filter
+                        if filename_pattern:
+                            filename = getattr(media, "file_name", "") or ""
+                            if not filename_pattern.search(filename):
+                                skipped += 1
+                                continue
+                        
+                        # Caption regex filter
+                        if caption_pattern:
+                            caption = getattr(message, "caption", "") or ""
+                            if not caption_pattern.search(caption):
+                                skipped += 1
+                                continue
+                        
+                        # Check deduplication by channel_message_id OR file_unique_id
+                        existing = await db.execute(
+                            select(File).where(
+                                (File.channel_message_id == message.id) | 
+                                (File.file_unique_id == media.file_unique_id)
+                            )
+                        )
+                        if existing.scalar_one_or_none():
+                            skipped += 1
+                            continue
+                        
+                        try:
+                            # Extract file info
+                            file_info = extract_file_info(media, file_type)
+                            
+                            # Determine folder for this file
+                            file_folder_id = target_folder_id
+                            # Auto-categorize audio files if no target folder specified
+                            if file_type == "audio" and not target_folder_id:
+                                filename = file_info.get("file_name", "")
+                                artist, album = parse_audio_metadata(filename)
+                                if artist:
+                                    file_folder_id = await get_or_create_audio_folder(db, sys_user.id, artist, album)
+                            
+                            # Create file record (add to batch)
+                            new_file = File(
+                                user_id=sys_user.id,
+                                folder_id=file_folder_id,
+                                channel_message_id=message.id,
+                                file_type=file_type,
+                                **file_info
+                            )
+                            batch_files.append(new_file)
+                            
+                            # Flush batch if size reached
+                            if len(batch_files) >= BATCH_SIZE:
+                                await flush_batch()
+                            
+                        except Exception as e:
+                            logger.error(f"Error importing message {message.id}: {e}")
+                            errors += 1
+                            # Don't rollback here since we're batching
+                        
+                        # Update progress every 10 messages
+                        if scanned % 10 == 0:
+                            await update_job_progress(db, job_id, 
+                                total_scanned=scanned,
+                                total_imported=imported + len(batch_files),
+                                total_skipped=skipped,
+                                total_errors=errors,
+                                last_message_id=last_msg_id
+                            )
                     
-                except Exception as e:
-                    logger.error(f"Error importing message {message.id}: {e}")
-                    errors += 1
-                    await db.rollback()
-                
-                # Update progress every 10 messages
-                if scanned % 10 == 0:
-                    await update_job_progress(db, job_id, 
-                        total_scanned=scanned,
-                        total_imported=imported,
-                        total_skipped=skipped,
-                        total_errors=errors,
-                        last_message_id=last_msg_id
-                    )
+                    # Flush any remaining batch before completion
+                    await flush_batch()
+                    
+                    # Normal completion (loop finished without break)
+                    break
+                    
+                except FloodWait as e:
+                    logger.warning(f"FloodWait in job {job_id}: sleeping for {e.value}s, will resume from message_id={last_msg_id}")
+                    # Flush current batch before sleep
+                    await flush_batch()
+                    # Update progress with last_message_id before sleep
+                    await update_job_progress(db, job_id, last_message_id=last_msg_id)
+                    await asyncio.sleep(e.value)
+                    # Create new iterator with same offset to continue from where we left off
+                    history_iter = client.get_chat_history(storage_channel_id, offset_date=offset_date, offset_id=last_msg_id)
+                    # Continue the while loop to retry with new iterator
+                    continue
             
-            # Final update
-            await update_job_progress(db, job_id,
-                status="completed",
-                total_scanned=scanned,
-                total_imported=imported,
-                total_skipped=skipped,
-                total_errors=errors,
-                last_message_id=last_msg_id,
-                finished_at=datetime.utcnow()
-            )
-            logger.info(f"Import job {job_id} completed: scanned={scanned}, imported={imported}, skipped={skipped}, errors={errors}")
+            # Final update - only if not cancelled
+            job_check = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
+            current_job = job_check.scalar_one_or_none()
+            if current_job and current_job.status != "cancelled":
+                await update_job_progress(db, job_id,
+                    status="completed",
+                    total_scanned=scanned,
+                    total_imported=imported,
+                    total_skipped=skipped,
+                    total_errors=errors,
+                    last_message_id=last_msg_id,
+                    finished_at=datetime.utcnow()
+                )
+                logger.info(f"Import job {job_id} completed: scanned={scanned}, imported={imported}, skipped={skipped}, errors={errors}")
             
-        except FloodWait as e:
-            logger.warning(f"FloodWait in job {job_id}: sleeping for {e.value}s, will resume from message_id={last_msg_id}")
-            await asyncio.sleep(e.value)
-            # Update progress with last_message_id before resume
-            await update_job_progress(db, job_id, last_message_id=last_msg_id)
-            # Resume from last processed message
-            await run_import_job(job_id)
         except Exception as e:
             logger.error(f"Import job {job_id} failed: {e}")
             await update_job_progress(db, job_id, status="failed", error_message=str(e), finished_at=datetime.utcnow())
@@ -277,7 +474,11 @@ async def preview_import(
     user_account_id: Optional[int],
     file_types: List[str],
     date_from: Optional[datetime],
-    date_to: Optional[datetime]
+    date_to: Optional[datetime],
+    min_file_size: Optional[int] = None,
+    max_file_size: Optional[int] = None,
+    filename_regex: Optional[str] = None,
+    caption_regex: Optional[str] = None,
 ) -> Dict[str, int]:
     """
     Preview import - count messages without importing.
@@ -314,6 +515,22 @@ async def preview_import(
     scanned = 0
     matched = 0
     
+    # Compile regex patterns if provided
+    filename_pattern = None
+    caption_pattern = None
+    if filename_regex:
+        import re
+        try:
+            filename_pattern = re.compile(filename_regex)
+        except re.error:
+            logger.warning(f"Invalid filename_regex: {filename_regex}")
+    if caption_regex:
+        import re
+        try:
+            caption_pattern = re.compile(caption_regex)
+        except re.error:
+            logger.warning(f"Invalid caption_regex: {caption_regex}")
+    
     try:
         async for message in client.get_chat_history(storage_channel_id, offset_date=offset_date, limit=5000):
             if date_from and message.date < date_from:
@@ -325,9 +542,32 @@ async def preview_import(
             if not media_info:
                 continue
             
-            _, file_type = media_info
-            if file_type in file_types:
-                matched += 1
+            media, file_type = media_info
+            if file_type not in file_types:
+                continue
+            
+            # Apply advanced filters
+            file_size = getattr(media, "file_size", 0) or 0
+            if min_file_size is not None and file_size < min_file_size:
+                scanned += 1
+                continue
+            if max_file_size is not None and file_size > max_file_size:
+                scanned += 1
+                continue
+            
+            if filename_pattern:
+                filename = getattr(media, "file_name", "") or ""
+                if not filename_pattern.search(filename):
+                    scanned += 1
+                    continue
+            
+            if caption_pattern:
+                caption = getattr(message, "caption", "") or ""
+                if not caption_pattern.search(caption):
+                    scanned += 1
+                    continue
+            
+            matched += 1
             scanned += 1
             
             if scanned >= 5000:

@@ -379,6 +379,12 @@ class ChannelImportJob(Base):
     target_folder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("folders.id", ondelete="SET NULL"))
     user_account_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_accounts.id", ondelete="SET NULL"))
     
+    # Advanced filters
+    min_file_size: Mapped[Optional[int]] = mapped_column(BigInteger)
+    max_file_size: Mapped[Optional[int]] = mapped_column(BigInteger)
+    filename_regex: Mapped[Optional[str]] = mapped_column(Text)
+    caption_regex: Mapped[Optional[str]] = mapped_column(Text)
+    
     total_scanned: Mapped[int] = mapped_column(Integer, default=0)
     total_imported: Mapped[int] = mapped_column(Integer, default=0)
     total_skipped: Mapped[int] = mapped_column(Integer, default=0)

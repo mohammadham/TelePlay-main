@@ -9,7 +9,8 @@ WORKDIR /web-build
 
 # Copy frontend dependency files
 COPY web/package*.json ./
-RUN npm install
+# Use npm ci if lockfile exists, otherwise fall back to npm install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # Copy frontend source code
 COPY web/ ./

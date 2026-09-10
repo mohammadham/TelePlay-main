@@ -93,7 +93,8 @@ async def lifespan(app: FastAPI):
     logger.info("Encryption key ensured")
 
     # Get async engine for migrations
-    from .database import async_engine
+    from .database import get_engine
+    async_engine = get_engine()
 
     # Run migration from legacy settings
     from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list, migrate_seo_config_ai_description, create_channel_import_jobs_table

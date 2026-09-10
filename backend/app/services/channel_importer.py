@@ -85,6 +85,7 @@ async def run_import_job(job_id: int) -> None:
     """
     Background task to import files from storage channel.
     Uses MTProto user client to iterate channel history.
+    Supports resume from last_message_id on FloodWait or restart.
     """
     session_maker = get_sessionmaker()
     
@@ -141,7 +142,6 @@ async def run_import_job(job_id: int) -> None:
             allowed_types = ["video", "audio", "document", "image"]
         
         # Build date filters
-        offset_date = job.date_to if job.date_to else None
         date_from = job.date_from
         date_to = job.date_to
         
@@ -164,23 +164,28 @@ async def run_import_job(job_id: int) -> None:
         
         target_folder_id = job.target_folder_id
         
-        logger.info(f"Starting import job {job_id} for channel {storage_channel_id}, types={allowed_types}, date_from={date_from}, date_to={date_to}")
+        # Resume from last_message_id if available (for FloodWait recovery or server restart)
+        offset_id = job.last_message_id
+        offset_date = job.date_to if job.date_to else None
+        
+        logger.info(f"Starting import job {job_id} for channel {storage_channel_id}, types={allowed_types}, date_from={date_from}, date_to={date_to}, resume_from={offset_id}")
         
         try:
-            scanned = 0
-            imported = 0
-            skipped = 0
-            errors = 0
-            last_msg_id = None
+            scanned = job.total_scanned or 0
+            imported = job.total_imported or 0
+            skipped = job.total_skipped or 0
+            errors = job.total_errors or 0
+            last_msg_id = job.last_message_id
             
-            # Iterate channel history
-            async for message in client.get_chat_history(storage_channel_id, offset_date=offset_date):
-                # Check if job was cancelled
-                job_check = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
-                current_job = job_check.scalar_one_or_none()
-                if not current_job or current_job.status == "cancelled":
-                    logger.info(f"Job {job_id} cancelled during execution")
-                    break
+            # Iterate channel history with resume support
+            async for message in client.get_chat_history(storage_channel_id, offset_date=offset_date, offset_id=offset_id):
+                # Check if job was cancelled (every 25 iterations to reduce DB load)
+                if scanned % 25 == 0:
+                    job_check = await db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))
+                    current_job = job_check.scalar_one_or_none()
+                    if not current_job or current_job.status == "cancelled":
+                        logger.info(f"Job {job_id} cancelled during execution")
+                        break
                 
                 last_msg_id = message.id
                 scanned += 1
@@ -202,8 +207,13 @@ async def run_import_job(job_id: int) -> None:
                 if file_type not in allowed_types:
                     continue
                 
-                # Check deduplication by channel_message_id
-                existing = await db.execute(select(File).where(File.channel_message_id == message.id))
+                # Check deduplication by channel_message_id OR file_unique_id
+                existing = await db.execute(
+                    select(File).where(
+                        (File.channel_message_id == message.id) | 
+                        (File.file_unique_id == media.file_unique_id)
+                    )
+                )
                 if existing.scalar_one_or_none():
                     skipped += 1
                     continue
@@ -252,9 +262,11 @@ async def run_import_job(job_id: int) -> None:
             logger.info(f"Import job {job_id} completed: scanned={scanned}, imported={imported}, skipped={skipped}, errors={errors}")
             
         except FloodWait as e:
-            logger.warning(f"FloodWait in job {job_id}: sleeping for {e.value}s")
+            logger.warning(f"FloodWait in job {job_id}: sleeping for {e.value}s, will resume from message_id={last_msg_id}")
             await asyncio.sleep(e.value)
-            # Retry once after flood wait
+            # Update progress with last_message_id before resume
+            await update_job_progress(db, job_id, last_message_id=last_msg_id)
+            # Resume from last processed message
             await run_import_job(job_id)
         except Exception as e:
             logger.error(f"Import job {job_id} failed: {e}")

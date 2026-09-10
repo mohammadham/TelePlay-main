@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
-import { Loader2, Play, Pause, RefreshCw, Trash2, Eye, FolderOpen, User, Calendar, CheckCircle, XCircle, AlertCircle, Clock, Download, Upload } from 'lucide-react'
+import { useAppStore } from '../../lib/store'
+import { Loader2, Play, Pause, RefreshCw, Eye, CheckCircle, XCircle, AlertCircle, Clock, Download, Upload, Info, AlertTriangle } from 'lucide-react'
 
 interface ImportJob {
   id: number
@@ -21,6 +22,8 @@ interface ImportJob {
   started_at: string | null
   finished_at: string | null
   created_at: string
+  admin_username?: string
+  admin_first_name?: string
 }
 
 interface UserAccount {
@@ -64,8 +67,15 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+function getAdminDisplayName(job: ImportJob): string {
+  if (job.admin_username) return `@${job.admin_username}`
+  if (job.admin_first_name) return job.admin_first_name
+  return `Admin #${job.admin_id}`
+}
+
 export default function ChannelImportPanel() {
   const qc = useQueryClient()
+  const addToast = useAppStore((s) => s.addToast)
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [previewResult, setPreviewResult] = useState<{scanned: number, estimated_matches: number} | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -78,7 +88,7 @@ export default function ChannelImportPanel() {
   const [targetFolderId, setTargetFolderId] = useState<number | null>(null)
 
   // Fetch data
-  const { data: jobsData, refetch: refetchJobs } = useQuery({
+  const { data: jobsData, refetch: _refetchJobs } = useQuery({
     queryKey: ['admin-channel-import-jobs'],
     queryFn: async () => (await api.get('/admin/channel-import/jobs')).data,
     refetchInterval: 2000,
@@ -112,12 +122,17 @@ export default function ChannelImportPanel() {
       setActiveJobId(job.id)
       qc.invalidateQueries({ queryKey: ['admin-channel-import-jobs'] })
     },
+    onError: (err: any) => {
+      addToast(err.response?.data?.detail || err.message || 'Failed to start import', 'error')
+    },
   })
 
   const previewMut = useMutation({
     mutationFn: async (payload: any) => (await api.post('/admin/channel-import/preview', payload)).data,
     onSuccess: (res) => setPreviewResult(res),
-    onError: (err: any) => alert('Preview failed: ' + err.response?.data?.detail || err.message),
+    onError: (err: any) => {
+      addToast(`Preview failed: ${err.response?.data?.detail || err.message}`, 'error')
+    },
   })
 
   const cancelMut = useMutation({
@@ -125,6 +140,10 @@ export default function ChannelImportPanel() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-channel-import-jobs'] })
       if (activeJobId) refetchActiveJob()
+      addToast('Job cancelled successfully', 'success')
+    },
+    onError: (err: any) => {
+      addToast(`Failed to cancel: ${err.response?.data?.detail || err.message}`, 'error')
     },
   })
 
@@ -145,7 +164,10 @@ export default function ChannelImportPanel() {
   })
 
   const handlePreview = () => {
-    if (!Object.values(fileTypes).some(v => v)) return alert('Select at least one file type')
+    if (!Object.values(fileTypes).some(v => v)) {
+      addToast('Select at least one file type', 'error')
+      return
+    }
     setPreviewLoading(true)
     previewMut.mutate(getPayload(), {
       onSettled: () => setPreviewLoading(false),
@@ -153,13 +175,26 @@ export default function ChannelImportPanel() {
   }
 
   const handleStart = () => {
-    if (!Object.values(fileTypes).some(v => v)) return alert('Select at least one file type')
-    if (!accounts?.length) return alert('No MTProto accounts available. Add one in Accounts panel first.')
+    if (!Object.values(fileTypes).some(v => v)) {
+      addToast('Select at least one file type', 'error')
+      return
+    }
+    if (!accounts?.length) {
+      addToast('No MTProto accounts available. Add one in Accounts panel first.', 'error')
+      return
+    }
     startMut.mutate(getPayload())
   }
 
   const formatDate = (iso: string | null) => iso ? new Date(iso).toLocaleString() : '—'
   const formatNumber = (n: number) => n.toLocaleString()
+
+  // Check if selected account is in flood wait
+  const selectedAccount = accounts?.find((a: UserAccount) => a.id === userAccountId)
+  const isAccountInFloodWait = !!(
+    selectedAccount?.flood_wait_until && 
+    new Date(selectedAccount.flood_wait_until) > new Date()
+  )
 
   return (
     <div className="p-6 space-y-6 max-w-5xl">
@@ -176,15 +211,16 @@ export default function ChannelImportPanel() {
       <div className="glass-card p-4 space-y-4 border-primary-500/20">
         <h3 className="font-bold text-lg">Import Configuration</h3>
         
-        {/* File Types */}
+        {/*
+              File Types */}
         <div>
           <label className="text-sm text-dark-400 block mb-2">File Types</label>
           <div className="flex flex-wrap gap-3">
             {[
-              { key: 'video', label: '🎬 Video', color: 'bg-red-500/20 text-red-400' },
-              { key: 'audio', label: '🎵 Audio', color: 'bg-green-500/20 text-green-400' },
-              { key: 'document', label: '📄 Document', color: 'bg-blue-500/20 text-blue-400' },
-              { key: 'image', label: '🖼 Image', color: 'bg-purple-500/20 text-purple-400' },
+              { key: 'video' as const, label: '🎬 Video', color: 'bg-red-500/20 text-red-400' },
+              { key: 'audio' as const, label: '🎵 Audio', color: 'bg-green-500/20 text-green-400' },
+              { key: 'document' as const, label: '📄 Document', color: 'bg-blue-500/20 text-blue-400' },
+              { key: 'image' as const, label: '🖼 Image', color: 'bg-purple-500/20 text-purple-400' },
             ].map(({ key, label, color }) => (
               <label key={key} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${fileTypes[key] ? color : 'bg-white/5 hover:bg-white/10'}`}>
                 <input
@@ -229,15 +265,21 @@ export default function ChannelImportPanel() {
               value={userAccountId || ''}
               onChange={(e) => setUserAccountId(e.target.value ? parseInt(e.target.value) : null)}
               className="input"
+              disabled={isAccountInFloodWait}
             >
               <option value="">Select account (required)</option>
               {accounts?.map((acc: UserAccount) => (
-                <option key={acc.id} value={acc.id}>
+                <option key={acc.id} value={acc.id} disabled={!!(acc.flood_wait_until && new Date(acc.flood_wait_until) > new Date())}>
                   {acc.name} (@{acc.username || 'no-username'}) — {acc.purpose}
                   {acc.flood_wait_until && new Date(acc.flood_wait_until) > new Date() && ' ⏳ Flood Wait'}
                 </option>
               ))}
             </select>
+            {isAccountInFloodWait && (
+              <p className="text-xs text-yellow-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Selected account is in Flood Wait
+              </p>
+            )}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm text-dark-400">Target Folder (optional)</span>
@@ -266,7 +308,7 @@ export default function ChannelImportPanel() {
           </button>
           <button
             onClick={handleStart}
-            disabled={startMut.isPending || !accounts?.length}
+            disabled={startMut.isPending || !accounts?.length || isAccountInFloodWait}
             className="btn-primary"
           >
             <Play className="w-4 h-4 mr-1" />
@@ -277,9 +319,12 @@ export default function ChannelImportPanel() {
         {/* Preview Result */}
         {previewResult && (
           <div className="glass-card p-3 bg-green-500/10 border-green-500/20">
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-4 text-sm flex-wrap">
               <span><Download className="w-4 h-4 inline mr-1" /> Scanned: <strong>{formatNumber(previewResult.scanned)}</strong></span>
               <span><Upload className="w-4 h-4 inline mr-1" /> Estimated matches: <strong className="text-green-400">{formatNumber(previewResult.estimated_matches)}</strong></span>
+              <span className="text-yellow-400 flex items-center gap-1">
+                <Info className="w-3 h-3" /> Limited to 5000 most recent messages
+              </span>
             </div>
           </div>
         )}
@@ -371,9 +416,11 @@ export default function ChannelImportPanel() {
                     <div className="font-medium truncate">
                       Types: {job.file_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}
                     </div>
-                    <div className="text-dark-400 text-xs">
-                      {job.date_from && `From: ${new Date(job.date_from).toLocaleDateString()}`}{' '}
+                    <div className="text-dark-400 text-xs flex items-center gap-2">
+                      {job.date_from && `From: ${new Date(job.date_from).toLocaleDateString()}`}
                       {job.date_to && `To: ${new Date(job.date_to).toLocaleDateString()}`}
+                      <span className="text-gray-500">|</span>
+                      <span>by {getAdminDisplayName(job)}</span>
                     </div>
                   </div>
                 </div>

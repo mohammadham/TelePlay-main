@@ -390,6 +390,9 @@ class ChannelImportJob(Base):
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
+    # Relationships
+    admin: Mapped["AdminUser"] = relationship(foreign_keys=[admin_id])
+    
     __table_args__ = (
         Index("idx_channel_import_admin_status", admin_id, status),
         Index("idx_channel_import_created", created_at),

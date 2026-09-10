@@ -32,10 +32,10 @@ jobs:
         run: pip install -r requirements-dev.txt
         working-directory: backend
       - name: Run unit tests
-        run: pytest tests/test_auth.py tests/test_encryption.py tests/test_config.py tests/test_security.py -v
+        run: pytest tests/test_auth.py tests/test_encryption.py tests/test_config.py tests/test_security.py -v --cov=app --cov-report=xml
         working-directory: backend
       - name: Run router integration tests
-        run: pytest tests/routers/ -v
+        run: pytest tests/routers/ -v --cov=app --cov-report=xml
         working-directory: backend
       - name: Check syntax
         run: python -m py_compile app/main.py app/models.py app/cache_manager.py

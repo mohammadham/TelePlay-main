@@ -1,39 +1,29 @@
-name: Web CI
+name: Frontend CI
 
 on:
   push:
     branches: [ "master", "feature/music-platform", "feature/video-platform" ]
-    paths: [ "web/**", ".github/workflows/web-ci.yml" ]
+    paths: [ "web/**", "docker-compose.yml", ".github/workflows/web-ci.yml" ]
   pull_request:
     branches: [ "master", "feature/music-platform", "feature/video-platform" ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
-      - name: Install deps
-        run: npm ci
-        working-directory: ./web
-      - name: Build web
-        run: npm run build
-        working-directory: ./web
-      - name: List dist
-        if: always()
-        run: |
-          echo "Listing web/dist:"
-          ls -lh dist 2>&1 | head -30 || echo "no dist"
-          ls -lh ../web/dist 2>&1 | head -30 || true
-          find dist -type f 2>&1 | head -20 || true
-        working-directory: ./web
-      - name: Upload dist
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          name: web-dist-${{ github.run_number }}
-          path: web/dist
-          if-no-files-found: warn
-          retention-days: 7
+          node-version: "20"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web
+      - name: Run tests
+        run: npm test -- --reporter=verbose
+        working-directory: web
+      - name: Build
+        run: npm run build
+        working-directory: web

@@ -5,8 +5,9 @@ Detects existing settings and creates BotConfig, UserAccount, AdminUser records.
 import logging
 from typing import Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy import select, text, inspect
+from sqlalchemy.engine import Connection
 
 from .models import BotConfig, UserAccount, AdminUser, AppSetting, SEOConfig, ChannelImportJob
 from .config import get_settings
@@ -184,55 +185,76 @@ async def ensure_default_bot_config(db: AsyncSession) -> None:
                 logger.error("Failed to create default MAIN bot: %s", e)
 
 
-async def migrate_seo_config_geo_list(db: AsyncSession) -> None:
-    """Ensure geo_list column exists in seo_config table."""
-    try:
-        result = await db.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name = 'seo_config' AND column_name = 'geo_list'"
-        ))
-        exists = result.scalar()
-        if not exists:
-            await db.execute(text(
-                "ALTER TABLE seo_config ADD COLUMN geo_list TEXT DEFAULT '[]'"
-            ))
-            await db.commit()
-            logger.info("Added geo_list column to seo_config")
-    except Exception as e:
-        logger.warning("SEO geo_list migration failed (may already exist): %s", e)
-
-async def migrate_seo_config_ai_description(db: AsyncSession) -> None:
-    """Ensure ai_agent_description column exists in seo_config table."""
-    try:
-        result = await db.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name = 'seo_config' AND column_name = 'ai_agent_description'"
-        ))
-        exists = result.scalar()
-        if not exists:
-            await db.execute(text(
-                "ALTER TABLE seo_config ADD COLUMN ai_agent_description TEXT DEFAULT ''"
-            ))
-            await db.commit()
-            logger.info("Added ai_agent_description column to seo_config")
-    except Exception as e:
-        logger.warning("SEO ai_agent_description migration failed (may already exist): %s", e)
+async def _sync_migrate_seo_config_geo_list(conn: Connection) -> None:
+    """Sync function to add geo_list column to seo_config."""
+    inspector = inspect(conn)
+    if not inspector.has_table("seo_config"):
+        return
+    existing_cols = {c["name"] for c in inspector.get_columns("seo_config")}
+    if "geo_list" not in existing_cols:
+        conn.execute(text("ALTER TABLE seo_config ADD COLUMN geo_list TEXT DEFAULT '[]'"))
+        logger.info("Added geo_list column to seo_config")
 
 
-async def create_channel_import_jobs_table(db: AsyncSession) -> None:
-    """Create channel_import_jobs table if it doesn't exist using SQLAlchemy."""
+async def _sync_migrate_seo_config_ai_description(conn: Connection) -> None:
+    """Sync function to add ai_agent_description column to seo_config."""
+    inspector = inspect(conn)
+    if not inspector.has_table("seo_config"):
+        return
+    existing_cols = {c["name"] for c in inspector.get_columns("seo_config")}
+    if "ai_agent_description" not in existing_cols:
+        conn.execute(text("ALTER TABLE seo_config ADD COLUMN ai_agent_description TEXT DEFAULT ''"))
+        logger.info("Added ai_agent_description column to seo_config")
+
+
+async def migrate_seo_config_geo_list(engine: AsyncEngine) -> None:
+    """Ensure geo_list column exists in seo_config table using run_sync."""
     try:
-        from sqlalchemy import inspect
-        
-        # Get sync engine from async session
-        sync_engine = db.bind.sync_engine
-        inspector = inspect(sync_engine)
-        
-        if not inspector.has_table("channel_import_jobs"):
-            # Create table using SQLAlchemy metadata
-            ChannelImportJob.__table__.create(sync_engine, checkfirst=True)
-            logger.info("Created channel_import_jobs table via SQLAlchemy")
-        else:
-            logger.info("channel_import_jobs table already exists")
+        async with engine.begin() as conn:
+            await conn.run_sync(_sync_migrate_seo_config_geo_list)
     except Exception as e:
-        logger.warning("channel_import_jobs table creation failed: %s", e)
+        logger.warning("SEO geo_list migration failed: %s", e)
+
+
+async def migrate_seo_config_ai_description(engine: AsyncEngine) -> None:
+    """Ensure ai_agent_description column exists in seo_config table using run_sync."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(_sync_migrate_seo_config_ai_description)
+    except Exception as e:
+        logger.warning("SEO ai_agent_description migration failed: %s", e)
+
+
+def _sync_migrate_channel_import_jobs(conn: Connection) -> None:
+    """Sync function to create channel_import_jobs table and add missing columns."""
+    inspector = inspect(conn)
+    
+    # Check if table exists
+    if not inspector.has_table("channel_import_jobs"):
+        # Create table using SQLAlchemy metadata
+        ChannelImportJob.__table__.create(conn, checkfirst=True)
+        logger.info("Created channel_import_jobs table via SQLAlchemy")
+        return
+    
+    # Table exists - check for missing columns
+    existing_cols = {c["name"] for c in inspector.get_columns("channel_import_jobs")}
+    needed_cols = {
+        "min_file_size": "BIGINT",
+        "max_file_size": "BIGINT",
+        "filename_regex": "TEXT",
+        "caption_regex": "TEXT",
+    }
+    
+    for col_name, col_type in needed_cols.items():
+        if col_name not in existing_cols:
+            conn.execute(text(f"ALTER TABLE channel_import_jobs ADD COLUMN {col_name} {col_type}"))
+            logger.info("Added %s column to channel_import_jobs", col_name)
+
+
+async def create_channel_import_jobs_table(engine: AsyncEngine) -> None:
+    """Create channel_import_jobs table and add missing columns using run_sync."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(_sync_migrate_channel_import_jobs)
+    except Exception as e:
+        logger.warning("channel_import_jobs migration failed: %s", e)

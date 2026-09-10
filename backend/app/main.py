@@ -92,15 +92,20 @@ async def lifespan(app: FastAPI):
     await ensure_encryption_key()
     logger.info("Encryption key ensured")
 
+    # Get async engine for migrations
+    from .database import async_engine
+
     # Run migration from legacy settings
     from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list, migrate_seo_config_ai_description, create_channel_import_jobs_table
     from .database import async_session
     async with async_session() as db:
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
-        await migrate_seo_config_geo_list(db)
-        await migrate_seo_config_ai_description(db)
-        await create_channel_import_jobs_table(db)
+    
+    # Run schema migrations with engine (for run_sync support)
+    await migrate_seo_config_geo_list(async_engine)
+    await migrate_seo_config_ai_description(async_engine)
+    await create_channel_import_jobs_table(async_engine)
 
     # Validate startup configuration
     is_valid, missing_fields = await validate_startup_config(settings)
@@ -194,26 +199,47 @@ async def lifespan(app: FastAPI):
 
     # Auto-resume stuck import jobs (status=running but no finished_at)
     # This handles server restarts where jobs were interrupted
+    # Run with delay to let pool fully initialize and avoid AUTH_KEY_DUPLICATED
     if is_valid and decryption_ok:
         from .models import ChannelImportJob
         from .services import run_import_job
         from .database import async_session
         from sqlalchemy import select
-        async with async_session() as db:
-            stuck_jobs = await db.execute(
-                select(ChannelImportJob).where(
-                    ChannelImportJob.status == "running",
-                    ChannelImportJob.finished_at.is_(None)
+        import asyncio
+        
+        async def _auto_resume_jobs():
+            # Wait for pool to fully initialize
+            await asyncio.sleep(5)
+            async with async_session() as db:
+                stuck_jobs = await db.execute(
+                    select(ChannelImportJob).where(
+                        ChannelImportJob.status == "running",
+                        ChannelImportJob.finished_at.is_(None)
+                    )
                 )
-            )
-            for job in stuck_jobs.scalars().all():
-                logger.info(f"Auto-resuming stuck import job {job.id} (was running, no finished_at)")
-                # Mark as pending so run_import_job will pick it up and resume from last_message_id
-                job.status = "pending"
-                await db.commit()
-                # Trigger background task
-                import asyncio
-                asyncio.create_task(run_import_job(job.id))
+                jobs = stuck_jobs.scalars().all()
+                
+                if not jobs:
+                    return
+                
+                # Group by user_account_id to avoid concurrent jobs on same account
+                jobs_by_account = {}
+                for job in jobs:
+                    if job.user_account_id not in jobs_by_account:
+                        jobs_by_account[job.user_account_id] = []
+                    jobs_by_account[job.user_account_id].append(job)
+                
+                for account_id, account_jobs in jobs_by_account.items():
+                    # Only resume the oldest job per account
+                    oldest_job = min(account_jobs, key=lambda j: j.created_at)
+                    logger.info(f"Auto-resuming stuck import job {oldest_job.id} (account_id={account_id}, was running, no finished_at)")
+                    oldest_job.status = "pending"
+                    await db.commit()
+                    # Trigger background task with small delay between accounts
+                    asyncio.create_task(run_import_job(oldest_job.id))
+                    await asyncio.sleep(2)
+        
+        asyncio.create_task(_auto_resume_jobs())
 
     # Check if DB data is readable; log clear warning if decryption fails
     if decryption_ok:

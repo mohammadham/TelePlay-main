@@ -4,7 +4,7 @@
 # ----------------------------
 # Stage 1: Build Frontend
 # ----------------------------
-FROM node:20-alpine as frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /web-build
 
 # Copy frontend dependency files

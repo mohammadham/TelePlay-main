@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, text
 
-from .models import BotConfig, UserAccount, AdminUser, AppSetting, SEOConfig, SEOConfig
+from .models import BotConfig, UserAccount, AdminUser, AppSetting, SEOConfig, ChannelImportJob
 from .config import get_settings
 from .encryption import encrypt
 
@@ -223,7 +223,6 @@ async def create_channel_import_jobs_table(db: AsyncSession) -> None:
     """Create channel_import_jobs table if it doesn't exist using SQLAlchemy."""
     try:
         from sqlalchemy import inspect
-        from ..models import ChannelImportJob
         
         # Get sync engine from async session
         sync_engine = db.bind.sync_engine

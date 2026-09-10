@@ -198,6 +198,7 @@ async def lifespan(app: FastAPI):
         from .models import ChannelImportJob
         from .services import run_import_job
         from .database import async_session
+        from sqlalchemy import select
         async with async_session() as db:
             stuck_jobs = await db.execute(
                 select(ChannelImportJob).where(

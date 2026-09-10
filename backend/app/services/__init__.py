@@ -26,6 +26,7 @@ from .utils import (
     fetch_recent_files,
     fetch_continue_watching_files,
 )
+from .channel_importer import run_import_job, preview_import
 
 __all__ = [
     "TelegramAuthService",
@@ -41,4 +42,6 @@ __all__ = [
     "add_urls_to_file",
     "fetch_recent_files",
     "fetch_continue_watching_files",
+    "run_import_job",
+    "preview_import",
 ]

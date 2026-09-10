@@ -8,18 +8,19 @@ import { useState, useEffect, useRef } from 'react';
 
 // ── Admin route map ──────────────────────────────────────────────────────────
 const ADMIN_ROUTE_MAP: Record<string, { icon: any; label: string; section?: string }> = {
-    '/admin':          { icon: LayoutDashboard, label: 'Overview',  section: 'overview' },
-    '/admin/users':    { icon: Users,          label: 'Users',     section: 'users' },
-    '/admin/files':    { icon: HardDrive,      label: 'Files',     section: 'files' },
-    '/admin/cache':    { icon: Database,       label: 'Cache',     section: 'cache' },
-    '/admin/ads':      { icon: Megaphone,      label: 'Ads',       section: 'ads' },
-    '/admin/system':   { icon: Server,         label: 'System',    section: 'system' },
-    '/admin/settings': { icon: Settings2,      label: 'Settings',  section: 'settings' },
-    '/admin/bots':     { icon: Bot,            label: 'Bots',      section: 'bots' },
-    '/admin/accounts': { icon: UserCog,        label: 'Accounts',  section: 'accounts' },
-    '/admin/admins':   { icon: Crown,          label: 'Admins',    section: 'admins' },
-    '/admin/seo':      { icon: FileText,       label: 'SEO',       section: 'seo' },
-    '/admin/upload':   { icon: Upload,         label: 'Upload',    section: 'upload' },
+    '/admin':              { icon: LayoutDashboard, label: 'Overview',      section: 'overview' },
+    '/admin/users':        { icon: Users,           label: 'Users',         section: 'users' },
+    '/admin/files':        { icon: HardDrive,       label: 'Files',         section: 'files' },
+    '/admin/cache':        { icon: Database,        label: 'Cache',         section: 'cache' },
+    '/admin/ads':          { icon: Megaphone,       label: 'Ads',           section: 'ads' },
+    '/admin/system':       { icon: Server,          label: 'System',        section: 'system' },
+    '/admin/settings':     { icon: Settings2,       label: 'Settings',      section: 'settings' },
+    '/admin/bots':         { icon: Bot,             label: 'Bots',          section: 'bots' },
+    '/admin/accounts':     { icon: UserCog,         label: 'Accounts',      section: 'accounts' },
+    '/admin/admins':       { icon: Crown,           label: 'Admins',        section: 'admins' },
+    '/admin/seo':          { icon: FileText,        label: 'SEO',           section: 'seo' },
+    '/admin/upload':       { icon: Upload,          label: 'Upload',        section: 'upload' },
+    '/admin/channel-import': { icon: Database,      label: 'Channel Import', section: 'channel-import' },
 };
 
 interface Props {

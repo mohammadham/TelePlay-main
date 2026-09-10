@@ -366,6 +366,36 @@ class AdminUser(Base):
 
 # ==================== SECURITY DOMAIN ====================
 
+class ChannelImportJob(Base):
+    """Background job for importing files from storage channel history."""
+    __tablename__ = "channel_import_jobs"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_id: Mapped[int] = mapped_column(ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)  # pending, running, completed, failed, cancelled
+    file_types: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array: ["video", "audio", "document", "image"]
+    date_from: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    date_to: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    target_folder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("folders.id", ondelete="SET NULL"))
+    user_account_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_accounts.id", ondelete="SET NULL"))
+    
+    total_scanned: Mapped[int] = mapped_column(Integer, default=0)
+    total_imported: Mapped[int] = mapped_column(Integer, default=0)
+    total_skipped: Mapped[int] = mapped_column(Integer, default=0)
+    total_errors: Mapped[int] = mapped_column(Integer, default=0)
+    last_message_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        Index("idx_channel_import_admin_status", admin_id, status),
+        Index("idx_channel_import_created", created_at),
+    )
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
     id: Mapped[int] = mapped_column(primary_key=True)

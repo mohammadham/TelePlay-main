@@ -217,3 +217,42 @@ async def migrate_seo_config_ai_description(db: AsyncSession) -> None:
             logger.info("Added ai_agent_description column to seo_config")
     except Exception as e:
         logger.warning("SEO ai_agent_description migration failed (may already exist): %s", e)
+
+
+async def create_channel_import_jobs_table(db: AsyncSession) -> None:
+    """Create channel_import_jobs table if it doesn't exist."""
+    try:
+        # Check if table exists
+        result = await db.execute(text(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_name = 'channel_import_jobs'"
+        ))
+        exists = result.scalar()
+        if not exists:
+            await db.execute(text("""
+                CREATE TABLE channel_import_jobs (
+                    id SERIAL PRIMARY KEY,
+                    admin_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    file_types TEXT NOT NULL,
+                    date_from TIMESTAMP,
+                    date_to TIMESTAMP,
+                    target_folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL,
+                    user_account_id INTEGER REFERENCES user_accounts(id) ON DELETE SET NULL,
+                    total_scanned INTEGER NOT NULL DEFAULT 0,
+                    total_imported INTEGER NOT NULL DEFAULT 0,
+                    total_skipped INTEGER NOT NULL DEFAULT 0,
+                    total_errors INTEGER NOT NULL DEFAULT 0,
+                    last_message_id BIGINT,
+                    error_message TEXT,
+                    started_at TIMESTAMP,
+                    finished_at TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+            """))
+            await db.execute(text("CREATE INDEX idx_channel_import_admin_status ON channel_import_jobs(admin_id, status)"))
+            await db.execute(text("CREATE INDEX idx_channel_import_created ON channel_import_jobs(created_at)"))
+            await db.commit()
+            logger.info("Created channel_import_jobs table")
+    except Exception as e:
+        logger.warning("channel_import_jobs table creation failed (may already exist): %s", e)

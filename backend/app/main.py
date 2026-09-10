@@ -32,6 +32,7 @@ from .routers.admin_admins import router as admin_admins_router
 from .routers.telegram_status import router as telegram_status_router
 from .routers.admin_seo import router as admin_seo_router
 from .routers.admin_upload import router as admin_upload_router
+from .routers.admin_channel_import import router as admin_channel_import_router
 
 try:
     settings = get_settings()
@@ -92,13 +93,14 @@ async def lifespan(app: FastAPI):
     logger.info("Encryption key ensured")
 
     # Run migration from legacy settings
-    from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list, migrate_seo_config_ai_description
+    from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list, migrate_seo_config_ai_description, create_channel_import_jobs_table
     from .database import async_session
     async with async_session() as db:
         await migrate_existing_settings(db)
         await ensure_default_bot_config(db)
         await migrate_seo_config_geo_list(db)
         await migrate_seo_config_ai_description(db)
+        await create_channel_import_jobs_table(db)
 
     # Validate startup configuration
     is_valid, missing_fields = await validate_startup_config(settings)
@@ -333,6 +335,7 @@ app.include_router(admin_admins_router, prefix="/api")
 app.include_router(telegram_status_router, prefix="/api")
 app.include_router(admin_seo_router, prefix="/api")
 app.include_router(admin_upload_router, prefix="/api")
+app.include_router(admin_channel_import_router, prefix="/api")
 
 
 @app.get("/health")

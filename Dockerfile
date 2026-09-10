@@ -9,7 +9,7 @@ WORKDIR /web-build
 
 # Copy frontend dependency files
 COPY web/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy frontend source code
 COPY web/ ./

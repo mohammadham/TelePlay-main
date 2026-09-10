@@ -424,7 +424,7 @@ const PUBLIC_ROUTES = ['/setup', '/login', '/auth'];
 // All valid app routes (pre-setup → redirect to /setup; post-setup → show 404)
 const KNOWN_ROUTES = [
     '/', '/admin', '/admin/cache', '/admin/settings',
-    '/admin/users', '/admin/files', '/admin/ads', '/admin/system', '/admin/bots', '/admin/accounts', '/admin/admins', '/admin/seo',
+    '/admin/users', '/admin/files', '/admin/ads', '/admin/system', '/admin/bots', '/admin/accounts', '/admin/admins', '/admin/seo', '/admin/upload', '/admin/channel-import',
     '/music', '/music/search', '/music/playlists', '/music/playlists/:id', '/music/artists/:id', '/music/downloads', '/music/history', '/my-music',
 ];
 
@@ -525,6 +525,7 @@ function App() {
                 <Route path="/admin/admins" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/seo" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/admin/upload" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+                <Route path="/admin/channel-import" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
 
                 {/* Catch-all: authenticated or 404 depending on setup state */}
                 <Route path="/*" element={<RouteGuard />} />

@@ -5,7 +5,7 @@ Uses MTProto user account to iterate channel messages and save file metadata.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from pyrogram import Client
@@ -22,6 +22,13 @@ from ..services import sanitize_filename
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+def _make_utc(dt: datetime) -> datetime:
+    """Ensure datetime is timezone-aware UTC for safe comparison with pyrogram."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 FILE_TYPE_MAP = {
@@ -339,11 +346,11 @@ async def run_import_job(job_id: int) -> None:
                         scanned += 1
                         
                         # Check date range
-                        if date_from and message.date < date_from:
+                        if date_from and message.date < _make_utc(date_from):
                             # We've gone past the date range (messages are in reverse chronological order)
                             break
                         
-                        if date_to and message.date > date_to:
+                        if date_to and message.date > _make_utc(date_to):
                             continue
                         
                         # Check media type
@@ -547,9 +554,9 @@ async def preview_import(
     
     try:
         async for message in client.get_chat_history(storage_channel_id, offset_date=offset_date, limit=5000):
-            if date_from and message.date < date_from:
+            if date_from and message.date < _make_utc(date_from):
                 break
-            if date_to and message.date > date_to:
+            if date_to and message.date > _make_utc(date_to):
                 continue
             
             media_info = get_media_from_message(message)

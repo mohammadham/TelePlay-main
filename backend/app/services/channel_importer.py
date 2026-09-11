@@ -213,7 +213,7 @@ async def run_import_job(job_id: int) -> None:
         
         # Get storage channel ID
         storage_channel_id = job.storage_channel_id or settings.telegram_storage_channel_id
-        if storage_channel_id <= 0:
+        if not storage_channel_id:
             await update_job_progress(db, job_id, status="failed", error_message="Storage channel not configured", finished_at=datetime.utcnow())
             return
         
@@ -486,7 +486,7 @@ async def preview_import(
     Returns estimated counts.
     """
     storage_channel_id = storage_channel_id or settings.telegram_storage_channel_id
-    if storage_channel_id <= 0:
+    if not storage_channel_id:
         return {"error": "Storage channel not configured"}
     
     # Get user client

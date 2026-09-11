@@ -137,7 +137,7 @@ async def start_import(
     """Start a new channel import job."""
     # Verify storage channel
     storage_channel_id = payload.storage_channel_id or settings.telegram_storage_channel_id
-    if storage_channel_id <= 0:
+    if not storage_channel_id:
         raise HTTPException(status_code=400, detail="Storage channel not configured. Please select a storage channel.")
     
     # Verify at least one user account exists
@@ -280,7 +280,7 @@ async def preview_import_endpoint(
 ):
     """Preview import - estimate counts without importing."""
     storage_channel_id = payload.storage_channel_id or settings.telegram_storage_channel_id
-    if storage_channel_id <= 0:
+    if not storage_channel_id:
         raise HTTPException(status_code=400, detail="Storage channel not configured")
     
     result = await preview_import(
@@ -314,6 +314,8 @@ async def get_available_accounts(
             "id": acc.id,
             "name": acc.name,
             "username": acc.username,
+            "phone": acc.phone,
+            "user_id": acc.user_id,
             "purpose": acc.purpose,
             "is_active": bool(acc.is_active),
             "flood_wait_until": acc.flood_wait_until,

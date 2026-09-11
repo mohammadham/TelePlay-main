@@ -30,6 +30,8 @@ interface UserAccount {
   id: number
   name: string
   username: string | null
+  phone: string
+  user_id: number | null
   purpose: string
   is_active?: boolean
   flood_wait_until: string | null
@@ -345,9 +347,10 @@ export default function ChannelImportPanel() {
               {accounts?.map((acc: UserAccount) => {
                 const inFlood = !!(acc.flood_wait_until && new Date(acc.flood_wait_until) > new Date())
                 const inactive = acc.is_active === false
+                const maskedPhone = acc.phone ? acc.phone.slice(0, 3) + '****' + acc.phone.slice(-4) : ''
                 return (
                   <option key={acc.id} value={acc.id} disabled={inFlood || inactive}>
-                    {acc.name} (@{acc.username || 'no-username'}) — {acc.purpose}
+                    {acc.name} {acc.username && `(@${acc.username})`} {maskedPhone && `· ${maskedPhone}`} [${acc.purpose}]
                     {inactive && ' ⏸ Inactive'}
                     {inFlood && ' ⏳ Flood Wait'}
                   </option>

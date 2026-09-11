@@ -491,25 +491,32 @@ async def preview_import(
     
     # Get user client
     client: Optional[Client] = None
+    print(f"[DEBUG] preview_import: user_account_id={user_account_id}")
     if user_account_id:
         session_maker = get_sessionmaker()
         async with session_maker() as db:
             account_result = await db.execute(select(UserAccount).where(UserAccount.id == user_account_id))
             account = account_result.scalar_one_or_none()
+            print(f"[DEBUG] preview_import: account found={account is not None}, account.user_id={account.user_id if account else 'N/A'}")
             if account:
                 for idx, c in pool_manager.user_pool.items():
                     try:
                         me = await c.get_me()
+                        print(f"[DEBUG] preview_import: checking client {idx}, me.id={me.id}, account.user_id={account.user_id}")
                         if me.id == account.user_id:
                             client = c
+                            print(f"[DEBUG] preview_import: matched client at index {idx}")
                             break
-                    except Exception:
+                    except Exception as e:
+                        print(f"[DEBUG] preview_import: error checking client {idx}: {e}")
                         continue
     
     if not client:
         client = pool_manager.get_user("STORAGE")
+        print(f"[DEBUG] preview_import: fallback client from get_user('STORAGE')={client is not None}, pool size={len(pool_manager.user_pool)}")
     
     if not client:
+        print(f"[DEBUG] preview_import: FINAL - no client found. pool_manager.user_pool size={len(pool_manager.user_pool)}")
         return {"error": "No MTProto user account available"}
     
     offset_date = date_to if date_to else None

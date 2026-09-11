@@ -71,6 +71,29 @@ export default function AccountManager() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({ name: '', phone: '', api_id: '', api_hash: '', purpose: 'STORAGE', is_active: true, two_fa_password: '' })
 
+  // Re-login state
+  const [reloginAccountId, setReloginAccountId] = useState<number | null>(null)
+  const [reloginStep, setReloginStep] = useState<'idle' | 'code' | 'verify'>('idle')
+  const [reloginCodeData, setReloginCodeData] = useState({ phone_code_hash: '', code: '', password: '' })
+
+  const reloginStartMut = useMutation({
+    mutationFn: async (id: number) => (await api.post(`/admin/accounts/${id}/relogin/start`)).data,
+    onSuccess: (res, accountId) => {
+      setReloginCodeData(prev => ({ ...prev, phone_code_hash: res.phone_code_hash }))
+      setReloginStep('code')
+      setReloginAccountId(accountId)
+    }
+  })
+
+  const reloginVerifyMut = useMutation({
+    mutationFn: async ({ accountId, data }: { accountId: number; data: any }) => (await api.post(`/admin/accounts/${accountId}/relogin/verify`, data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-accounts'] })
+      setReloginStep('idle')
+      setReloginAccountId(null)
+    }
+  })
+
   const SkeletonRow = () => (
     <div className="glass-card p-4 animate-pulse space-y-3">
       <div className="flex items-center gap-4">
@@ -127,6 +150,22 @@ export default function AccountManager() {
         </div>
       )}
 
+      {/* Re-login Flow - Step 1: Code Sent */}
+      {reloginStep === 'code' && (
+        <div className="glass-card p-4 space-y-3 border-yellow-500/30">
+          <h3 className="font-bold text-yellow-400">Re-login: Enter Verification Code</h3>
+          <p className="text-sm text-dark-400">A code has been sent to the account's phone number.</p>
+          <label className="flex flex-col gap-1"><span className="text-sm">Code *</span><input value={reloginCodeData.code} onChange={e => setReloginCodeData({...reloginCodeData, code: e.target.value})} placeholder="12345" maxLength={6} className="input text-center tracking-widest" /></label>
+          <label className="flex flex-col gap-1"><span className="text-sm">2FA Password (if enabled)</span><input type="password" value={reloginCodeData.password} onChange={e => setReloginCodeData({...reloginCodeData, password: e.target.value})} placeholder="Optional" className="input" /></label>
+          <div className="flex gap-2">
+            <button onClick={() => reloginVerifyMut.mutate({ accountId: reloginAccountId!, data: { phone_code_hash: reloginCodeData.phone_code_hash, code: reloginCodeData.code, password: reloginCodeData.password || undefined } })} disabled={reloginVerifyMut.isPending || !reloginCodeData.code} className="btn-primary">{reloginVerifyMut.isPending ? 'Verifying...' : 'Verify & Refresh Session'}</button>
+            <button onClick={() => { setReloginStep('idle'); setReloginAccountId(null); }} className="btn-secondary">Cancel</button>
+          </div>
+          {reloginVerifyMut.isError && <div className="text-red-400 text-sm">Error: {reloginVerifyMut.error?.response?.data?.detail || reloginVerifyMut.error?.message}</div>}
+          {reloginStartMut.isError && <div className="text-red-400 text-sm">Error sending code: {reloginStartMut.error?.response?.data?.detail || reloginStartMut.error?.message}</div>}
+        </div>
+      )}
+
       {/* Create Account Form (after successful login) */}
       {showAdd && !loginStep && (
         <div className="glass-card p-4 space-y-3 border-green-500/30">
@@ -177,9 +216,13 @@ export default function AccountManager() {
                   <button onClick={() => setEditingId(null)} className="btn-secondary btn-sm">Cancel</button>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {acc.last_error && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-400" title={acc.last_error}>⚠ Re-login</span>
+                  )}
                   <button onClick={() => { setEditForm({ name: acc.name, phone: acc.phone, api_id: '', api_hash: '', purpose: acc.purpose, is_active: acc.is_active, two_fa_password: '' }); setEditingId(acc.id) }} className="btn-secondary btn-sm">Edit</button>
                   <button onClick={() => healthMut.mutate(acc.id)} disabled={healthMut.isPending} className="btn-primary btn-sm">{healthMut.isPending ? 'Checking...' : 'Health'}</button>
+                  <button onClick={() => reloginStartMut.mutate(acc.id)} disabled={reloginStartMut.isPending} className="btn-secondary btn-sm text-yellow-400 hover:bg-yellow-500/10">Re-login</button>
                   <button onClick={() => { const revoke = confirm('Revoke Telegram session? (Logs out everywhere)'); if (confirm(`Delete account "${acc.name}"?${revoke ? ' Session will be revoked.' : ''}`)) deleteMut.mutate({ id: acc.id, revoke }) }} className="btn-secondary btn-sm text-red-400 hover:bg-red-500/10">Delete</button>
                 </div>
               )}
@@ -202,6 +245,7 @@ export default function AccountManager() {
                 <div>Phone: {acc.phone}</div>
                 <div>Last used: {acc.last_used ? new Date(acc.last_used).toLocaleString() : 'Never'}</div>
                 <div>Created: {new Date(acc.created_at).toLocaleString()}</div>
+                {acc.last_error && <div className="text-yellow-400 mt-1">⚠ {acc.last_error}</div>}
               </div>
             )}
           </div>

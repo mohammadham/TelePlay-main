@@ -309,8 +309,6 @@ async def get_available_accounts(
     """Get available MTProto user accounts for import. Returns all accounts;
     frontend disables inactive/flood-waited ones."""
     accounts = (await db.execute(select(UserAccount).order_by(UserAccount.created_at.desc()))).scalars().all()
-    # Debug: log the number of accounts returned
-    print(f"[DEBUG] get_available_accounts returned {len(accounts)} accounts")
     return [
         {
             "id": acc.id,

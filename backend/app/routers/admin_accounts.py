@@ -79,6 +79,7 @@ class AccountResponse(BaseModel):
     is_active: bool
     flood_wait_until: Optional[datetime] = None
     last_used: Optional[datetime] = None
+    last_error: Optional[str] = None
     created_at: datetime
     created_by: Optional[int] = None
 
@@ -101,6 +102,23 @@ class AccountLoginVerifyResponse(BaseModel):
     has_2fa: bool = False
     error: Optional[str] = None
     message: Optional[str] = None
+
+
+class AccountReloginStartResponse(BaseModel):
+    success: bool
+    phone_code_hash: Optional[str] = None
+    error: Optional[str] = None
+    message: Optional[str] = None
+
+
+class AccountReloginVerifyResponse(BaseModel):
+    success: bool
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    has_2fa: bool = False
+    error: Optional[str] = None
+    message: Optional[str] = None
+    is_session_updated: bool = False
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────
@@ -168,6 +186,103 @@ async def verify_account_login(
         has_2fa=result.has_2fa,
         error=result.error,
         message=result.message,
+    )
+
+
+@router.post("/{account_id}/relogin/start", response_model=AccountReloginStartResponse)
+async def relogin_account_start(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: AdminUser = Depends(require_admin),
+):
+    """Start re-login flow for an existing account to refresh its session."""
+    result = await db.execute(select(UserAccount).where(UserAccount.id == account_id))
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    if not account.phone:
+        raise HTTPException(400, "Account has no phone number configured")
+
+    try:
+        api_hash = decrypt(account.api_hash_encrypted)
+    except Exception:
+        raise HTTPException(400, "Failed to decrypt account API hash")
+
+    result = await telegram_auth_service.send_code(
+        phone=account.phone,
+        api_id=account.api_id,
+        api_hash=api_hash,
+    )
+
+    return AccountReloginStartResponse(
+        success=result.success,
+        phone_code_hash=result.phone_code_hash,
+        error=result.error,
+        message=result.message,
+    )
+
+
+@router.post("/{account_id}/relogin/verify", response_model=AccountReloginVerifyResponse)
+async def relogin_account_verify(
+    account_id: int,
+    payload: AccountLoginVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: AdminUser = Depends(require_admin),
+):
+    """Complete re-login flow and update the account's session."""
+    result = await db.execute(select(UserAccount).where(UserAccount.id == account_id))
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    if not account.phone:
+        raise HTTPException(400, "Account has no phone number configured")
+
+    try:
+        api_hash = decrypt(account.api_hash_encrypted)
+    except Exception:
+        raise HTTPException(400, "Failed to decrypt account API hash")
+
+    result = await telegram_auth_service.verify_code(
+        phone=account.phone,
+        api_id=account.api_id,
+        api_hash=api_hash,
+        phone_code_hash=payload.phone_code_hash,
+        code=payload.code,
+        password=payload.password,
+    )
+
+    if not result.success or not result.session_string:
+        return AccountReloginVerifyResponse(
+            success=False,
+            error=result.error,
+            message=result.message,
+        )
+
+    # Update account with new session
+    account.session_string_encrypted = encrypt(result.session_string)
+    if result.user_id:
+        account.user_id = result.user_id
+    if result.username:
+        account.username = result.username
+    account.is_active = True
+    account.last_error = None
+
+    await db.commit()
+    await db.refresh(account)
+
+    # Remove old client from pool and load new one
+    await session_manager.remove_account_from_pool(account.id)
+    if account.is_active:
+        await session_manager.load_account_to_pool(account)
+
+    return AccountReloginVerifyResponse(
+        success=True,
+        user_id=result.user_id,
+        username=result.username,
+        has_2fa=result.has_2fa,
+        is_session_updated=True,
     )
 
 
@@ -358,18 +473,36 @@ async def check_account_health(
         raise HTTPException(404, "Account not found")
 
     try:
-        from ..patch import Client
-        session_str = decrypt(account.session_string_encrypted)
-        api_hash = decrypt(account.api_hash_encrypted)
+        # First, try to find existing client in pool by user_id
+        from ..pool_manager import pool_manager
+        client = None
+        for idx, c in pool_manager.user_pool.items():
+            try:
+                me = await c.get_me()
+                if me.id == account.user_id:
+                    client = c
+                    break
+            except Exception:
+                continue
 
-        client = Client(
-            f"health_{account.name}",
-            api_id=account.api_id,
-            api_hash=api_hash,
-            session_string=session_str,
-            in_memory=True,
-        )
-        await client.start()
+        if not client:
+            # Fallback: create temporary client for health check
+            from ..patch import Client
+            session_str = decrypt(account.session_string_encrypted)
+            api_hash = decrypt(account.api_hash_encrypted)
+
+            client = Client(
+                f"health_{account.name}",
+                api_id=account.api_id,
+                api_hash=api_hash,
+                session_string=session_str,
+                in_memory=True,
+            )
+            await client.start()
+            is_temporary = True
+        else:
+            is_temporary = False
+
         me = await client.get_me()
 
         # Check flood wait
@@ -379,7 +512,8 @@ async def check_account_health(
             if account.flood_wait_until > dt.utcnow():
                 flood_wait = int((account.flood_wait_until - dt.utcnow()).total_seconds())
 
-        await client.stop()
+        if is_temporary:
+            await client.stop()
 
         return {
             "ok": True,

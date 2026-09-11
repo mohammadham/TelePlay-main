@@ -225,6 +225,26 @@ async def migrate_seo_config_ai_description(engine: AsyncEngine) -> None:
         logger.warning("SEO ai_agent_description migration failed: %s", e)
 
 
+def _sync_migrate_user_account_last_error(conn: Connection) -> None:
+    """Sync function to add last_error column to user_accounts table."""
+    inspector = inspect(conn)
+    if not inspector.has_table("user_accounts"):
+        return
+    existing_cols = {c["name"] for c in inspector.get_columns("user_accounts")}
+    if "last_error" not in existing_cols:
+        conn.execute(text("ALTER TABLE user_accounts ADD COLUMN last_error TEXT"))
+        logger.info("Added last_error column to user_accounts")
+
+
+async def migrate_user_account_last_error(engine: AsyncEngine) -> None:
+    """Ensure last_error column exists in user_accounts table using run_sync."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(_sync_migrate_user_account_last_error)
+    except Exception as e:
+        logger.warning("user_accounts last_error migration failed: %s", e)
+
+
 def _sync_migrate_channel_import_jobs(conn: Connection) -> None:
     """Sync function to create channel_import_jobs table and add missing columns."""
     inspector = inspect(conn)

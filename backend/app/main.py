@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
     async_engine = get_engine()
 
     # Run migration from legacy settings
-    from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list, migrate_seo_config_ai_description, create_channel_import_jobs_table
+    from .migration import migrate_existing_settings, ensure_default_bot_config, migrate_seo_config_geo_list, migrate_seo_config_ai_description, create_channel_import_jobs_table, migrate_user_account_last_error
     from .database import async_session
     async with async_session() as db:
         await migrate_existing_settings(db)
@@ -107,6 +107,7 @@ async def lifespan(app: FastAPI):
     await migrate_seo_config_geo_list(async_engine)
     await migrate_seo_config_ai_description(async_engine)
     await create_channel_import_jobs_table(async_engine)
+    await migrate_user_account_last_error(async_engine)
 
     # Validate startup configuration
     is_valid, missing_fields = await validate_startup_config(settings)

@@ -336,6 +336,7 @@ class UserAccount(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     flood_wait_until: Mapped[Optional[datetime]] = mapped_column(DateTime)
     last_used: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
     created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("admin_users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

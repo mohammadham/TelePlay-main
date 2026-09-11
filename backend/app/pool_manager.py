@@ -322,7 +322,7 @@ async def load_user_accounts():
 
         session_maker = get_sessionmaker()
         async with session_maker() as db:
-            from sqlalchemy import select
+            from sqlalchemy import select, update
             result = await db.execute(select(UserAccount).where(UserAccount.is_active == True))
             accounts = result.scalars().all()
 
@@ -349,7 +349,19 @@ async def load_user_accounts():
                     pool_manager.add_user(client, len(pool_manager.user_pool))
                     logger.info("User account %s (%s) added to pool", account.name, account.purpose)
                 except Exception as e:
-                    logger.error("Failed to load user account %s: %s", account.name, e)
+                    error_msg = str(e)
+                    logger.error("Failed to load user account %s: %s", account.name, error_msg)
+                    # Mark accounts with auth errors as inactive
+                    _auth_error_keywords = ["AUTH_KEY_DUPLICATED", "AUTH_KEY_UNREGISTERED", "SESSION_REVOKED", "USER_DEACTIVATED"]
+                    if any(kw in error_msg.upper() for kw in _auth_error_keywords):
+                        await db.execute(
+                            update(UserAccount).where(UserAccount.id == account.id).values(
+                                is_active=False,
+                                last_error=error_msg,
+                            )
+                        )
+                        logger.warning("Marked account '%s' as inactive due to auth error: %s", account.name, error_msg)
+            await db.commit()
     except Exception as e:
         logger.warning("Could not load user accounts from database: %s", e)
     finally:

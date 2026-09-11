@@ -182,7 +182,6 @@ async def start_import(
         date_to=payload.date_to,
         target_folder_id=payload.target_folder_id,
         user_account_id=payload.user_account_id,
-        storage_channel_id=storage_channel_id,
         min_file_size=payload.min_file_size,
         max_file_size=payload.max_file_size,
         filename_regex=payload.filename_regex,

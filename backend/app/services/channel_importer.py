@@ -219,7 +219,7 @@ async def run_import_job(job_id: int) -> None:
             return
         
         # Get storage channel ID
-        storage_channel_id = job.storage_channel_id or settings.telegram_storage_channel_id
+        storage_channel_id = settings.telegram_storage_channel_id
         if not storage_channel_id:
             await update_job_progress(db, job_id, status="failed", error_message="Storage channel not configured", finished_at=datetime.utcnow())
             return

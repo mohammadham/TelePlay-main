@@ -260,8 +260,10 @@ async def relogin_account_verify(
     )
 
     if not result.success or not result.session_string:
+        # Return has_2fa flag even on failure so frontend can show 2FA input
         return AccountReloginVerifyResponse(
             success=False,
+            has_2fa=result.has_2fa,
             error=result.error,
             message=result.message,
         )

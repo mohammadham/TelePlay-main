@@ -71,10 +71,12 @@ export default function AccountManager() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({ name: '', phone: '', api_id: '', api_hash: '', purpose: 'STORAGE', is_active: true, two_fa_password: '' })
 
-  // Re-login state
+  // Re-login state — same flow as new account login
   const [reloginAccountId, setReloginAccountId] = useState<number | null>(null)
-  const [reloginStep, setReloginStep] = useState<'idle' | 'code' | 'verify'>('idle')
+  const [reloginStep, setReloginStep] = useState<'idle' | 'code' | 'verify' | '2fa'>('idle')
   const [reloginCodeData, setReloginCodeData] = useState({ phone_code_hash: '', code: '', password: '' })
+  const [reloginAccountName, setReloginAccountName] = useState<string>('')
+  const [reloginNeeds2fa, setReloginNeeds2fa] = useState(false)
 
   const reloginStartMut = useMutation({
     mutationFn: async (id: number) => (await api.post(`/admin/accounts/${id}/relogin/start`)).data,
@@ -82,13 +84,24 @@ export default function AccountManager() {
       setReloginCodeData(prev => ({ ...prev, phone_code_hash: res.phone_code_hash }))
       setReloginStep('code')
       setReloginAccountId(accountId)
+      setReloginNeeds2fa(false)
     }
   })
 
   const reloginVerifyMut = useMutation({
     mutationFn: async ({ accountId, data }: { accountId: number; data: any }) => (await api.post(`/admin/accounts/${accountId}/relogin/verify`, data)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-accounts'] })
+    onSuccess: (res, { accountId }) => {
+      if (res.has_2fa && !res.is_session_updated) {
+        // Backend needs 2FA password — show the 2FA input
+        setReloginStep('2fa')
+        setReloginNeeds2fa(true)
+      } else if (res.is_session_updated) {
+        qc.invalidateQueries({ queryKey: ['admin-accounts'] })
+        setReloginStep('idle')
+        setReloginAccountId(null)
+      }
+    },
+    onError: () => {
       setReloginStep('idle')
       setReloginAccountId(null)
     }
@@ -150,19 +163,32 @@ export default function AccountManager() {
         </div>
       )}
 
-      {/* Re-login Flow - Step 1: Code Sent */}
+      {/* Re-login Flow - Step 1: Send Code */}
       {reloginStep === 'code' && (
         <div className="glass-card p-4 space-y-3 border-yellow-500/30">
-          <h3 className="font-bold text-yellow-400">Re-login: Enter Verification Code</h3>
-          <p className="text-sm text-dark-400">A code has been sent to the account's phone number.</p>
-          <label className="flex flex-col gap-1"><span className="text-sm">Code *</span><input value={reloginCodeData.code} onChange={e => setReloginCodeData({...reloginCodeData, code: e.target.value})} placeholder="12345" maxLength={6} className="input text-center tracking-widest" /></label>
-          <label className="flex flex-col gap-1"><span className="text-sm">2FA Password (if enabled)</span><input type="password" value={reloginCodeData.password} onChange={e => setReloginCodeData({...reloginCodeData, password: e.target.value})} placeholder="Optional" className="input" /></label>
+          <h3 className="font-bold text-yellow-400">Re-login: {reloginAccountName}</h3>
+          <p className="text-sm text-dark-400">کد ارسال شده به شماره این حساب را وارد کنید.</p>
+          <label className="flex flex-col gap-1"><span className="text-sm">کد احراز *</span><input value={reloginCodeData.code} onChange={e => setReloginCodeData({...reloginCodeData, code: e.target.value})} placeholder="12345" maxLength={6} className="input text-center tracking-widest" /></label>
           <div className="flex gap-2">
-            <button onClick={() => reloginVerifyMut.mutate({ accountId: reloginAccountId!, data: { phone_code_hash: reloginCodeData.phone_code_hash, code: reloginCodeData.code, password: reloginCodeData.password || undefined } })} disabled={reloginVerifyMut.isPending || !reloginCodeData.code} className="btn-primary">{reloginVerifyMut.isPending ? 'Verifying...' : 'Verify & Refresh Session'}</button>
-            <button onClick={() => { setReloginStep('idle'); setReloginAccountId(null); }} className="btn-secondary">Cancel</button>
+            <button onClick={() => reloginVerifyMut.mutate({ accountId: reloginAccountId!, data: { phone_code_hash: reloginCodeData.phone_code_hash, code: reloginCodeData.code, password: undefined } })} disabled={reloginVerifyMut.isPending || !reloginCodeData.code} className="btn-primary">{reloginVerifyMut.isPending ? 'در حال بررسی...' : 'بررسی کد'}</button>
+            <button onClick={() => { setReloginStep('idle'); setReloginAccountId(null); }} className="btn-secondary">انصراف</button>
           </div>
-          {reloginVerifyMut.isError && <div className="text-red-400 text-sm">Error: {reloginVerifyMut.error?.response?.data?.detail || reloginVerifyMut.error?.message}</div>}
-          {reloginStartMut.isError && <div className="text-red-400 text-sm">Error sending code: {reloginStartMut.error?.response?.data?.detail || reloginStartMut.error?.message}</div>}
+          {reloginVerifyMut.isError && <div className="text-red-400 text-sm">خطا: {reloginVerifyMut.error?.response?.data?.detail || reloginVerifyMut.error?.message}</div>}
+          {reloginStartMut.isError && <div className="text-red-400 text-sm">خطا در ارسال کد: {reloginStartMut.error?.response?.data?.detail || reloginStartMut.error?.message}</div>}
+        </div>
+      )}
+
+      {/* Re-login Flow - Step 2a: 2FA Password Needed */}
+      {reloginStep === '2fa' && (
+        <div className="glass-card p-4 space-y-3 border-orange-500/30">
+          <h3 className="font-bold text-orange-400">احراز هویت دو مرحله‌ای لازم است</h3>
+          <p className="text-sm text-dark-400">این حساب دارای رمز دوم است. لطفاً رمز 2FA را وارد کنید.</p>
+          <label className="flex flex-col gap-1"><span className="text-sm">رمز 2FA *</span><input type="password" value={reloginCodeData.password} onChange={e => setReloginCodeData({...reloginCodeData, password: e.target.value})} placeholder="رمز دو مرحله‌ای" className="input" /></label>
+          <div className="flex gap-2">
+            <button onClick={() => reloginVerifyMut.mutate({ accountId: reloginAccountId!, data: { phone_code_hash: reloginCodeData.phone_code_hash, code: reloginCodeData.code, password: reloginCodeData.password || undefined } })} disabled={reloginVerifyMut.isPending || !reloginCodeData.password} className="btn-primary">{reloginVerifyMut.isPending ? 'در حال بررسی...' : 'تأیید و تازه‌سازی'}</button>
+            <button onClick={() => { setReloginStep('idle'); setReloginAccountId(null); }} className="btn-secondary">انصراف</button>
+          </div>
+          {reloginVerifyMut.isError && <div className="text-red-400 text-sm">خطا: {reloginVerifyMut.error?.response?.data?.detail || reloginVerifyMut.error?.message}</div>}
         </div>
       )}
 
@@ -222,7 +248,7 @@ export default function AccountManager() {
                   )}
                   <button onClick={() => { setEditForm({ name: acc.name, phone: acc.phone, api_id: '', api_hash: '', purpose: acc.purpose, is_active: acc.is_active, two_fa_password: '' }); setEditingId(acc.id) }} className="btn-secondary btn-sm">Edit</button>
                   <button onClick={() => healthMut.mutate(acc.id)} disabled={healthMut.isPending} className="btn-primary btn-sm">{healthMut.isPending ? 'Checking...' : 'Health'}</button>
-                  <button onClick={() => reloginStartMut.mutate(acc.id)} disabled={reloginStartMut.isPending} className="btn-secondary btn-sm text-yellow-400 hover:bg-yellow-500/10">Re-login</button>
+                  <button onClick={() => { setReloginAccountName(acc.name); reloginStartMut.mutate(acc.id); }} disabled={reloginStartMut.isPending} className="btn-secondary btn-sm text-yellow-400 hover:bg-yellow-500/10">Re-login</button>
                   <button onClick={() => { const revoke = confirm('Revoke Telegram session? (Logs out everywhere)'); if (confirm(`Delete account "${acc.name}"?${revoke ? ' Session will be revoked.' : ''}`)) deleteMut.mutate({ id: acc.id, revoke }) }} className="btn-secondary btn-sm text-red-400 hover:bg-red-500/10">Delete</button>
                 </div>
               )}

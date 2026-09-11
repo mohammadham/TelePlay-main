@@ -87,6 +87,7 @@ export default function ChannelImportPanel() {
   const [dateTo, setDateTo] = useState('')
   const [userAccountId, setUserAccountId] = useState<number | null>(null)
   const [targetFolderId, setTargetFolderId] = useState<number | null>(null)
+  const [storageChannelId, setStorageChannelId] = useState<number | null>(null)
   // Advanced filters
   const [minFileSize, setMinFileSize] = useState('')
   const [maxFileSize, setMaxFileSize] = useState('')
@@ -109,6 +110,12 @@ export default function ChannelImportPanel() {
   const { data: folders } = useQuery({
     queryKey: ['admin-channel-import-folders'],
     queryFn: async () => (await api.get('/admin/channel-import/folders')).data,
+    refetchInterval: 10000, // Refresh folders every 10s to catch new folders
+  })
+
+  const { data: storageChannels } = useQuery({
+    queryKey: ['admin-channel-import-storage-channels'],
+    queryFn: async () => (await api.get('/admin/channel-import/storage-channels')).data,
   })
 
   // Active job polling
@@ -167,7 +174,8 @@ export default function ChannelImportPanel() {
     date_from: dateFrom || null,
     date_to: dateTo || null,
     user_account_id: userAccountId,
-    // target_folder_id is not used in preview
+    target_folder_id: targetFolderId,
+    storage_channel_id: storageChannelId,
     min_file_size: minFileSize ? parseInt(minFileSize) : null,
     max_file_size: maxFileSize ? parseInt(maxFileSize) : null,
     filename_regex: filenameRegex && filenameRegex.trim() ? filenameRegex.trim() : null,
@@ -267,8 +275,8 @@ export default function ChannelImportPanel() {
           </label>
         </div>
 
-        {/* User Account & Folder */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* User Account, Storage Channel & Folder */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="flex flex-col gap-1">
             <span className="text-sm text-dark-400">MTProto Account <span className="text-red-400">*</span></span>
             <select
@@ -289,6 +297,24 @@ export default function ChannelImportPanel() {
               <p className="text-xs text-yellow-400 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> Selected account is in Flood Wait
               </p>
+            )}
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-dark-400">Storage Channel <span className="text-red-400">*</span></span>
+            <select
+              value={storageChannelId || ''}
+              onChange={(e) => setStorageChannelId(e.target.value ? parseInt(e.target.value) : null)}
+              className="input"
+            >
+              <option value="">Select channel (required)</option>
+              {storageChannels?.map((ch: any) => (
+                <option key={ch.id} value={ch.id}>
+                  {ch.title} ({ch.channel_id})
+                </option>
+              ))}
+            </select>
+            {storageChannels?.length === 0 && (
+              <p className="text-xs text-red-400">No storage channels configured in settings</p>
             )}
           </label>
           <label className="flex flex-col gap-1">

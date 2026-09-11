@@ -198,24 +198,36 @@ async def lifespan(app: FastAPI):
         from .pool_manager import load_user_accounts
         await load_user_accounts()
 
-    # Auto-resume stuck import jobs (status=running but no finished_at)
+# Auto-resume stuck import jobs (status=running but no finished_at)
     # This handles server restarts where jobs were interrupted
-    # Run with delay to let pool fully initialize and avoid AUTH_KEY_DUPLICATED
-    # Disabled by default - can be enabled via AUTO_RESUME_IMPORTS=true env var
+    # Disabled by default - can be enabled via settings panel (CHANNEL_IMPORT_AUTO_RESUME setting)
     if is_valid and decryption_ok:
-        import os
-        auto_resume = os.getenv("AUTO_RESUME_IMPORTS", "false").lower() == "true"
+        import asyncio
+        from .database import async_session
+        from .models import ChannelImportJob, AppSetting
+        from sqlalchemy import select
+        
+        # Check setting from DB (default false)
+        async def _check_auto_resume():
+            async with async_session() as db:
+                setting = await db.execute(
+                    select(AppSetting).where(AppSetting.key == "CHANNEL_IMPORT_AUTO_RESUME")
+                )
+                row = setting.scalar_one_or_none()
+                return row and row.value.lower() == "true"
+        
+        auto_resume = await _check_auto_resume()
+        
         if auto_resume:
             from .models import ChannelImportJob
             from .services import run_import_job
             from .database import async_session
+            from .pool_manager import pool_manager
             from sqlalchemy import select
-            import asyncio
             
             async def _auto_resume_jobs():
                 # Wait for pool to fully initialize
                 await asyncio.sleep(15)
-                from .pool_manager import pool_manager
                 async with async_session() as db:
                     stuck_jobs = await db.execute(
                         select(ChannelImportJob).where(
@@ -259,8 +271,8 @@ async def lifespan(app: FastAPI):
                         # Trigger background task with small delay between accounts
                         asyncio.create_task(run_import_job(oldest_job.id))
                         await asyncio.sleep(2)
-        
-        asyncio.create_task(_auto_resume_jobs())
+            
+            asyncio.create_task(_auto_resume_jobs())
 
     # Check if DB data is readable; log clear warning if decryption fails
     if decryption_ok:

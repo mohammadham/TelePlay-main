@@ -55,6 +55,7 @@ class StartImportRequest(BaseModel):
     date_to: Optional[datetime] = None
     target_folder_id: Optional[int] = None
     user_account_id: Optional[int] = None
+    storage_channel_id: Optional[int] = None
     # Advanced filters
     min_file_size: Optional[int] = Field(default=None, ge=0, description="Minimum file size in bytes")
     max_file_size: Optional[int] = Field(default=None, ge=0, description="Maximum file size in bytes")
@@ -92,6 +93,7 @@ class PreviewRequest(BaseModel):
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
     user_account_id: Optional[int] = None
+    storage_channel_id: Optional[int] = None
     # Advanced filters
     min_file_size: Optional[int] = Field(default=None, ge=0, description="Minimum file size in bytes")
     max_file_size: Optional[int] = Field(default=None, ge=0, description="Maximum file size in bytes")
@@ -133,9 +135,10 @@ async def start_import(
     request: Request = None,
 ):
     """Start a new channel import job."""
-    # Verify storage channel is configured
-    if settings.telegram_storage_channel_id <= 0:
-        raise HTTPException(status_code=400, detail="Storage channel not configured")
+    # Verify storage channel
+    storage_channel_id = payload.storage_channel_id or settings.telegram_storage_channel_id
+    if storage_channel_id <= 0:
+        raise HTTPException(status_code=400, detail="Storage channel not configured. Please select a storage channel.")
     
     # Verify at least one user account exists
     account_count = (await db.execute(select(func.count()).select_from(UserAccount))).scalar() or 0
@@ -179,6 +182,7 @@ async def start_import(
         date_to=payload.date_to,
         target_folder_id=payload.target_folder_id,
         user_account_id=payload.user_account_id,
+        storage_channel_id=storage_channel_id,
         min_file_size=payload.min_file_size,
         max_file_size=payload.max_file_size,
         filename_regex=payload.filename_regex,
@@ -275,7 +279,8 @@ async def preview_import_endpoint(
     admin: AdminUser = Depends(require_admin),
 ):
     """Preview import - estimate counts without importing."""
-    if settings.telegram_storage_channel_id <= 0:
+    storage_channel_id = payload.storage_channel_id or settings.telegram_storage_channel_id
+    if storage_channel_id <= 0:
         raise HTTPException(status_code=400, detail="Storage channel not configured")
     
     result = await preview_import(
@@ -287,6 +292,7 @@ async def preview_import_endpoint(
         max_file_size=payload.max_file_size,
         filename_regex=payload.filename_regex,
         caption_regex=payload.caption_regex,
+        storage_channel_id=storage_channel_id,
     )
     
     if "error" in result:
@@ -330,6 +336,36 @@ async def get_available_folders(
         {"id": f.id, "name": f.name, "parent_id": f.parent_id}
         for f in folders
     ]
+
+
+@router.get("/storage-channels", response_model=List[dict])
+async def get_storage_channels(
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Get available storage channels from database."""
+    from ..models import AppSetting
+    from sqlalchemy import select
+    
+    # Get all storage channel IDs from AppSetting
+    result = await db.execute(
+        select(AppSetting).where(AppSetting.key == "TELEGRAM_STORAGE_CHANNEL_ID")
+    )
+    settings = result.scalars().all()
+    
+    channels = []
+    for setting in settings:
+        try:
+            channel_id = int(setting.value)
+            channels.append({
+                "id": channel_id,
+                "title": f"Channel {channel_id}",
+                "channel_id": channel_id,
+            })
+        except (ValueError, TypeError):
+            continue
+    
+    return channels
 
 
 @router.websocket("/jobs/{job_id}/ws")

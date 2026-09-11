@@ -19,6 +19,11 @@ const SECTIONS = [
     label: '🎛️ Feature Flags',
     keys: ['CACHE_ENABLED', 'VIDEO_CACHE_ENABLED', 'ADS_ENABLED'],
   },
+  {
+    id: 'channel_import',
+    label: '📥 Channel Import',
+    keys: ['CHANNEL_IMPORT_AUTO_RESUME'],
+  },
 ]
 
 export default function SettingsPanel() {

@@ -31,6 +31,7 @@ interface UserAccount {
   name: string
   username: string | null
   purpose: string
+  is_active?: boolean
   flood_wait_until: string | null
   last_used: string | null
 }
@@ -83,8 +84,17 @@ export default function ChannelImportPanel() {
   
   // Form state
   const [fileTypes, setFileTypes] = useState({ video: true, audio: true, document: true, image: true })
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  // Default: date_from = yesterday, date_to = today (YYYY-MM-DD, local)
+  const _toYmd = (d: Date) => {
+    const yr = d.getFullYear()
+    const mo = String(d.getMonth() + 1).padStart(2, '0')
+    const dy = String(d.getDate()).padStart(2, '0')
+    return `${yr}-${mo}-${dy}`
+  }
+  const _today = new Date()
+  const _yesterday = new Date(_today.getTime() - 24 * 60 * 60 * 1000)
+  const [dateFrom, setDateFrom] = useState(_toYmd(_yesterday))
+  const [dateTo, setDateTo] = useState(_toYmd(_today))
   const [userAccountId, setUserAccountId] = useState<number | null>(null)
   const [targetFolderId, setTargetFolderId] = useState<number | null>(null)
   const [storageChannelId, setStorageChannelId] = useState<number | null>(null)
@@ -105,17 +115,29 @@ export default function ChannelImportPanel() {
   const { data: accounts } = useQuery({
     queryKey: ['admin-channel-import-accounts'],
     queryFn: async () => (await api.get('/admin/channel-import/accounts')).data,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 15000,
+    staleTime: 0,
   })
 
-  const { data: folders } = useQuery({
+  const { data: folders, error: foldersError } = useQuery({
     queryKey: ['admin-channel-import-folders'],
     queryFn: async () => (await api.get('/admin/channel-import/folders')).data,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     refetchInterval: 10000, // Refresh folders every 10s to catch new folders
+    staleTime: 0,
+    retry: false,
   })
 
   const { data: storageChannels } = useQuery({
     queryKey: ['admin-channel-import-storage-channels'],
     queryFn: async () => (await api.get('/admin/channel-import/storage-channels')).data,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 15000,
+    staleTime: 0,
   })
 
   // Active job polling
@@ -168,7 +190,25 @@ export default function ChannelImportPanel() {
       setActiveJobId(runningJob.id)
     }
   }, [jobsData, activeJobId])
+  // Auto-select storage channel if only one exists
+  useEffect(() => {
+    if (!storageChannelId && storageChannels && storageChannels.length === 1) {
+      setStorageChannelId(storageChannels[0].id)
+    }
+  }, [storageChannels, storageChannelId])
 
+  // Auto-select MTProto account if only one active/eligible exists
+  useEffect(() => {
+    if (userAccountId || !accounts?.length) return
+    const eligible = accounts.filter((a: UserAccount) => {
+      const isActive = (a as any).is_active !== false
+      const inFlood = a.flood_wait_until && new Date(a.flood_wait_until) > new Date()
+      return isActive && !inFlood
+    })
+    if (eligible.length === 1) {
+      setUserAccountId(eligible[0].id)
+    }
+  }, [accounts, userAccountId])
   const getPayload = () => ({
     file_types: Object.entries(fileTypes).filter(([, v]) => v).map(([k]) => k),
     date_from: dateFrom || null,
@@ -187,6 +227,14 @@ export default function ChannelImportPanel() {
       addToast('Select at least one file type', 'error')
       return
     }
+    if (!storageChannelId) {
+      addToast('Please select a storage channel', 'error')
+      return
+    }
+    if (!userAccountId) {
+      addToast('Please select an MTProto account', 'error')
+      return
+    }
     setPreviewLoading(true)
     previewMut.mutate(getPayload(), {
       onSettled: () => setPreviewLoading(false),
@@ -198,8 +246,16 @@ export default function ChannelImportPanel() {
       addToast('Select at least one file type', 'error')
       return
     }
+    if (!storageChannelId) {
+      addToast('Please select a storage channel', 'error')
+      return
+    }
     if (!accounts?.length) {
       addToast('No MTProto accounts available. Add one in Accounts panel first.', 'error')
+      return
+    }
+    if (!userAccountId) {
+      addToast('Please select an MTProto account', 'error')
       return
     }
     startMut.mutate(getPayload())
@@ -286,12 +342,17 @@ export default function ChannelImportPanel() {
               disabled={isAccountInFloodWait}
             >
               <option value="">Select account (required)</option>
-              {accounts?.map((acc: UserAccount) => (
-                <option key={acc.id} value={acc.id} disabled={!!(acc.flood_wait_until && new Date(acc.flood_wait_until) > new Date())}>
-                  {acc.name} (@{acc.username || 'no-username'}) — {acc.purpose}
-                  {acc.flood_wait_until && new Date(acc.flood_wait_until) > new Date() && ' ⏳ Flood Wait'}
-                </option>
-              ))}
+              {accounts?.map((acc: UserAccount) => {
+                const inFlood = !!(acc.flood_wait_until && new Date(acc.flood_wait_until) > new Date())
+                const inactive = acc.is_active === false
+                return (
+                  <option key={acc.id} value={acc.id} disabled={inFlood || inactive}>
+                    {acc.name} (@{acc.username || 'no-username'}) — {acc.purpose}
+                    {inactive && ' ⏸ Inactive'}
+                    {inFlood && ' ⏳ Flood Wait'}
+                  </option>
+                )
+              })}
             </select>
             {isAccountInFloodWait && (
               <p className="text-xs text-yellow-400 flex items-center gap-1">
@@ -323,12 +384,22 @@ export default function ChannelImportPanel() {
               value={targetFolderId || ''}
               onChange={(e) => setTargetFolderId(e.target.value ? parseInt(e.target.value) : null)}
               className="input"
+              disabled={!!foldersError}
             >
               <option value="">Root (no folder)</option>
               {folders?.map((f: Folder) => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
+            {foldersError && (
+              <p className="text-xs text-yellow-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {(foldersError as any)?.response?.data?.detail || 'Unable to load folders'}
+              </p>
+            )}
+            {!foldersError && folders && folders.length === 0 && (
+              <p className="text-xs text-dark-400">No folders yet — create one in Files panel</p>
+            )}
           </label>
         </div>
 

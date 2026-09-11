@@ -22,6 +22,7 @@ TEMPLATE = {
     "CACHE_ENABLED": ("true", "true/false"),
     "VIDEO_CACHE_ENABLED": ("true", "true/false"),
     "ADS_ENABLED": ("true", "true/false"),
+    "CHANNEL_IMPORT_AUTO_RESUME": ("false", "Auto-resume interrupted channel-import jobs on server restart (true/false)"),
 }
 
 @router.get("")

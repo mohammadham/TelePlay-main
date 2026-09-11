@@ -306,14 +306,16 @@ async def get_available_accounts(
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(require_admin),
 ):
-    """Get available MTProto user accounts for import."""
-    accounts = (await db.execute(select(UserAccount).where(UserAccount.is_active == True))).scalars().all()
+    """Get available MTProto user accounts for import. Returns all accounts;
+    frontend disables inactive/flood-waited ones."""
+    accounts = (await db.execute(select(UserAccount).order_by(UserAccount.created_at.desc()))).scalars().all()
     return [
         {
             "id": acc.id,
             "name": acc.name,
             "username": acc.username,
             "purpose": acc.purpose,
+            "is_active": bool(acc.is_active),
             "flood_wait_until": acc.flood_wait_until,
             "last_used": acc.last_used,
         }
@@ -326,11 +328,15 @@ async def get_available_folders(
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(require_admin),
 ):
-    """Get available folders (admin's folders) for import target."""
+    """Get available folders (admin's folders) for import target.
+    Returns 404-style empty with hint if admin has no User record yet."""
     user = (await db.execute(select(User).where(User.telegram_id == admin.telegram_id))).scalar_one_or_none()
     if not user:
-        return []
-    
+        raise HTTPException(
+            status_code=404,
+            detail="No user profile found for this admin. Please log into the web app or bot first so a user profile is created, then create folders in the Files panel.",
+        )
+
     folders = (await db.execute(select(Folder).where(Folder.user_id == user.id).order_by(Folder.name))).scalars().all()
     return [
         {"id": f.id, "name": f.name, "parent_id": f.parent_id}
@@ -343,28 +349,45 @@ async def get_storage_channels(
     db: AsyncSession = Depends(get_db),
     admin: AdminUser = Depends(require_admin),
 ):
-    """Get available storage channels from database."""
+    """Get available storage channels from database + env fallback.
+    Uses AppSetting.TELEGRAM_STORAGE_CHANNEL_ID (single row, unique key) and
+    falls back to loaded `settings.telegram_storage_channel_id` if AppSetting is empty."""
     from ..models import AppSetting
-    from sqlalchemy import select
-    
-    # Get all storage channel IDs from AppSetting
+    from sqlalchemy import select as _select
+
+    channels: List[dict] = []
+    seen_ids: set[int] = set()
+
+    # 1) Try AppSetting row
     result = await db.execute(
-        select(AppSetting).where(AppSetting.key == "TELEGRAM_STORAGE_CHANNEL_ID")
+        _select(AppSetting).where(AppSetting.key == "TELEGRAM_STORAGE_CHANNEL_ID")
     )
-    settings = result.scalars().all()
-    
-    channels = []
-    for setting in settings:
+    for setting in result.scalars().all():
         try:
             channel_id = int(setting.value)
-            channels.append({
-                "id": channel_id,
-                "title": f"Channel {channel_id}",
-                "channel_id": channel_id,
-            })
+            if channel_id and channel_id not in seen_ids:
+                seen_ids.add(channel_id)
+                channels.append({
+                    "id": channel_id,
+                    "title": f"Channel {channel_id}",
+                    "channel_id": channel_id,
+                })
         except (ValueError, TypeError):
             continue
-    
+
+    # 2) Fallback: use env-loaded settings value if not already included
+    try:
+        env_channel_id = int(settings.telegram_storage_channel_id or 0)
+    except (ValueError, TypeError):
+        env_channel_id = 0
+    if env_channel_id and env_channel_id not in seen_ids:
+        seen_ids.add(env_channel_id)
+        channels.append({
+            "id": env_channel_id,
+            "title": f"Channel {env_channel_id}",
+            "channel_id": env_channel_id,
+        })
+
     return channels
 
 

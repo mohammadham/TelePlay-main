@@ -611,8 +611,8 @@ export default function ChannelImportPanel() {
               )}
             </div>
 
-            {/* Cancel Button - only for running jobs */}
-            {displayJob.status === 'running' && (
+            {/* Cancel Button - for pending or running jobs */}
+            {(displayJob.status === 'running' || displayJob.status === 'pending') && (
               <button
                 onClick={() => cancelMut.mutate(displayJob.id)}
                 disabled={cancelMut.isPending}

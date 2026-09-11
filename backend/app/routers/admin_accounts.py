@@ -111,6 +111,12 @@ class AccountReloginStartResponse(BaseModel):
     message: Optional[str] = None
 
 
+class AccountReloginVerifyRequest(BaseModel):
+    phone_code_hash: str
+    code: str
+    password: Optional[str] = None
+
+
 class AccountReloginVerifyResponse(BaseModel):
     success: bool
     user_id: Optional[int] = None
@@ -226,7 +232,7 @@ async def relogin_account_start(
 @router.post("/{account_id}/relogin/verify", response_model=AccountReloginVerifyResponse)
 async def relogin_account_verify(
     account_id: int,
-    payload: AccountLoginVerifyRequest,
+    payload: AccountReloginVerifyRequest,
     db: AsyncSession = Depends(get_db),
     current_user: AdminUser = Depends(require_admin),
 ):

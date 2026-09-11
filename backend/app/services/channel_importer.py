@@ -175,8 +175,6 @@ async def update_job_progress(
     # Broadcast progress via WebSocket
     try:
         from ..routers.admin_channel_import import manager
-        # Fetch updated job for broadcast
-        from ..models import ChannelImportJob
         from ..database import async_session
         async with async_session() as ws_db:
             job = await ws_db.execute(select(ChannelImportJob).where(ChannelImportJob.id == job_id))

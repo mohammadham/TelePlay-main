@@ -511,8 +511,6 @@ async def preview_import(
 
     if not client:
         # Try to get the account details for a better error message
-        from ..database import get_sessionmaker
-        from ..models import UserAccount
         try:
             session_maker = get_sessionmaker()
             async with session_maker() as db:

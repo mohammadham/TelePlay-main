@@ -199,6 +199,17 @@ export default function ChannelImportPanel() {
     }
   }, [storageChannels, storageChannelId])
 
+  // Track job start time for ETA (must be outside conditional render)
+  useEffect(() => {
+    const displayJob = activeJob || (activeJobId ? jobsData?.jobs?.find((j: ImportJob) => j.id === activeJobId) : null)
+    if (!displayJob) return
+    if (displayJob.status === 'running' && !jobStartTime) {
+      setJobStartTime(new Date())
+    } else if (displayJob.status !== 'running') {
+      setJobStartTime(null)
+    }
+  }, [activeJob, activeJobId, jobsData, jobStartTime])
+
   // Auto-select MTProto account if only one active/eligible exists
   useEffect(() => {
     if (userAccountId || !accounts?.length) return
@@ -522,15 +533,6 @@ export default function ChannelImportPanel() {
         
         if (!displayJob) return null;
         
-        // Track start time for ETA calculation (only for running jobs)
-        useEffect(() => {
-          if (displayJob.status === 'running' && !jobStartTime) {
-            setJobStartTime(new Date());
-          } else if (displayJob.status !== 'running') {
-            setJobStartTime(null);
-          }
-        }, [displayJob.status, displayJob.id]);
-
         // Calculate ETA for running jobs
         const getETA = () => {
           if (displayJob.status !== 'running' || !jobStartTime || displayJob.total_scanned === 0) return null;

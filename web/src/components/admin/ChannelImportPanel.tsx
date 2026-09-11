@@ -167,11 +167,11 @@ export default function ChannelImportPanel() {
     date_from: dateFrom || null,
     date_to: dateTo || null,
     user_account_id: userAccountId,
-    target_folder_id: targetFolderId,
+    // target_folder_id is not used in preview
     min_file_size: minFileSize ? parseInt(minFileSize) : null,
     max_file_size: maxFileSize ? parseInt(maxFileSize) : null,
-    filename_regex: filenameRegex || null,
-    caption_regex: captionRegex || null,
+    filename_regex: filenameRegex && filenameRegex.trim() ? filenameRegex.trim() : null,
+    caption_regex: captionRegex && captionRegex.trim() ? captionRegex.trim() : null,
   })
 
   const handlePreview = () => {

@@ -185,7 +185,7 @@ async def ensure_default_bot_config(db: AsyncSession) -> None:
                 logger.error("Failed to create default MAIN bot: %s", e)
 
 
-async def _sync_migrate_seo_config_geo_list(conn: Connection) -> None:
+def _sync_migrate_seo_config_geo_list(conn: Connection) -> None:
     """Sync function to add geo_list column to seo_config."""
     inspector = inspect(conn)
     if not inspector.has_table("seo_config"):
@@ -196,7 +196,7 @@ async def _sync_migrate_seo_config_geo_list(conn: Connection) -> None:
         logger.info("Added geo_list column to seo_config")
 
 
-async def _sync_migrate_seo_config_ai_description(conn: Connection) -> None:
+def _sync_migrate_seo_config_ai_description(conn: Connection) -> None:
     """Sync function to add ai_agent_description column to seo_config."""
     inspector = inspect(conn)
     if not inspector.has_table("seo_config"):
